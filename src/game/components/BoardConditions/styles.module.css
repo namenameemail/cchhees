@@ -1,0 +1,184 @@
+.array {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-start;
+
+    min-width: 256px;
+    border-top: 1px solid black;
+    margin: 0;
+}
+
+.array .item {
+    border: 1px solid black;
+    position: relative;
+}
+
+.array .item > button {
+    visibility: hidden;
+}
+
+.array .item:hover > div:nth-child(2) {
+    visibility: visible;
+}
+
+.array .item > div:nth-child(2) {
+    visibility: hidden;
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    flex-direction: row-reverse;
+}
+.array .item > div:nth-child(2):hover {
+    z-index: 1;
+}
+.array .item > div:nth-child(2) > button {
+    margin-left: -3px;
+}
+
+/*.array .item > div:nth-child(2) > button:nth-child(1) {*/
+/*    position: absolute;*/
+/*    top: 0;*/
+/*    right: 0;*/
+/*}*/
+
+/*.array .item > div:nth-child(2) > button:nth-child(2) {*/
+/*    position: absolute;*/
+/*    top: 0;*/
+/*    right: 20px;*/
+/*}*/
+
+/*.array .item > div:nth-child(2) > button:nth-child(3) {*/
+/*    position: absolute;*/
+/*    top: 0;*/
+/*    right: 40px;*/
+/*}*/
+
+.array .item .itemForm {
+
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+
+.paramsByTypeForm {
+    display: flex;
+
+    /*border: 1px solid deeppink;*/
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 144px;
+    box-sizing: border-box;
+}
+
+.paramsByTypeForm > * {
+    width: 50%;
+    box-sizing: border-box;
+}
+
+.paramsByTypeItemForm {
+    border: none;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
+.paramsByTypeItemForm > * {
+    width: 50%;
+    box-sizing: border-box;
+}
+
+.cellConditionsForm {
+    width: 152px;
+    display: flex;
+    flex-direction: column;
+
+    align-items: flex-end;
+
+    position: relative;
+    z-index: 1;
+    background: lightgrey;
+}
+
+.cellConditionItemForm {
+    position: relative;
+    border-right: 1px solid gray;
+    border-bottom: 1px solid gray;
+    padding: 4px;
+}
+
+.cellConditionItemForm > div:nth-child(2) {
+    visibility: hidden;
+
+}
+
+.cellConditionItemForm:hover > div:nth-child(2) {
+    visibility: visible;
+
+}
+
+.cellConditionItemForm > div:nth-child(2) > button {
+    position: absolute;
+    right: 0;
+    top: 0;
+
+}
+
+
+.typeSelect {
+
+    width: 122px;
+}
+
+.cellParams {
+    display: flex;
+    margin-top: 20px;
+    align-items: flex-start;
+}
+
+.hiddenInput {
+    opacity: 0;
+    position: absolute;
+    pointer-events: none;
+
+}
+
+.cellParamsForm {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 152px;
+
+    border-right: 1px solid gray;
+    border-bottom: 1px solid gray;
+    padding: 4px;
+}
+
+.connectionParamsForm {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 152px;
+
+    border-right: 1px solid gray;
+    border-bottom: 1px solid gray;
+    padding: 4px;
+}
+.connectionParamsForm > * {
+    width: 50%;
+    box-sizing: border-box;
+}
+
+.preview {
+    background: white;
+    border-bottom: 1px solid lightgrey;
+    border-right: 1px solid lightgrey;
+    border-top: 1px solid grey;
+    border-left: 1px solid grey;
+}
+
+.preview.selected {
+    border: 1px dashed black;
+}

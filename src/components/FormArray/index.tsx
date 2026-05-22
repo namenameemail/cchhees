@@ -1,0 +1,98 @@
+import * as React from 'react'
+import { useCallback, useMemo } from 'react'
+
+import { FormItem } from './FormItem'
+import { Form1FieldConfig } from '../Form1/types'
+
+export interface FormArrayProps<ItemState> {
+
+    addText?: string
+    className?: string
+    itemClassName?: string
+    itemFormClassName?: string
+    name?: string
+    value: ItemState[]
+    itemConfig: Form1FieldConfig<ItemState>[] | ((item: ItemState) => Form1FieldConfig<ItemState>[])
+    onChange: (value: ItemState[], name?: string) => void
+    getItemInitialValue: () => ItemState
+    isUpDownEnabled?: boolean
+}
+
+export function FormArray<ItemState>(props: FormArrayProps<ItemState>) {
+
+    const {
+        value,
+        onChange,
+        getItemInitialValue,
+        name,
+        itemConfig,
+        className,
+        itemClassName,
+        itemFormClassName,
+        isUpDownEnabled,
+        addText = 'add'
+    } = props
+
+    const handleItemChange = useCallback((newItemValue: ItemState, index: number) => {
+        const newValue = [...value]
+        newValue[index] = newItemValue
+
+        onChange(newValue, name)
+    }, [name, value, onChange])
+
+    const handleItemRemove = useCallback((index: number) => {
+        const newValue = [...value]
+        newValue.splice(index, 1)
+        onChange(newValue, name)
+    }, [name, value, onChange])
+    const handleItemUp = useCallback((index: number) => {
+        if (index < value.length - 1) {
+            const newValue = [...value]
+            const temp = newValue[index];
+            newValue[index] = newValue[index + 1];
+            newValue[index + 1] = temp;
+            onChange(newValue, name)
+        }
+
+    }, [name, value, onChange])
+    const handleItemDown = useCallback((index: number) => {
+        if (index > 0) {
+            const newValue = [...value]
+            const temp = newValue[index];
+            newValue[index] = newValue[index - 1];
+            newValue[index - 1] = temp;
+            onChange(newValue, name)
+        }
+    }, [name, value, onChange])
+
+    const handleItemAdd = useCallback(() => {
+        const newValue = [...value, getItemInitialValue()]
+
+        onChange(newValue, name)
+    }, [name, value, onChange, getItemInitialValue])
+
+
+    return (
+        <div className={className}>
+            {value.map((item: ItemState, index) => {
+                return (
+                    <FormItem<ItemState>
+                        itemFormClassName={itemFormClassName}
+                        arrayName={name}
+                        className={itemClassName}
+                        key={index}
+                        index={index}
+                        value={item}
+                        config={itemConfig}
+                        onChange={handleItemChange}
+                        onRemove={handleItemRemove}
+                        onUp={handleItemUp}
+                        onDown={handleItemDown}
+                        isUpDownEnabled={isUpDownEnabled}
+                    />
+                )
+            })}
+            <button onClick={handleItemAdd}>{addText}</button>
+        </div>
+    )
+}

@@ -1,0 +1,51 @@
+.array {
+    display: flex;
+    flex-direction: column;
+
+    align-items: flex-start;
+}
+
+.array .item {
+    border: 1px solid black;
+    position: relative;
+
+}
+
+.paramsByTypeForm {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 142px;
+}
+
+.paramsByTypeForm > * {
+    width: 70px;
+    box-sizing: border-box;
+}
+
+.paramsByTypeItemForm {
+    border: 1px solid deeppink;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 142px;
+}
+
+.paramsByTypeItemForm > * {
+    width: 70px;
+    box-sizing: border-box;
+}
+
+.cellConditionsForm {
+}
+
+.cellConditionItemForm {
+    position: relative;
+    border: 2px solid chartreuse;
+}
+.cellConditionItemForm > button:nth-child(2) {
+    position: absolute;
+    right: 0;
+    top: 0;
+
+}

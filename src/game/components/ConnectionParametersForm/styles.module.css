@@ -1,0 +1,40 @@
+.connectionParametersFormLayout {
+
+    border: 1px solid black;
+}
+
+.connectionParametersFormLayout .topRow {
+    display: flex;
+    justify-content: space-between;
+    padding-left: 6px;
+}
+
+.connectionParametersFormLayout .secondRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.connectionParametersFormLayout svg {
+    background: white;
+    border-bottom: 1px solid lightgrey;
+    border-right: 1px solid lightgrey;
+    border-top: 1px solid grey;
+    border-left: 1px solid grey;
+}
+
+.connectionParametersForm {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 152px;
+
+    border-right: 1px solid gray;
+    border-bottom: 1px solid gray;
+    padding: 4px;
+}
+
+.connectionParametersForm > * {
+    width: 50%;
+    box-sizing: border-box;
+}

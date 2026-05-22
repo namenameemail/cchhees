@@ -1,0 +1,148 @@
+.gameLayout {
+    display: flex;
+    /*width: 100vw;*/
+    /*height: 100vh;*/
+    /*flex-direction: row-reverse;*/
+    flex-direction: row;
+    overflow: scroll;
+}
+
+div {
+    /*border: 1px solid grey;*/
+    box-sizing: border-box;
+}
+
+.board {
+    flex: 0 0 auto;
+    /*border: 1px solid black;*/
+    box-sizing: border-box;
+    padding: 100px;
+    display: flex;
+    /*align-items: center;*/
+    justify-content: center;
+    min-width: 100vw;
+    height: 100vh;
+    overflow-y: scroll;
+    background: lightgrey;
+}
+
+.board > svg {
+
+    background: white;
+}
+
+.left {
+    flex: 0 0 auto;
+    background: lightgrey;
+    border-left: 1px solid;
+    /*width: 100%;*/
+    flex-direction: row;
+    display: flex;
+    align-items: flex-start;
+    /*pointer-events: none;*/
+    z-index: 1;
+    /*position: fixed;*/
+    height: 100vh;
+    overflow-y: scroll;
+    overflow-x: clip;
+
+}
+
+.left > * {
+    pointer-events: auto;
+
+}
+
+.left > div {
+    /*background: lightgrey;*/
+    /*border: 1px solid red;*/
+
+}
+
+.settingTabs {
+    /*width: 120px;*/
+
+    height: 100%;
+    border-right: 1px solid;
+    /*background: darkgray !important;*/
+
+    position: sticky;
+    top: 0;
+
+}
+
+.settingTabs > div {
+    /*width: 100vh;*/
+    display: flex;
+    writing-mode: vertical-lr;
+    transform: rotate(180deg);
+
+}
+.settingTabs > div > p {
+    display: flex;
+    padding: 14px 3px;
+    border-top: 1px solid;
+    margin: 0;
+    cursor: pointer;
+    font-family: sans-serif;
+    font-size: 14px;
+    background: lightgrey;
+}
+
+
+.bottom {
+    position: absolute;
+    bottom: 0;
+
+}
+
+
+.cell {
+    box-sizing: border-box;
+    border: 1px solid black;
+    font-size: 31px;
+}
+
+.cell.fromCell {
+    box-sizing: border-box;
+    border: 2px solid blueviolet;
+}
+
+.eaten {
+    border: 1px solid black;
+    height: 100px;
+    min-width: 300px;
+}
+
+
+label {
+    display: block;
+}
+
+.connection:hover {
+    box-shadow: 3px 3px 3px red;
+    stroke: red;
+}
+
+.cellHandler {
+    stroke: none;
+    /*fill:url(#MyGradient);*/
+}
+
+.cellHandler:hover {
+    stroke: grey
+}
+
+.left .brushes {
+    display: flex;
+}
+
+.left .arrays {
+    display: flex;
+    align-items: flex-start;
+}
+
+.left .arrays > div {
+    display: flex;
+    flex-direction: column;
+}

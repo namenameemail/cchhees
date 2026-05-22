@@ -1,0 +1,18 @@
+
+.form1 {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.form1field:hover, .form1field.divDragHandlerIsActive {
+    color: navajowhite;
+}
+
+.form1field {
+    white-space: nowrap;
+}
+
+.cursorPointer {
+    cursor: pointer;
+}

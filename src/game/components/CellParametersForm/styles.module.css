@@ -1,0 +1,48 @@
+.cellParametersFormLayout {
+
+    border: 1px solid black;
+}
+
+.cellParametersFormLayout .topRow {
+    display: flex;
+    justify-content: space-between;
+    padding-left: 6px;
+}
+
+.cellParametersFormLayout .secondRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.cellParametersForm {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 152px;
+
+    border-right: 1px solid gray;
+    border-bottom: 1px solid gray;
+    padding: 4px;
+}
+
+.cellParametersFormByShape {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+.cellParametersFormByShape > * {
+    width: 50%;
+    box-sizing: border-box;
+}
+.cellParametersFormLayout svg {
+    background: white;
+    border-bottom: 1px solid lightgrey;
+    border-right: 1px solid lightgrey;
+    border-top: 1px solid grey;
+    border-left: 1px solid grey;
+}
+
+.shape {
+    width: 100%;
+}

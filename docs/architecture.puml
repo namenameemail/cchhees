@@ -1,0 +1,239 @@
+@startuml cchhees-architecture
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+title cchhees — архитектура решения
+
+' ── Entry ──
+package "Entry" #E8F4FD {
+  [index.html] --> [main.tsx]
+  [main.tsx] --> [App.tsx]
+  [App.tsx] --> [Game]
+}
+
+' ── UI Layer ──
+package "UI Layer (React Components)" #E8FDE8 {
+  together {
+    component [Game\nlayout + tabs] as Game
+    component [Board\nSVG container] as Board
+    component [BoardCell\nclick handler] as BoardCell
+    component [Tray] as Tray
+    component [History\nundo/redo] as History
+    component [Figures\npalette] as Figures
+    component [BoardParametersForm] as BoardParamsForm
+    component [Conditions\nFormArray] as Conditions
+    component [ConnectionsConditions\nFormArray] as ConnConditions
+  }
+
+  package "Shared Forms" #FFF8E8 {
+    component [Form1] as Form1
+    component [FormArray] as FormArray
+  }
+
+  package "SVG Renderers" #F0E8FD {
+    component [CellSVGGroup] as CellSVG
+    component [ConnectionSVGGroup] as ConnSVG
+  }
+
+  Game --> Board
+  Game --> Tray
+  Game --> History
+  Game --> BoardParamsForm
+  Game --> Conditions
+  Game --> ConnConditions
+  Game --> Figures
+
+  Board --> BoardCell
+  Board --> ConnSVG
+  BoardCell --> CellSVG
+
+  BoardParamsForm --> Form1
+  Conditions --> FormArray
+  ConnConditions --> FormArray
+  FormArray --> Form1
+}
+
+' ── State Layer ──
+package "State Layer (React Context)" #FDE8E8 {
+  component [GameProvider\nuseState + useCallback] as Provider
+  component [GameContext] as Context
+  database "GameState" as State {
+    boardParameters
+    cells[]
+    tray[]
+    boardConditions[]
+    connectionsConditions[]
+  }
+  database "UI State" as UIState {
+    mode
+    activeCell
+    activeFigure
+    brush states
+  }
+  component [history.ts\nundo/redo stack] as HistoryStack
+
+  Provider --> Context
+  Provider --> State
+  Provider --> UIState
+  Provider --> HistoryStack
+}
+
+' ── Domain Logic ──
+package "Domain Logic" #E8E8FD {
+  component [utils.ts\nindexToIJ, getCells] as Utils
+  component [conditions.ts\ncell predicates] as CellPred
+  component [connections.ts\ngraph + edge predicates] as ConnPred
+  component [constants.ts\nFigureSigns] as Constants
+}
+
+' ── Types ──
+package "Types (TypeScript)" #F5F5F5 {
+  class GameState
+  class Cell
+  class BoardParameters
+  class FigureTypes
+  enum Mode
+  class BoardConditionItem
+  class BoardConnectionsConditionItem
+}
+
+' ── Relations ──
+Game --> Provider : wraps
+BoardCell ..> Context : useGameContext()
+Board ..> Context
+Tray ..> Context
+History ..> Context
+Figures ..> Context
+BoardParamsForm ..> Context
+Conditions ..> Context
+ConnConditions ..> Context
+
+Provider --> Utils : resize cells
+BoardCell --> CellPred : evaluate styles
+Board --> ConnPred : draw edges
+BoardCell --> Constants : render glyph
+
+' ── Data Flow ──
+note right of BoardCell
+  **Mode.Game**
+  click 1 → activeCell
+  click 2 → moveActiveCellFigureTo
+  → historyPush → re-render
+
+  **Mode.FiguresArrange**
+  click → setCellFigure
+
+  **Mode.PaintTheBoard**
+  click → setCellParameters
+  (UI brush not in sidebar)
+end note
+
+note bottom of HistoryStack
+  before[] / after[]
+  max 100 snapshots
+  full GameState copy
+end note
+
+note bottom of ConnPred
+  getConnections(n,m)
+  8 neighbors per cell
+  **visual only**
+  does not restrict moves
+end note
+
+@enduml
+
+@startuml cchhees-component-tree
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+
+title cchhees — дерево компонентов
+
+object "main.tsx" as main
+object "App.tsx" as app
+object "Game" as game
+object "GameProvider" as provider
+
+package "Board Area" {
+  object "Board (SVG)" as board
+  object "ConnectionSVGGroup" as connSvg
+  object "BoardCell" as cell
+  object "CellSVGGroup" as cellSvg
+  object "Tray" as tray
+  object "History" as hist
+}
+
+package "Sidebar (tab 0: board)" {
+  object "BoardParametersForm" as bpf
+  object "Conditions" as cond
+  object "ConnectionsConditions" as ccond
+}
+
+package "Sidebar (tab 1: figures)" {
+  object "Figures" as figs
+  object "FigureButton" as fbtn
+}
+
+main --> app
+app --> game
+game --> provider
+provider --> board
+provider --> tray
+provider --> hist
+provider --> bpf
+provider --> cond
+provider --> ccond
+provider --> figs
+
+board --> connSvg
+board --> cell
+cell --> cellSvg
+figs --> fbtn
+
+note bottom of provider
+  CellParametersForm
+  ConnectionParametersForm
+  **imported but NOT rendered**
+end note
+
+@enduml
+
+@startuml cchhees-state-machine
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam shadowing false
+
+title cchhees — режимы (Mode) и действия
+
+[*] --> Game : default
+
+state Game {
+  Game : click empty cell → select
+  Game : click other cell → move/capture
+}
+
+state FiguresArrange {
+  FiguresArrange : select figure in palette
+  FiguresArrange : click cell → place/replace
+}
+
+state PaintTheBoard {
+  PaintTheBoard : click cell → set parameters
+  PaintTheBoard : **no brush UI in sidebar**
+}
+
+state PaintTheBoardConnections <<unused>> {
+  PaintTheBoardConnections : enum only
+}
+
+state Probe <<unused>> {
+  Probe : enum only
+}
+
+Game --> FiguresArrange : FigureButton click
+FiguresArrange --> Game : implicit via setMode
+
+@enduml
