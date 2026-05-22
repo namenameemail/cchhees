@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { getCells, defaultGameContextValue, initialGameState } from '../utils'
-import { historyInit, historyPush, historyRedo, historyUndo } from './history'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { getCells, defaultGameContextValue } from '../utils'
+import { historyPush, historyRedo, historyUndo } from './history'
 import { GameContextValue } from './types'
 import { FigureTypes } from '../types/figures'
 import { CellParameters } from '../types/cells'
@@ -15,10 +15,22 @@ import { cellParametersBrushStateInitialValue, connectionParamsBrushStateInitial
 
 export const GameContext = React.createContext<GameContextValue>(defaultGameContextValue)
 
-export function GameProvider({ children }) {
+export interface GameProviderProps {
+    children: React.ReactNode
+    initialState: GameState
+    initialHistory: GameStateHistory
+    onPersist?: (data: { state: GameState; stateHistory: GameStateHistory }) => void
+}
 
-    const [state, setState] = useState<GameState>(initialGameState)
-    const [stateHistory, setStateHistory] = useState<GameStateHistory>(historyInit())
+export function GameProvider({
+    children,
+    initialState,
+    initialHistory,
+    onPersist,
+}: GameProviderProps) {
+
+    const [state, setState] = useState<GameState>(initialState)
+    const [stateHistory, setStateHistory] = useState<GameStateHistory>(initialHistory)
 
     const [mode, setMode] = useState<Mode>(Mode.Game)
 
@@ -72,6 +84,15 @@ export function GameProvider({ children }) {
             cells: getCells(state.boardParameters.n, state.boardParameters.m, state.cells),
         }))
     }, [state.boardParameters.n, state.boardParameters.m])
+
+    const skipInitialPersistRef = useRef(true)
+    useEffect(() => {
+        if (skipInitialPersistRef.current) {
+            skipInitialPersistRef.current = false
+            return
+        }
+        onPersist?.({ state, stateHistory })
+    }, [state, stateHistory, onPersist])
 
     const setCells = useCallback((value) => setStateField('cells', value), [setStateField])
     const setTray = useCallback((value) => setStateField('tray', value), [setStateField])

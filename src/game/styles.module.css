@@ -1,10 +1,8 @@
 .gameLayout {
-    display: flex;
-    /*width: 100vw;*/
-    /*height: 100vh;*/
-    /*flex-direction: row-reverse;*/
-    flex-direction: row;
-    overflow: scroll;
+    position: relative;
+    overflow: hidden;
+    height: calc(100vh - 32px);
+    width: 100%;
 }
 
 div {
@@ -13,80 +11,110 @@ div {
 }
 
 .board {
-    flex: 0 0 auto;
-    /*border: 1px solid black;*/
+    width: 100%;
+    height: 100%;
     box-sizing: border-box;
     padding: 100px;
     display: flex;
-    /*align-items: center;*/
     justify-content: center;
-    min-width: 100vw;
-    height: 100vh;
-    overflow-y: scroll;
+    overflow: auto;
     background: lightgrey;
+    position: relative;
 }
 
 .board > svg {
-
     background: white;
 }
 
-.left {
-    flex: 0 0 auto;
+.settingsShell {
+    position: fixed;
+    top: 32px;
+    right: 0;
+    z-index: 50;
+    height: calc(100vh - 32px);
+}
+
+.settingsPanel {
+    position: absolute;
+    top: 0;
+    right: 100%;
+    width: min(520px, calc(90vw - 40px));
+    height: 100%;
     background: lightgrey;
-    border-left: 1px solid;
-    /*width: 100%;*/
-    flex-direction: row;
-    display: flex;
-    align-items: flex-start;
-    /*pointer-events: none;*/
-    z-index: 1;
-    /*position: fixed;*/
-    height: 100vh;
-    overflow-y: scroll;
-    overflow-x: clip;
-
+    border-left: 1px solid black;
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
 }
 
-.left > * {
-    pointer-events: auto;
-
+.settingsPanelOpen {
+    transform: translateX(0);
 }
 
-.left > div {
-    /*background: lightgrey;*/
-    /*border: 1px solid red;*/
-
+.settingsBody {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: auto;
 }
 
 .settingTabs {
-    /*width: 120px;*/
-
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
     height: 100%;
-    border-right: 1px solid;
-    /*background: darkgray !important;*/
-
-    position: sticky;
-    top: 0;
-
+    border-left: 1px solid black;
+    background: lightgrey;
 }
 
-.settingTabs > div {
-    /*width: 100vh;*/
-    display: flex;
-    writing-mode: vertical-lr;
-    transform: rotate(180deg);
-
-}
-.settingTabs > div > p {
-    display: flex;
-    padding: 14px 3px;
-    border-top: 1px solid;
+.settingTab {
+    display: grid;
+    place-items: center;
+    padding: 14px 6px;
     margin: 0;
     cursor: pointer;
+    border: none;
     font-family: sans-serif;
     font-size: 14px;
     background: lightgrey;
+}
+
+.settingTab + .settingTab {
+    border-top: 1px solid black;
+}
+
+.settingTab:last-child {
+    border-bottom: 1px solid black;
+}
+
+.settingTab::after {
+    content: attr(data-label);
+    grid-area: 1 / 1;
+    font-weight: 600;
+    visibility: hidden;
+    pointer-events: none;
+    writing-mode: vertical-lr;
+    transform: rotate(180deg);
+}
+
+.settingTabText {
+    grid-area: 1 / 1;
+    font-weight: 400;
+    writing-mode: vertical-lr;
+    transform: rotate(180deg);
+}
+
+.settingTab:hover {
+    background: #e0e0e0;
+}
+
+.settingTabActive {
+    background: white;
+}
+
+.settingTabActive .settingTabText {
+    font-weight: 600;
 }
 
 
@@ -133,16 +161,16 @@ label {
     stroke: grey
 }
 
-.left .brushes {
+.settingsPanel .brushes {
     display: flex;
 }
 
-.left .arrays {
+.settingsPanel .arrays {
     display: flex;
     align-items: flex-start;
 }
 
-.left .arrays > div {
+.settingsPanel .arrays > div {
     display: flex;
     flex-direction: column;
 }
