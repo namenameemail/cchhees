@@ -1,156 +1,123 @@
 @startuml cchhees-architecture
-!theme plain
-skinparam backgroundColor #FEFEFE
-skinparam componentStyle rectangle
-skinparam shadowing false
 
-title cchhees — архитектура решения
+title cchhees architecture
 
-' ── Entry ──
-package "Entry" #E8F4FD {
-  [index.html] --> [main.tsx]
-  [main.tsx] --> [App.tsx]
-  [App.tsx] --> [Game]
+package Entry {
+  component index_html as index_html
+  component main_tsx as main_tsx
+  component app_tsx as app_tsx
+  component game_shell as game_shell
+
+  index_html --> main_tsx
+  main_tsx --> app_tsx
+  app_tsx --> game_shell
 }
 
-' ── UI Layer ──
-package "UI Layer (React Components)" #E8FDE8 {
-  together {
-    component [Game\nlayout + tabs] as Game
-    component [Board\nSVG container] as Board
-    component [BoardCell\nclick handler] as BoardCell
-    component [Tray] as Tray
-    component [History\nundo/redo] as History
-    component [Figures\npalette] as Figures
-    component [BoardParametersForm] as BoardParamsForm
-    component [Conditions\nFormArray] as Conditions
-    component [ConnectionsConditions\nFormArray] as ConnConditions
-  }
+package UI_Layer {
+  component game_layout as game_layout
+  component board as board
+  component board_cell as board_cell
+  component tray as tray
+  component history_ui as history_ui
+  component figures as figures
+  component board_params_form as board_params_form
+  component conditions as conditions
+  component conn_conditions as conn_conditions
+  component form1 as form1
+  component form_array as form_array
+  component cell_svg as cell_svg
+  component conn_svg as conn_svg
 
-  package "Shared Forms" #FFF8E8 {
-    component [Form1] as Form1
-    component [FormArray] as FormArray
-  }
+  game_shell --> game_layout
+  game_layout --> board
+  game_layout --> tray
+  game_layout --> history_ui
+  game_layout --> board_params_form
+  game_layout --> conditions
+  game_layout --> conn_conditions
+  game_layout --> figures
 
-  package "SVG Renderers" #F0E8FD {
-    component [CellSVGGroup] as CellSVG
-    component [ConnectionSVGGroup] as ConnSVG
-  }
+  board --> board_cell
+  board --> conn_svg
+  board_cell --> cell_svg
 
-  Game --> Board
-  Game --> Tray
-  Game --> History
-  Game --> BoardParamsForm
-  Game --> Conditions
-  Game --> ConnConditions
-  Game --> Figures
-
-  Board --> BoardCell
-  Board --> ConnSVG
-  BoardCell --> CellSVG
-
-  BoardParamsForm --> Form1
-  Conditions --> FormArray
-  ConnConditions --> FormArray
-  FormArray --> Form1
+  board_params_form --> form1
+  conditions --> form_array
+  conn_conditions --> form_array
+  form_array --> form1
 }
 
-' ── State Layer ──
-package "State Layer (React Context)" #FDE8E8 {
-  component [GameProvider\nuseState + useCallback] as Provider
-  component [GameContext] as Context
-  database "GameState" as State {
-    boardParameters
-    cells[]
-    tray[]
-    boardConditions[]
-    connectionsConditions[]
-  }
-  database "UI State" as UIState {
-    mode
-    activeCell
-    activeFigure
-    brush states
-  }
-  component [history.ts\nundo/redo stack] as HistoryStack
+package State_Layer {
+  component game_provider as game_provider
+  component game_context as game_context
+  database game_state as game_state
+  storage ui_state as ui_state
+  component history_stack as history_stack
 
-  Provider --> Context
-  Provider --> State
-  Provider --> UIState
-  Provider --> HistoryStack
+  game_provider --> game_context
+  game_provider --> game_state
+  game_provider --> ui_state
+  game_provider --> history_stack
 }
 
-' ── Domain Logic ──
-package "Domain Logic" #E8E8FD {
-  component [utils.ts\nindexToIJ, getCells] as Utils
-  component [conditions.ts\ncell predicates] as CellPred
-  component [connections.ts\ngraph + edge predicates] as ConnPred
-  component [constants.ts\nFigureSigns] as Constants
+package Domain_Logic {
+  component utils as utils
+  component cell_predicates as cell_predicates
+  component conn_predicates as conn_predicates
+  component constants as constants
 }
 
-' ── Types ──
-package "Types (TypeScript)" #F5F5F5 {
-  class GameState
-  class Cell
-  class BoardParameters
-  class FigureTypes
-  enum Mode
-  class BoardConditionItem
-  class BoardConnectionsConditionItem
-}
+game_layout --> game_provider : wraps
 
-' ── Relations ──
-Game --> Provider : wraps
-BoardCell ..> Context : useGameContext()
-Board ..> Context
-Tray ..> Context
-History ..> Context
-Figures ..> Context
-BoardParamsForm ..> Context
-Conditions ..> Context
-ConnConditions ..> Context
+board_cell ..> game_context : useGameContext
+board ..> game_context
+tray ..> game_context
+history_ui ..> game_context
+figures ..> game_context
+board_params_form ..> game_context
+conditions ..> game_context
+conn_conditions ..> game_context
 
-Provider --> Utils : resize cells
-BoardCell --> CellPred : evaluate styles
-Board --> ConnPred : draw edges
-BoardCell --> Constants : render glyph
+game_provider --> utils
+board_cell --> cell_predicates
+board --> conn_predicates
+board_cell --> constants
 
-' ── Data Flow ──
-note right of BoardCell
-  **Mode.Game**
-  click 1 → activeCell
-  click 2 → moveActiveCellFigureTo
-  → historyPush → re-render
-
-  **Mode.FiguresArrange**
-  click → setCellFigure
-
-  **Mode.PaintTheBoard**
-  click → setCellParameters
-  (UI brush not in sidebar)
+note right of game_state
+  boardParameters
+  cells and tray
+  boardConditions
+  connectionsConditions
 end note
 
-note bottom of HistoryStack
-  before[] / after[]
+note right of ui_state
+  mode
+  activeCell
+  activeFigure
+  brush states
+end note
+
+note right of board_cell
+  Mode.Game: select then move
+  Mode.FiguresArrange: place figure
+  Mode.PaintTheBoard: set parameters
+end note
+
+note bottom of history_stack
+  before and after stacks
   max 100 snapshots
-  full GameState copy
 end note
 
-note bottom of ConnPred
-  getConnections(n,m)
-  8 neighbors per cell
-  **visual only**
-  does not restrict moves
+note bottom of conn_predicates
+  getConnections(n, m)
+  visual only, no move rules
 end note
 
 @enduml
 
 @startuml cchhees-component-tree
-!theme plain
-skinparam backgroundColor #FEFEFE
-skinparam shadowing false
 
-title cchhees — дерево компонентов
+title cchhees component tree
 
 object "main.tsx" as main
 object "App.tsx" as app
@@ -196,33 +163,38 @@ figs --> fbtn
 note bottom of provider
   CellParametersForm
   ConnectionParametersForm
-  **imported but NOT rendered**
+  imported but NOT rendered
 end note
 
 @enduml
 
 @startuml cchhees-state-machine
-!theme plain
-skinparam backgroundColor #FEFEFE
-skinparam shadowing false
 
-title cchhees — режимы (Mode) и действия
+title cchhees modes
 
 [*] --> Game : default
 
 state Game {
-  Game : click empty cell → select
-  Game : click other cell → move/capture
+  Game : click empty cell, select
+  Game : click other cell, move or capture
 }
 
 state FiguresArrange {
   FiguresArrange : select figure in palette
-  FiguresArrange : click cell → place/replace
+  FiguresArrange : click cell, place or replace
 }
 
 state PaintTheBoard {
-  PaintTheBoard : click cell → set parameters
-  PaintTheBoard : **no brush UI in sidebar**
+  PaintTheBoard : click cell, set parameters
+  PaintTheBoard : no brush UI in sidebar
+}
+
+state PaintTheBoardConnections <<unused>> {
+  PaintTheBoardConnections : enum only
+}
+
+state Probe <<unused>> {
+  Probe : enum only
 }
 
 state PaintTheBoardConnections <<unused>> {

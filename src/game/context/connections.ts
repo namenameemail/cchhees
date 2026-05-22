@@ -50,34 +50,6 @@ export const getConnectionConditionFunctionByType = {
 
         return !!a ? (i >= b && !((i - b) % a)) : (!(i - b))
     },
-    [ConnectionConditionItemType.anbDiagonalUp]: (params, n) => (data: ConnectionData): boolean => {
-        const { ii, jj, iFrom, jFrom } = data
-
-        const isUpRight = (ii > 0) && (jj < 0)
-        const isDownLeft = (ii < 0) && (jj > 0)
-        const isDiagonalUp = isDownLeft || isUpRight
-        if (!isDiagonalUp) return false
-
-        const { a = 0, b = 0 } = params || {}
-        const i = iFrom + jFrom
-
-        return !!a ? (i >= b && !((i - b) % a)) : (!(i - b))
-    },
-    [ConnectionConditionItemType.anbDiagonalDown]: (params, n) => (data: ConnectionData) => {
-        // return true;
-        const { ii, jj, iFrom, jFrom } = data
-
-        const isUpLeft = (ii < 0) && (jj < 0)
-
-        const isDownRight = (ii > 0) && (jj > 0)
-        const isDiagonalDown = isUpLeft || isDownRight
-        if (!isDiagonalDown) return false
-
-        const { a = 0, b = 0 } = params || {}
-        const i = (n - 1 - iFrom) + jFrom
-
-        return !!a ? (i >= b && !((i - b) % a)) : (!(i - b))
-    },
     [ConnectionConditionItemType.anbVertical]: (params, n) => (data: ConnectionData): boolean => {
         const { ii, jj, iFrom, jFrom } = data
 
