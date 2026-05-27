@@ -1,15 +1,9 @@
 import { historyInit } from './context/history'
 import { GameContextValue } from './context/types'
 import { Cell, CellShape } from './types/cells'
+import { getDefaultSvgCellParams } from './cellSvgSize'
 import { GameState } from './types/gameState'
 import { Mode } from './types'
-
-
-export const indexToIJ = (index: number, width: number): { i, j } => ({
-    i: index % width,
-    j: Math.floor(index / width),
-})
-export const ijToIndex = ({ i, j }, width: number): number => j * width + i
 
 export const getInitialCell = (): Cell => {
     return {
@@ -30,7 +24,6 @@ export const getCells = (width: number, height: number, cells?: Cell[]) => {
         return (new Array(length)).fill({}).map(getInitialCell)
     }
 }
-
 
 const defaultWidth = 10
 const defaultHeight = 3
@@ -58,10 +51,11 @@ const mockFn = () => {
 export const defaultGameContextValue: GameContextValue = {
     mode: Mode.Game,
     state: initialGameState,
-    stateHistory: historyInit(),
+    figuresHistory: historyInit(),
+    boardHistory: historyInit(),
     cellParametersBrushState: {
         paramsByShape: {
-            [CellShape.svg]: {},
+            [CellShape.svg]: getDefaultSvgCellParams(),
             [CellShape.rect]: {},
             [CellShape.circle]: {},
         }
@@ -69,8 +63,10 @@ export const defaultGameContextValue: GameContextValue = {
     setCellParametersBrushState: mockFn,
     connectionParamsBrushState: {},
     setConnectionParamsBrushState: mockFn,
-    undo: mockFn,
-    redo: mockFn,
+    undoFigures: mockFn,
+    redoFigures: mockFn,
+    undoBoard: mockFn,
+    redoBoard: mockFn,
     setBoardParameters: mockFn,
     setBoardConnectionsConditions: mockFn,
     setBoardConditions: mockFn,
@@ -84,4 +80,5 @@ export const defaultGameContextValue: GameContextValue = {
     toTray: mockFn,
     setTray: mockFn,
     setCells: mockFn,
+    clearAssetReferences: mockFn,
 }

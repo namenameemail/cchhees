@@ -10,6 +10,10 @@ export interface BlurEnterTextInputProps {
     changeOnBlur?: boolean
     resetOnBlur?: boolean
     changeOnEnter?: boolean
+    placeholder?: string
+    title?: string
+    onFocus?: () => void
+    onBlur?: () => void
 }
 
 export function BlurEnterTextInput (props: BlurEnterTextInputProps) {
@@ -21,6 +25,10 @@ export function BlurEnterTextInput (props: BlurEnterTextInputProps) {
         changeOnBlur,
         resetOnBlur,
         changeOnEnter,
+        placeholder,
+        title,
+        onFocus,
+        onBlur,
     } = props;
 
     const [_value, setValue] = useState<string>('');
@@ -41,7 +49,8 @@ export function BlurEnterTextInput (props: BlurEnterTextInputProps) {
         } else if (resetOnBlur) {
             setValue(value);
         }
-    }, [onChange, changeOnBlur, _value, value]);
+        onBlur?.();
+    }, [onChange, changeOnBlur, resetOnBlur, _value, value, onBlur]);
 
     useEffect(() => {
         if (value !== _value) {
@@ -57,6 +66,9 @@ export function BlurEnterTextInput (props: BlurEnterTextInputProps) {
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
+            onFocus={onFocus}
+            placeholder={placeholder}
+            title={title}
         />
     );
 };

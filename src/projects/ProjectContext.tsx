@@ -8,6 +8,7 @@ import React, {
     useState,
 } from 'react'
 import {
+    deleteAssetsByProjectId,
     deleteProject as deleteProjectFromDb,
     getAllProjects,
     getCurrentProjectId,
@@ -15,7 +16,9 @@ import {
     setCurrentProjectId,
 } from './db'
 import { createEmptyProject, getDefaultProjectName } from './createProject'
-import { Project, ProjectPersistData } from './types'
+import { Project, ProjectPersistData, migrateProject } from './types'
+import { GameState } from '../game/types/gameState'
+import { migrateInlineAssets } from './assets/migrateInlineAssets'
 
 const AUTOSAVE_DELAY_MS = 400
 
@@ -29,6 +32,7 @@ export interface ProjectContextValue {
     renameProject: (id: string, name: string) => Promise<void>
     deleteProject: (id: string) => Promise<void>
     switchProject: (id: string) => Promise<void>
+    replaceProjectGameState: (id: string, gameState: GameState) => Promise<void>
 }
 
 const defaultContextValue: ProjectContextValue = {
@@ -41,6 +45,7 @@ const defaultContextValue: ProjectContextValue = {
     renameProject: async () => {},
     deleteProject: async () => {},
     switchProject: async () => {},
+    replaceProjectGameState: async () => {},
 }
 
 export const ProjectContext = createContext<ProjectContextValue>(defaultContextValue)
@@ -84,7 +89,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         const updated: Project = {
             ...project,
             gameState: pending.state,
-            stateHistory: pending.stateHistory,
+            figuresHistory: pending.figuresHistory,
+            boardHistory: pending.boardHistory,
             updatedAt: Date.now(),
         }
 
@@ -120,11 +126,28 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         setCurrentProjectIdState(id)
     }, [])
 
+    const migrateProjectInlineAssets = useCallback(async (project: Project): Promise<Project> => {
+        const { gameState, migrated } = await migrateInlineAssets(project.id, project.gameState)
+        if (!migrated) {
+            return project
+        }
+
+        const updated: Project = {
+            ...project,
+            gameState,
+            updatedAt: Date.now(),
+        }
+
+        await putProject(updated)
+        return updated
+    }, [])
+
     useEffect(() => {
         let cancelled = false
 
         async function bootstrap() {
-            let loaded = await getAllProjects()
+            let loaded = (await getAllProjects()).map(migrateProject)
+            loaded = await Promise.all(loaded.map(migrateProjectInlineAssets))
 
             if (loaded.length === 0) {
                 const project = createEmptyProject(getDefaultProjectName(0))
@@ -154,7 +177,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                 clearTimeout(debounceTimerRef.current)
             }
         }
-    }, [applyCurrentProject])
+    }, [applyCurrentProject, migrateProjectInlineAssets])
 
     useEffect(() => {
         return () => {
@@ -234,6 +257,22 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         }
     }, [applyCurrentProject, flushPendingSave])
 
+    const replaceProjectGameState = useCallback(async (id: string, gameState: GameState) => {
+        const project = projectsRef.current.find(p => p.id === id)
+        if (!project) {
+            return
+        }
+
+        const updated: Project = {
+            ...project,
+            gameState,
+            updatedAt: Date.now(),
+        }
+
+        await putProject(updated)
+        setProjects(prev => prev.map(p => p.id === id ? updated : p))
+    }, [])
+
     const value = useMemo(
         () => ({
             isReady,
@@ -245,6 +284,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             renameProject,
             deleteProject,
             switchProject,
+            replaceProjectGameState,
         }),
         [
             isReady,
@@ -256,6 +296,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             renameProject,
             deleteProject,
             switchProject,
+            replaceProjectGameState,
         ],
     )
 

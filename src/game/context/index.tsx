@@ -1,89 +1,132 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getCells, defaultGameContextValue } from '../utils'
-import { historyPush, historyRedo, historyUndo } from './history'
+import { defaultGameContextValue } from '../utils'
+import { historyInit, historyPush, historyRedo, historyUndo } from './history'
 import { GameContextValue } from './types'
 import { FigureTypes } from '../types/figures'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
-import { GameStateHistory } from '../types/history'
+import { SliceHistory } from '../types/history'
 import { Mode } from '../types'
 import { BoardParameters } from '../types/boardParameters'
 import { BoardConnectionsConditionItem, ConnectionParams } from '../types/connections'
 import { BoardConditionItem } from '../types/conditions'
 import { cellParametersBrushStateInitialValue, connectionParamsBrushStateInitialValue } from './constants'
-
+import {
+    BoardSlice,
+    FiguresSlice,
+    composeGameState,
+    createInitialBoardSliceFromState,
+    createInitialFiguresSliceFromState,
+} from '../state/slices'
+import {
+    cloneBoardSlice,
+    cloneFiguresSlice,
+    countFiguresOutsideGrid,
+    isGridShrink,
+    pruneCellParameters,
+    pruneFigures,
+} from '../state/reconcile'
+import { ShrinkBoardWarningModal } from '../components/ShrinkBoardWarningModal'
+import { CellCoord, coordKey, coordsEqual, indexToCoord, isCoordInGrid } from '../types/coords'
+import { clearAssetIdFromCellParameters } from '../../projects/assets/assetReferences'
 
 export const GameContext = React.createContext<GameContextValue>(defaultGameContextValue)
 
 export interface GameProviderProps {
     children: React.ReactNode
     initialState: GameState
-    initialHistory: GameStateHistory
-    onPersist?: (data: { state: GameState; stateHistory: GameStateHistory }) => void
+    initialFiguresHistory: SliceHistory<FiguresSlice>
+    initialBoardHistory: SliceHistory<BoardSlice>
+    onPersist?: (data: {
+        state: GameState
+        figuresHistory: SliceHistory<FiguresSlice>
+        boardHistory: SliceHistory<BoardSlice>
+    }) => void
 }
 
 export function GameProvider({
     children,
     initialState,
-    initialHistory,
+    initialFiguresHistory,
+    initialBoardHistory,
     onPersist,
 }: GameProviderProps) {
+    const [figuresSlice, setFiguresSlice] = useState<FiguresSlice>(() =>
+        createInitialFiguresSliceFromState(initialState),
+    )
+    const [boardSlice, setBoardSlice] = useState<BoardSlice>(() =>
+        createInitialBoardSliceFromState(initialState),
+    )
+    const [figuresHistory, setFiguresHistory] = useState(initialFiguresHistory)
+    const [boardHistory, setBoardHistory] = useState(initialBoardHistory)
 
     const [state, setState] = useState<GameState>(initialState)
-    const [stateHistory, setStateHistory] = useState<GameStateHistory>(initialHistory)
 
     const [mode, setMode] = useState<Mode>(Mode.Game)
-
-    const [activeCell, setActiveCell] = useState<number | undefined>(undefined)
-
+    const [activeCell, setActiveCell] = useState<CellCoord | undefined>(undefined)
     const [activeFigure, setActiveFigure] = useState<FigureTypes | undefined>(undefined)
 
-    const [cellParametersBrushState, setCellParametersBrushState] = useState<CellParameters>(cellParametersBrushStateInitialValue)
-    const [connectionParamsBrushState, setConnectionParamsBrushState] = useState<ConnectionParams>(connectionParamsBrushStateInitialValue)
-
-    useEffect(() => {
-        // console.log('stateHistory', stateHistory)
-    }, [stateHistory])
-
-    const setGameStateWithHistory = useCallback((newState: GameState) => {
-        const result = historyPush(stateHistory, state, newState)
-
-        setStateHistory(result.history)
-        setState(result.current)
-    }, [stateHistory, state])
-
-    const undo = useCallback(() => {
-        const result = historyUndo(stateHistory, state)
-
-        setStateHistory(result.history)
-        setState(result.current)
-    }, [stateHistory, state])
-
-    const redo = useCallback(() => {
-        const result = historyRedo(stateHistory, state)
-
-        setStateHistory(result.history)
-        setState(result.current)
-    }, [stateHistory, state])
-
-    const setStateField = useCallback(
-        (field: string, value: any) => setGameStateWithHistory({
-            ...state,
-            [field]: value,
-        }), [state, setGameStateWithHistory],
+    const [cellParametersBrushState, setCellParametersBrushState] = useState<CellParameters>(
+        cellParametersBrushStateInitialValue,
+    )
+    const [connectionParamsBrushState, setConnectionParamsBrushState] = useState<ConnectionParams>(
+        connectionParamsBrushStateInitialValue,
     )
 
-    const toggleBoolean = useCallback((field: string) => {
-        setStateField(field, !state[field])
-    }, [setStateField, state])
+    const [shrinkWarningOpen, setShrinkWarningOpen] = useState(false)
+    const [shrinkWarningCount, setShrinkWarningCount] = useState(0)
+    const pendingBoardParametersRef = useRef<BoardParameters | null>(null)
 
+    const clearActiveCellIfInvalid = useCallback((n: number, m: number, cell?: CellCoord) => {
+        const active = cell ?? activeCell
+        if (active !== undefined && !isCoordInGrid(active, n, m)) {
+            setActiveCell(undefined)
+        }
+    }, [activeCell])
 
-    useEffect(() => {
-        setState(state =>  ({
-            ...state,
-            cells: getCells(state.boardParameters.n, state.boardParameters.m, state.cells),
-        }))
-    }, [state.boardParameters.n, state.boardParameters.m])
+    const syncComposedState = useCallback((
+        nextFigures: FiguresSlice,
+        nextBoard: BoardSlice,
+        cellToValidate?: CellCoord,
+    ) => {
+        const { n, m } = nextBoard.boardParameters
+        const prunedBoard = pruneCellParameters(nextBoard, n, m)
+        const prunedFigures = pruneFigures(nextFigures, n, m)
+        const nextState = composeGameState(prunedFigures, prunedBoard)
+        setFiguresSlice(prunedFigures)
+        setBoardSlice(prunedBoard)
+        setState(nextState)
+        clearActiveCellIfInvalid(n, m, cellToValidate)
+        return { nextState, prunedFigures, prunedBoard }
+    }, [clearActiveCellIfInvalid])
+
+    const pushFiguresChange = useCallback((nextFigures: FiguresSlice) => {
+        const cloned = cloneFiguresSlice(nextFigures)
+        const result = historyPush(figuresHistory, figuresSlice, cloned)
+        setFiguresHistory(result.history)
+        setFiguresSlice(result.current)
+        syncComposedState(result.current, boardSlice)
+    }, [figuresHistory, figuresSlice, boardSlice, syncComposedState])
+
+    const applyBoardChange = useCallback((nextBoard: BoardSlice, pushHistory = true) => {
+        const cloned = cloneBoardSlice(nextBoard)
+        const { n, m } = cloned.boardParameters
+        const prunedBoard = pruneCellParameters(cloned, n, m)
+        const prunedFigures = pruneFigures(figuresSlice, n, m)
+
+        if (pushHistory) {
+            const result = historyPush(boardHistory, boardSlice, prunedBoard)
+            setBoardHistory(result.history)
+            setBoardSlice(result.current)
+        } else {
+            setBoardSlice(prunedBoard)
+        }
+
+        setFiguresSlice(prunedFigures)
+        const nextState = composeGameState(prunedFigures, prunedBoard)
+        setState(nextState)
+        clearActiveCellIfInvalid(n, m)
+    }, [boardHistory, boardSlice, figuresSlice, clearActiveCellIfInvalid])
 
     const skipInitialPersistRef = useRef(true)
     useEffect(() => {
@@ -91,209 +134,325 @@ export function GameProvider({
             skipInitialPersistRef.current = false
             return
         }
-        onPersist?.({ state, stateHistory })
-    }, [state, stateHistory, onPersist])
+        onPersist?.({ state, figuresHistory, boardHistory })
+    }, [state, figuresHistory, boardHistory, onPersist])
 
-    const setCells = useCallback((value) => setStateField('cells', value), [setStateField])
-    const setTray = useCallback((value) => setStateField('tray', value), [setStateField])
-    const setBoardParameters = useCallback((value: BoardParameters) => setStateField('boardParameters', value), [setStateField])
+    const undoFigures = useCallback(() => {
+        const result = historyUndo(figuresHistory, figuresSlice)
+        setFiguresHistory(result.history)
+        syncComposedState(result.current, boardSlice)
+    }, [figuresHistory, figuresSlice, boardSlice, syncComposedState])
+
+    const redoFigures = useCallback(() => {
+        const result = historyRedo(figuresHistory, figuresSlice)
+        setFiguresHistory(result.history)
+        syncComposedState(result.current, boardSlice)
+    }, [figuresHistory, figuresSlice, boardSlice, syncComposedState])
+
+    const undoBoard = useCallback(() => {
+        const result = historyUndo(boardHistory, boardSlice)
+        setBoardHistory(result.history)
+        applyBoardChange(result.current, false)
+    }, [boardHistory, boardSlice, applyBoardChange])
+
+    const redoBoard = useCallback(() => {
+        const result = historyRedo(boardHistory, boardSlice)
+        setBoardHistory(result.history)
+        applyBoardChange(result.current, false)
+    }, [boardHistory, boardSlice, applyBoardChange])
+
+    const setBoardParameters = useCallback((value: BoardParameters) => {
+        const nextBoard: BoardSlice = {
+            ...boardSlice,
+            boardParameters: value,
+        }
+
+        const shrinking = isGridShrink(boardSlice.boardParameters, value)
+        const outsideCount = countFiguresOutsideGrid(figuresSlice, value.n, value.m)
+
+        if (shrinking && outsideCount > 0) {
+            pendingBoardParametersRef.current = value
+            setShrinkWarningCount(outsideCount)
+            setShrinkWarningOpen(true)
+            return
+        }
+
+        applyBoardChange(nextBoard)
+    }, [boardSlice, figuresSlice, applyBoardChange])
+
+    const confirmShrinkBoard = useCallback(() => {
+        const pending = pendingBoardParametersRef.current
+        if (!pending) {
+            setShrinkWarningOpen(false)
+            return
+        }
+
+        pendingBoardParametersRef.current = null
+        setShrinkWarningOpen(false)
+        applyBoardChange({
+            ...boardSlice,
+            boardParameters: pending,
+        })
+    }, [boardSlice, applyBoardChange])
+
+    const cancelShrinkBoard = useCallback(() => {
+        pendingBoardParametersRef.current = null
+        setShrinkWarningOpen(false)
+        setShrinkWarningCount(0)
+    }, [])
+
     const setBoardConditions = useCallback((value: BoardConditionItem[]) => {
-
-        setGameStateWithHistory({
-            ...state,
+        applyBoardChange({
+            ...boardSlice,
             boardConditions: value,
         })
-    }, [state, setGameStateWithHistory])
-    const setBoardConnectionsConditions = useCallback((value: BoardConnectionsConditionItem[]) => {
+    }, [boardSlice, applyBoardChange])
 
-        setGameStateWithHistory({
-            ...state,
+    const setBoardConnectionsConditions = useCallback((value: BoardConnectionsConditionItem[]) => {
+        applyBoardChange({
+            ...boardSlice,
             connectionsConditions: value,
         })
-    }, [state, setGameStateWithHistory])
+    }, [boardSlice, applyBoardChange])
 
-
-    const toTray = useCallback((index: number) => {
-        const oldFigure = state.cells[index].figure
-        if (oldFigure) {
-            const newCells = [...state.cells]
-            newCells[index] = {
-                ...newCells[index],
-                figure: undefined,
-            }
-
-            setGameStateWithHistory({
-                ...state,
-                cells: newCells,
-                tray: [oldFigure, ...state.tray],
-            })
-        }
-    }, [state, setGameStateWithHistory])
-
-    const replace = useCallback((index: number, figure: FigureTypes) => {
-        const oldFigure = state.cells[index].figure
-        if (oldFigure) {
-            const newCells = [...state.cells]
-            newCells[index] = {
-                ...newCells[index],
-                figure,
-            }
-
-            setGameStateWithHistory({
-                ...state,
-                cells: newCells,
-                tray: [oldFigure, ...state.tray],
-            })
-        }
-    }, [state, setGameStateWithHistory])
-
-    const setFigure = useCallback((index: number, figure: FigureTypes) => {
-        const oldFigure = state.cells[index].figure
+    const toTray = useCallback((coord: CellCoord) => {
+        const key = coordKey(coord)
+        const oldFigure = figuresSlice.figuresByCoord[key]
         if (!oldFigure) {
-            const newCells = [...state.cells]
-            newCells[index] = {
-                ...newCells[index],
-                figure,
-            }
-
-            setGameStateWithHistory({
-                ...state,
-                cells: newCells,
-            })
+            return
         }
-    }, [state, setGameStateWithHistory])
 
-    const setCellFigure = useCallback((index: number, figure: FigureTypes) => {
-        const oldFigure = state.cells[index].figure
-        if (oldFigure) {
-            replace(index, figure)
+        const figuresByCoord = { ...figuresSlice.figuresByCoord }
+        delete figuresByCoord[key]
+
+        pushFiguresChange({
+            figuresByCoord,
+            tray: [oldFigure, ...figuresSlice.tray],
+        })
+    }, [figuresSlice, pushFiguresChange])
+
+    const replace = useCallback((coord: CellCoord, figure: FigureTypes) => {
+        const key = coordKey(coord)
+        const oldFigure = figuresSlice.figuresByCoord[key]
+        if (!oldFigure) {
+            return
+        }
+
+        pushFiguresChange({
+            figuresByCoord: {
+                ...figuresSlice.figuresByCoord,
+                [key]: figure,
+            },
+            tray: [oldFigure, ...figuresSlice.tray],
+        })
+    }, [figuresSlice, pushFiguresChange])
+
+    const setFigure = useCallback((coord: CellCoord, figure: FigureTypes) => {
+        const key = coordKey(coord)
+        if (figuresSlice.figuresByCoord[key]) {
+            return
+        }
+
+        pushFiguresChange({
+            figuresByCoord: {
+                ...figuresSlice.figuresByCoord,
+                [key]: figure,
+            },
+            tray: figuresSlice.tray,
+        })
+    }, [figuresSlice, pushFiguresChange])
+
+    const setCellFigure = useCallback((coord: CellCoord, figure: FigureTypes) => {
+        const key = coordKey(coord)
+        if (figuresSlice.figuresByCoord[key]) {
+            replace(coord, figure)
         } else {
-            setFigure(index, figure)
+            setFigure(coord, figure)
         }
-    }, [state, setFigure, replace])
+    }, [figuresSlice, replace, setFigure])
 
-    const moveActiveCellFigureTo = useCallback((to: number) => {
-
+    const moveActiveCellFigureTo = useCallback((to: CellCoord) => {
         if (activeCell === undefined) {
             return
         }
 
-        if (activeCell === to) {
+        if (coordsEqual(activeCell, to)) {
             setActiveCell(undefined)
             return
         }
 
+        const from = activeCell
         setActiveCell(undefined)
 
-        const from = activeCell
-
-        const fromFigure = state.cells[activeCell].figure
-
+        const fromKey = coordKey(from)
+        const toKey = coordKey(to)
+        const fromFigure = figuresSlice.figuresByCoord[fromKey]
         if (!fromFigure) {
             return
         }
 
-        const toFigure = state.cells[to].figure
+        const toFigure = figuresSlice.figuresByCoord[toKey]
+        const figuresByCoord = { ...figuresSlice.figuresByCoord }
+        let newTray = figuresSlice.tray
 
-        const newCells = [...state.cells]
-        let newTray = state.tray
+        figuresByCoord[toKey] = fromFigure
 
-        if (fromFigure) {
-            newCells[to] = {
-                ...newCells[to],
-                figure: fromFigure,
-            }
-
-            if (state.boardParameters.swapOnEat) {
-                newCells[from] = {
-                    ...newCells[from],
-                    figure: toFigure,
-                }
+        if (state.boardParameters.swapOnEat) {
+            if (toFigure) {
+                figuresByCoord[fromKey] = toFigure
             } else {
-                newCells[from] = {
-                    ...newCells[from],
-                    figure: undefined,
-                }
-                if (toFigure) {
-                    newTray = [toFigure, ...newTray]
-                }
+                delete figuresByCoord[fromKey]
+            }
+        } else {
+            delete figuresByCoord[fromKey]
+            if (toFigure) {
+                newTray = [toFigure, ...newTray]
             }
         }
-        setGameStateWithHistory({
-            ...state,
-            cells: newCells,
+
+        pushFiguresChange({
+            figuresByCoord,
             tray: newTray,
         })
-    }, [state, activeCell, setGameStateWithHistory])
+    }, [activeCell, figuresSlice, state.boardParameters.swapOnEat, pushFiguresChange])
 
-
-    const setCellParameters = useCallback((index: number) => {
-        const newCells = [...state.cells]
-        newCells[index] = {
-            ...newCells[index],
-            parameters: cellParametersBrushState,
-        }
-        setGameStateWithHistory({
-            ...state,
-            cells: newCells,
+    const setCellParameters = useCallback((coord: CellCoord) => {
+        const key = coordKey(coord)
+        applyBoardChange({
+            ...boardSlice,
+            cellParametersByCoord: {
+                ...boardSlice.cellParametersByCoord,
+                [key]: cellParametersBrushState,
+            },
         })
-    }, [state, setGameStateWithHistory, cellParametersBrushState])
+    }, [boardSlice, cellParametersBrushState, applyBoardChange])
+
+    const setTray = useCallback((value: FigureTypes[]) => {
+        pushFiguresChange({
+            ...figuresSlice,
+            tray: value,
+        })
+    }, [figuresSlice, pushFiguresChange])
+
+    const setCells = useCallback((value: GameState['cells']) => {
+        const { n } = state.boardParameters
+        const figuresByCoord: Record<string, FigureTypes> = {}
+        value.forEach((cell, index) => {
+            if (cell.figure) {
+                figuresByCoord[coordKey(indexToCoord(index, n))] = cell.figure
+            }
+        })
+        pushFiguresChange({
+            figuresByCoord,
+            tray: figuresSlice.tray,
+        })
+    }, [figuresSlice, state.boardParameters.n, pushFiguresChange])
+
+    const clearAssetReferences = useCallback((assetId: number) => {
+        const nextCellParametersByCoord: BoardSlice['cellParametersByCoord'] = {}
+        let cellParamsChanged = false
+
+        for (const [key, params] of Object.entries(boardSlice.cellParametersByCoord)) {
+            const nextParams = clearAssetIdFromCellParameters(params, assetId)
+            nextCellParametersByCoord[key] = nextParams ?? params
+            if (nextParams !== params) {
+                cellParamsChanged = true
+            }
+        }
+
+        const nextBoardConditions = boardSlice.boardConditions.map(condition => {
+            const nextCellParams = clearAssetIdFromCellParameters(condition.cellParams, assetId)
+            if (nextCellParams === condition.cellParams) {
+                return condition
+            }
+            cellParamsChanged = true
+            return {
+                ...condition,
+                cellParams: nextCellParams ?? condition.cellParams,
+            }
+        })
+
+        const nextBrushState = clearAssetIdFromCellParameters(cellParametersBrushState, assetId)
+        if (nextBrushState !== cellParametersBrushState) {
+            setCellParametersBrushState(nextBrushState ?? cellParametersBrushState)
+        }
+
+        if (!cellParamsChanged) {
+            return
+        }
+
+        applyBoardChange({
+            ...boardSlice,
+            cellParametersByCoord: nextCellParametersByCoord,
+            boardConditions: nextBoardConditions,
+        })
+    }, [boardSlice, cellParametersBrushState, applyBoardChange])
 
     const value = useMemo(
         () => ({
             mode,
             setMode,
-            undo,
-            redo,
-            stateHistory,
-
-            cellParametersBrushState, setCellParametersBrushState,
-            connectionParamsBrushState, setConnectionParamsBrushState,
-
+            state,
+            figuresHistory,
+            boardHistory,
+            undoFigures,
+            redoFigures,
+            undoBoard,
+            redoBoard,
+            cellParametersBrushState,
+            setCellParametersBrushState,
+            connectionParamsBrushState,
+            setConnectionParamsBrushState,
             activeFigure,
             setActiveFigure,
-
             activeCell,
             setActiveCell,
             moveActiveCellFigureTo,
             setCellFigure,
             setCellParameters,
             toTray,
-
-            state,
-
-
-
             setBoardParameters,
             setBoardConnectionsConditions,
             setBoardConditions,
-            setGameStateWithHistory,
-
             setTray,
             setCells,
-
+            clearAssetReferences,
         }),
         [
-            mode, setMode,
+            mode,
             state,
-            cellParametersBrushState, setCellParametersBrushState,
-            connectionParamsBrushState, setConnectionParamsBrushState,
-            undo, redo, stateHistory,
-
+            figuresHistory,
+            boardHistory,
+            undoFigures,
+            redoFigures,
+            undoBoard,
+            redoBoard,
+            cellParametersBrushState,
+            connectionParamsBrushState,
+            activeFigure,
+            activeCell,
+            moveActiveCellFigureTo,
+            setCellFigure,
+            setCellParameters,
+            toTray,
             setBoardParameters,
             setBoardConnectionsConditions,
             setBoardConditions,
-            setGameStateWithHistory,
-
-            setTray, setCells,
-            activeFigure, setActiveFigure,
-            activeCell, setActiveCell, moveActiveCellFigureTo, setCellFigure, setCellParameters, toTray,
+            setTray,
+            setCells,
+            clearAssetReferences,
         ],
     )
 
     return (
         <GameContext.Provider value={value}>
             {children}
+            <ShrinkBoardWarningModal
+                open={shrinkWarningOpen}
+                count={shrinkWarningCount}
+                onConfirm={confirmShrinkBoard}
+                onCancel={cancelShrinkBoard}
+            />
         </GameContext.Provider>
     )
 }

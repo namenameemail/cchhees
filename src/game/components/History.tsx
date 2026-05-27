@@ -1,27 +1,30 @@
-import React, {FC, useCallback} from "react";
-import {useGameContext} from "../context";
-import styles from "../styles.module.css";
-import {FigureSigns} from "../constants";
+import React, { FC, useCallback } from 'react'
+import { useGameContext } from '../context'
+import styles from '../styles.module.css'
 
 export interface HistoryProps {
 
 }
 
 export const History: FC<HistoryProps> = () => {
-
-    const {undo, redo, stateHistory} = useGameContext();
+    const { undoFigures, redoFigures, figuresHistory } = useGameContext()
 
     const handleUndo = useCallback(() => {
-        undo();
-    }, [undo]);
+        undoFigures()
+    }, [undoFigures])
+
     const handleRedo = useCallback(() => {
-        redo();
-    }, [redo]);
+        redoFigures()
+    }, [redoFigures])
 
     return (
-        <div className={styles.eaten} >
-            <button onClick={handleUndo}>undo{stateHistory.before.length ? ` (${stateHistory.before.length})` : ''}</button>
-            <button onClick={handleRedo}>redo{stateHistory.after.length ? ` (${stateHistory.after.length})` : ''}</button>
+        <div className={styles.eaten}>
+            <button type="button" onClick={handleUndo}>
+                undo{figuresHistory.before.length ? ` (${figuresHistory.before.length})` : ''}
+            </button>
+            <button type="button" onClick={handleRedo}>
+                redo{figuresHistory.after.length ? ` (${figuresHistory.after.length})` : ''}
+            </button>
         </div>
-    );
-};
+    )
+}

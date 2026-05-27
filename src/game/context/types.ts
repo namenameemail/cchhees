@@ -2,19 +2,24 @@
 import { FigureTypes } from '../types/figures'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
-import { GameStateHistory } from '../types/history'
+import { SliceHistory } from '../types/history'
 import { Mode } from '../types'
 import { BoardParameters } from '../types/boardParameters'
 import { BoardConditionItem } from '../types/conditions'
 import { BoardConnectionsConditionItem, ConnectionParams } from '../types/connections'
+import { FiguresSlice, BoardSlice } from '../state/slices'
+import { CellCoord } from '../types/coords'
 
 export interface GameContextValue {
     mode: Mode
     state: GameState
 
-    stateHistory: GameStateHistory
-    undo: () => void
-    redo: () => void
+    figuresHistory: SliceHistory<FiguresSlice>
+    boardHistory: SliceHistory<BoardSlice>
+    undoFigures: () => void
+    redoFigures: () => void
+    undoBoard: () => void
+    redoBoard: () => void
 
     cellParametersBrushState: CellParameters
     setCellParametersBrushState: (value) => void
@@ -25,13 +30,12 @@ export interface GameContextValue {
     activeFigure?: string
     setActiveFigure: (value) => void
 
-    activeCell?: number
-    setActiveCell: (value) => void
-    moveActiveCellFigureTo: (to: number) => void
-    setCellFigure: (index: number, figure: FigureTypes) => void
-    setCellParameters: (index: number) => void
-    toTray: (index: number) => void
-
+    activeCell?: CellCoord
+    setActiveCell: (value: CellCoord | undefined) => void
+    moveActiveCellFigureTo: (to: CellCoord) => void
+    setCellFigure: (coord: CellCoord, figure: FigureTypes) => void
+    setCellParameters: (coord: CellCoord) => void
+    toTray: (coord: CellCoord) => void
 
     setBoardParameters: (value: BoardParameters) => void
     setBoardConnectionsConditions: (value: BoardConnectionsConditionItem[]) => void
@@ -40,4 +44,5 @@ export interface GameContextValue {
     setMode: (value) => void
     setTray: (value) => void
     setCells: (value) => void
+    clearAssetReferences: (assetId: number) => void
 }

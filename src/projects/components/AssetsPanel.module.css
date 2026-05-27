@@ -1,0 +1,87 @@
+.assetsPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.title {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.uploadLabel {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border: 1px solid black;
+    background: white;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.uploadInput {
+    display: none;
+}
+
+.empty {
+    font-size: 12px;
+    color: #666;
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px;
+    border: 1px solid #bbb;
+    background: white;
+}
+
+.thumbnail {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    flex: 0 0 40px;
+}
+
+.meta {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.name {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.details {
+    font-size: 11px;
+    color: #666;
+}
+
+.deleteButton {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border: 1px solid black;
+    background: white;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.deleteButton:hover {
+    background: #f5d0d0;
+}

@@ -22,7 +22,7 @@ div {
     position: relative;
 }
 
-.board > svg {
+.board>svg {
     background: white;
 }
 
@@ -32,6 +32,49 @@ div {
     right: 0;
     z-index: 50;
     height: calc(100vh - 32px);
+}
+
+.toolsShell {
+    position: fixed;
+    top: 32px;
+    left: 0;
+    z-index: 50;
+    height: calc(100vh - 32px);
+}
+
+.toolsPanel {
+    position: absolute;
+    top: 0;
+    left: 100%;
+    width: min(320px, calc(90vw - 40px));
+    height: 100%;
+    background: lightgrey;
+    border-right: 1px solid black;
+    box-shadow: 4px 0 12px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+}
+
+.toolsPanelOpen {
+    transform: translateX(0);
+}
+
+.toolsBody {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: auto;
+    padding: 12px;
+}
+
+.toolTabs {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    border-right: 1px solid black;
+    background: lightgrey;
 }
 
 .settingsPanel {
@@ -80,7 +123,7 @@ div {
     background: lightgrey;
 }
 
-.settingTab + .settingTab {
+.settingTab+.settingTab {
     border-top: 1px solid black;
 }
 
@@ -117,11 +160,29 @@ div {
     font-weight: 600;
 }
 
+.toolsBody .eaten {
+    height: auto;
+    min-width: 0;
+    min-height: 120px;
+    padding: 8px;
+    font-size: 26px;
+    line-height: 1.4;
+    cursor: pointer;
+}
 
-.bottom {
-    position: absolute;
-    bottom: 0;
+.toolsBody .eaten button {
+    display: block;
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    border: 1px solid black;
+    background: white;
+}
 
+.toolsBody .eaten button:last-child {
+    margin-bottom: 0;
 }
 
 
@@ -138,8 +199,8 @@ div {
 
 .eaten {
     border: 1px solid black;
-    height: 100px;
-    min-width: 300px;
+    min-height: 100px;
+    min-width: 200px;
 }
 
 
@@ -170,7 +231,22 @@ label {
     align-items: flex-start;
 }
 
-.settingsPanel .arrays > div {
+.settingsPanel .arrays>div {
     display: flex;
     flex-direction: column;
+}
+
+.boardHistory {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.boardHistory button {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    border: 1px solid black;
+    background: white;
 }

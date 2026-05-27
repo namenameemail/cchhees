@@ -1,19 +1,17 @@
 import React, { CSSProperties, FC, useCallback, useMemo } from 'react'
 import styles from '../styles.module.css'
-import cn from 'classnames'
 import { FigureSigns } from '../constants'
 import { useGameContext } from '../context'
-import { indexToIJ } from '../utils'
 import { FigureTypes } from '../types/figures'
-import { Cell, CellParameters, CellShape } from '../types/cells'
+import { Cell, CellParameters } from '../types/cells'
 import { Mode } from '../types'
-import { CellSVG } from './CellSVG'
 import { getConditionFunctionByType } from '../context/conditions'
 import { CellSVGGroup } from './CellSVGGroup'
+import { CellCoord, coordsEqual } from '../types/coords'
 
 export interface CellProps {
     cell: Cell
-    index: number
+    coord: CellCoord
 }
 
 
@@ -38,30 +36,22 @@ export const BoardCell: FC<CellProps> = (props) => {
             m,
             cellXDistance,
             cellYDistance,
-
-
         },
-
         boardConditions,
-        cells,
     } = state
 
     const {
         cell,
-        index,
+        coord,
     } = props
 
-    const { i, j } = indexToIJ(index, n)
+    const { i, j } = coord
 
-    const isActive = index === activeCell
-
-    // const {
-    //     parameters: cellParams,
-    // } = cell
+    const isActive = activeCell !== undefined && coordsEqual(activeCell, coord)
 
     const isBlack = (i + (j % 2)) % 2
     const isWhite = !isBlack
-    const isDisabled = false;//((isWhite && disableWhite) || (isBlack && disableBlack))
+    const isDisabled = false
 
     const cellParams = useMemo(() => {
         return boardConditions.reduce<CellParameters>((res, { cellConditions, cellParams }) => {
@@ -84,7 +74,6 @@ export const BoardCell: FC<CellProps> = (props) => {
     }), [])
     const handlerStyle = useMemo(() => ({
         strokeDasharray: '4 1',
-        // stroke: 'black',
         fill: isActive ? 'url(#MyGradient)' : 'transparent',
         cursor: 'pointer',
         rx: cellWidth,
@@ -93,22 +82,20 @@ export const BoardCell: FC<CellProps> = (props) => {
 
 
     const handleCellClick = useCallback(() => {
-        console.log(mode)
         if (mode === Mode.FiguresArrange) {
 
-            activeFigure && setCellFigure(index, activeFigure as FigureTypes)
+            activeFigure && setCellFigure(coord, activeFigure as FigureTypes)
 
         } else if (mode === Mode.Game) {
             if (activeCell === undefined) {
-                setActiveCell(index)
+                setActiveCell(coord)
             } else {
-                moveActiveCellFigureTo(index)
+                moveActiveCellFigureTo(coord)
             }
         } else if (mode === Mode.PaintTheBoard) {
-            console.log('ok')
-            setCellParameters(index)
+            setCellParameters(coord)
         }
-    }, [mode, index, activeFigure, activeCell, setActiveCell, moveActiveCellFigureTo, setCellParameters])
+    }, [mode, coord, activeFigure, activeCell, setActiveCell, moveActiveCellFigureTo, setCellParameters, setCellFigure])
     return (
         <g>
             {!isDisabled && (<>

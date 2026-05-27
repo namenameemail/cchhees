@@ -6,36 +6,67 @@ package Entry {
   component index_html as index_html
   component main_tsx as main_tsx
   component app_tsx as app_tsx
-  component game_shell as game_shell
 
   index_html --> main_tsx
   main_tsx --> app_tsx
-  app_tsx --> game_shell
+}
+
+package Persistence_Layer {
+  component project_provider as project_provider
+  component project_context as project_context
+  component assets_provider as assets_provider
+  database indexed_db as indexed_db
+  database assets_store as assets_store
+  component migrate_project as migrate_project
+  component migrate_inline_assets as migrate_inline_assets
+  component top_bar as top_bar
+  component projects_modal as projects_modal
+
+  project_provider --> project_context
+  project_provider --> indexed_db
+  assets_provider --> assets_store
+  assets_provider --> indexed_db
+  project_provider --> migrate_project
+  assets_provider --> migrate_inline_assets
+  app_tsx --> project_provider
+  app_tsx --> assets_provider
+  project_provider --> top_bar
+  project_provider --> projects_modal
 }
 
 package UI_Layer {
-  component game_layout as game_layout
+  component game_shell as game_shell
   component board as board
   component board_cell as board_cell
   component tray as tray
-  component history_ui as history_ui
+  component figures_history as figures_history
+  component board_history as board_history
   component figures as figures
   component board_params_form as board_params_form
   component conditions as conditions
   component conn_conditions as conn_conditions
+  component assets_panel as assets_panel
+  component image_select as image_select
+  component shrink_modal as shrink_modal
   component form1 as form1
   component form_array as form_array
   component cell_svg as cell_svg
   component conn_svg as conn_svg
 
-  game_shell --> game_layout
-  game_layout --> board
-  game_layout --> tray
-  game_layout --> history_ui
-  game_layout --> board_params_form
-  game_layout --> conditions
-  game_layout --> conn_conditions
-  game_layout --> figures
+  project_provider --> game_shell
+  assets_provider --> game_shell
+  game_shell --> board
+  game_shell --> tray
+  game_shell --> figures_history
+  game_shell --> board_history
+  game_shell --> board_params_form
+  game_shell --> conditions
+  game_shell --> conn_conditions
+  game_shell --> figures
+  game_shell --> assets_panel
+
+  assets_panel --> assets_provider
+  image_select --> assets_provider
 
   board --> board_cell
   board --> conn_svg
@@ -50,67 +81,126 @@ package UI_Layer {
 package State_Layer {
   component game_provider as game_provider
   component game_context as game_context
-  database game_state as game_state
+  database figures_slice as figures_slice
+  database board_slice as board_slice
+  database composed_state as composed_state
   storage ui_state as ui_state
-  component history_stack as history_stack
+  component figures_history_stack as figures_history_stack
+  component board_history_stack as board_history_stack
 
+  game_shell --> game_provider : wraps
   game_provider --> game_context
-  game_provider --> game_state
+  game_provider --> figures_slice
+  game_provider --> board_slice
+  game_provider --> composed_state
   game_provider --> ui_state
-  game_provider --> history_stack
+  game_provider --> figures_history_stack
+  game_provider --> board_history_stack
+  game_provider --> shrink_modal
 }
 
 package Domain_Logic {
+  component slices as slices
+  component reconcile as reconcile
+  component migrate as migrate
+  component coords as coords
   component utils as utils
   component cell_predicates as cell_predicates
   component conn_predicates as conn_predicates
   component constants as constants
 }
 
-game_layout --> game_provider : wraps
+game_provider --> slices : split / compose
+game_provider --> reconcile : prune on grid change
+game_provider --> coords
+migrate_project --> migrate
+migrate_project --> slices
 
 board_cell ..> game_context : useGameContext
 board ..> game_context
 tray ..> game_context
-history_ui ..> game_context
+figures_history ..> game_context
+board_history ..> game_context
 figures ..> game_context
 board_params_form ..> game_context
 conditions ..> game_context
 conn_conditions ..> game_context
+conditions --> image_select
+cell_svg --> assets_provider : resolve assetId
 
-game_provider --> utils
 board_cell --> cell_predicates
 board --> conn_predicates
 board_cell --> constants
+board_cell --> coords
 
-note right of game_state
+game_provider --> project_context : onPersist
+migrate_project <-- indexed_db : load
+
+note right of figures_slice
+  figuresByCoord
+  tray
+end note
+
+note right of board_slice
   boardParameters
-  cells and tray
   boardConditions
   connectionsConditions
+  cellParametersByCoord
+end note
+
+note right of composed_state
+  flat GameState view
+  cells[] + tray
+  for UI rendering
 end note
 
 note right of ui_state
   mode
-  activeCell
+  activeCell (CellCoord)
   activeFigure
   brush states
+  shrink warning state
 end note
 
-note right of board_cell
-  Mode.Game: select then move
-  Mode.FiguresArrange: place figure
-  Mode.PaintTheBoard: set parameters
-end note
-
-note bottom of history_stack
-  before and after stacks
+note bottom of figures_history_stack
+  SliceHistory<FiguresSlice>
+  before / after stacks
   max 100 snapshots
+end note
+
+note bottom of board_history_stack
+  SliceHistory<BoardSlice>
+  independent undo/redo
+  max 100 snapshots
+end note
+
+note bottom of assets_store
+  project-scoped blobs
+  id, projectId, name, mimeType
+  outside slice history
+end note
+
+note bottom of migrate_inline_assets
+  legacy svg file data URLs
+  -> assets store + assetId
+  at project load
+end note
+
+note bottom of migrate
+  index-keyed maps
+  -> coord-keyed maps
+  at project load
 end note
 
 note bottom of conn_predicates
   getConnections(n, m)
   visual only, no move rules
+end note
+
+note bottom of board_cell
+  Mode.Game: select then move
+  Mode.FiguresArrange: place figure
+  Mode.PaintTheBoard: set parameters
 end note
 
 @enduml
@@ -121,6 +211,10 @@ title cchhees component tree
 
 object "main.tsx" as main
 object "App.tsx" as app
+object "ProjectProvider" as projectProvider
+object "AssetsProvider" as assetsProvider
+object "TopBar" as topBar
+object "ProjectsModal" as projectsModal
 object "Game" as game
 object "GameProvider" as provider
 
@@ -129,11 +223,18 @@ package "Board Area" {
   object "ConnectionSVGGroup" as connSvg
   object "BoardCell" as cell
   object "CellSVGGroup" as cellSvg
+}
+
+package "Left Tools (tab 0: tray)" {
   object "Tray" as tray
-  object "History" as hist
+}
+
+package "Left Tools (tab 1: history)" {
+  object "History (figures)" as figHist
 }
 
 package "Sidebar (tab 0: board)" {
+  object "BoardHistory" as boardHist
   object "BoardParametersForm" as bpf
   object "Conditions" as cond
   object "ConnectionsConditions" as ccond
@@ -144,16 +245,35 @@ package "Sidebar (tab 1: figures)" {
   object "FigureButton" as fbtn
 }
 
+package "Sidebar (tab 2: assets)" {
+  object "AssetsPanel" as assetsPanel
+  object "ImageSelect" as imageSelect
+}
+
+package "Provider-owned (not in layout tree)" {
+  object "ShrinkBoardWarningModal" as shrinkModal
+}
+
 main --> app
-app --> game
+app --> projectProvider
+projectProvider --> assetsProvider
+assetsProvider --> topBar
+assetsProvider --> game
+assetsProvider --> projectsModal
 game --> provider
 provider --> board
 provider --> tray
-provider --> hist
+provider --> figHist
+provider --> boardHist
 provider --> bpf
 provider --> cond
 provider --> ccond
 provider --> figs
+provider --> assetsPanel
+provider --> shrinkModal
+
+assetsProvider --> assetsPanel
+cond --> imageSelect
 
 board --> connSvg
 board --> cell
@@ -165,6 +285,58 @@ note bottom of provider
   ConnectionParametersForm
   imported but NOT rendered
 end note
+
+note bottom of projectProvider
+  remounts GameProvider
+  key={currentProject.id}
+end note
+
+@enduml
+
+@startuml cchhees-data-flow
+
+title cchhees data flow
+
+actor User
+
+rectangle "Edit session" {
+  component GameProvider
+  database FiguresSlice
+  database BoardSlice
+  database GameState
+  component SliceHistory_F as "figuresHistory"
+  component SliceHistory_B as "boardHistory"
+}
+
+rectangle "Persistence" {
+  component ProjectProvider
+  component AssetsProvider
+  database IndexedDB_projects as "projects"
+  database IndexedDB_assets as "assets"
+  component migrateProject
+  component migrateInlineAssets
+}
+
+User --> GameProvider : click / form edit
+GameProvider --> FiguresSlice : figure mutations
+GameProvider --> BoardSlice : board mutations
+FiguresSlice --> GameState : composeGameState
+BoardSlice --> GameState : composeGameState
+GameProvider --> SliceHistory_F : push / undo / redo
+GameProvider --> SliceHistory_B : push / undo / redo
+GameProvider --> ProjectProvider : onPersist (debounced 400ms)
+ProjectProvider --> IndexedDB_projects : putProject
+
+User --> AssetsProvider : upload / delete asset
+AssetsProvider --> IndexedDB_assets : putAsset / deleteAsset
+AssetsProvider --> migrateInlineAssets : on project load
+migrateInlineAssets --> IndexedDB_assets : create records
+migrateInlineAssets --> ProjectProvider : update gameState
+
+IndexedDB_projects --> migrateProject : getAllProjects
+migrateProject --> ProjectProvider : Project[]
+ProjectProvider --> GameProvider : initialState + histories
+ProjectProvider --> AssetsProvider : currentProject.id
 
 @enduml
 
@@ -197,15 +369,14 @@ state Probe <<unused>> {
   Probe : enum only
 }
 
-state PaintTheBoardConnections <<unused>> {
-  PaintTheBoardConnections : enum only
-}
-
-state Probe <<unused>> {
-  Probe : enum only
-}
-
 Game --> FiguresArrange : FigureButton click
 FiguresArrange --> Game : implicit via setMode
+
+note bottom of Game
+  board shrink with out-of-grid figures
+  opens ShrinkBoardWarningModal
+  confirm -> prune + apply
+  cancel -> discard pending params
+end note
 
 @enduml

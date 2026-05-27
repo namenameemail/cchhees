@@ -1,4 +1,4 @@
-import { historyInit } from '../game/context/history'
+import { historyInit } from '../game/types/history'
 import { initialGameState } from '../game/utils'
 import { Project } from './types'
 
@@ -8,7 +8,8 @@ export function createEmptyProject(name: string): Project {
         name,
         updatedAt: Date.now(),
         gameState: structuredClone(initialGameState),
-        stateHistory: historyInit(),
+        figuresHistory: historyInit(),
+        boardHistory: historyInit(),
     }
 }
 

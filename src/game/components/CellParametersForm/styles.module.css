@@ -46,3 +46,13 @@
 .shape {
     width: 100%;
 }
+.svgManualCheckbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    cursor: pointer;
+}
+.svgManualCheckbox input {
+    margin: 0;
+}
