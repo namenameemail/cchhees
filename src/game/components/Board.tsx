@@ -1,12 +1,15 @@
-import React, { forwardRef, useCallback, useMemo } from 'react'
+import React, { forwardRef, useMemo } from 'react'
 import { useGameContext } from '../context'
 import { BoardCell } from './BoardCell'
-import { CellParameters } from '../types/cells'
-import { getConditionFunctionByType } from '../context/conditions'
-import { ConnectionParams } from '../types/connections'
-import { ConnectionData, getConnectionConditionFunctionByType, getConnections } from '../context/connections'
+import { getConnections } from '../context/connections'
 import { ConnectionSVGGroup } from './ConnectionSVGGroup'
+import { CellSVGGroup } from './CellSVGGroup'
 import { coordKey, iterGridCoords } from '../types/coords'
+import {
+    buildStyleRuleDrawPlan,
+    findConnectionDataByKey,
+} from '../styleRules/evaluate'
+import { isCellStyleRule, isConnectionStyleRule } from '../types/styleRules'
 
 export interface BoardProps {
     className?: string
@@ -25,7 +28,7 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
             cellXDistance,
             cellYDistance,
         },
-        connectionsConditions,
+        styleRules,
         cells,
     } = state
 
@@ -38,45 +41,51 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
         height: m * cellYDistance,
     }), [n, m, cellHeight, cellWidth, cellXDistance, cellYDistance])
 
-    const connectionParams = useCallback((connectionData: ConnectionData) => {
-        return connectionsConditions.reduce<ConnectionParams>((res, { connectionConditions, connectionParams }) => {
-            const isTrue = connectionConditions.reduce<boolean>((res, connectionCondition) => (
-                res
-                && getConnectionConditionFunctionByType[connectionCondition.type]
-                    ?.(connectionCondition.paramsByType?.[connectionCondition.type], n)
-                    ?.(connectionData)
-            ), true)
+    const drawPlan = useMemo(() => {
+        if (!n || !m) {
+            return { cellLayers: new Map(), connectionLayers: new Map() }
+        }
 
-            return isTrue ? connectionParams : res
-        }, {})
-
-    }, [connectionsConditions, n])
+        return buildStyleRuleDrawPlan(styleRules, n, m)
+    }, [styleRules, n, m])
 
     return (
         <svg ref={ref} style={boardStyle} className={className}>
+            {styleRules.map((rule, ruleIndex) => (
+                <g key={ruleIndex}>
+                    {isCellStyleRule(rule) && drawPlan.cellLayers.get(ruleIndex)?.map((coord) => (
+                        <CellSVGGroup
+                            key={coordKey(coord)}
+                            x={coord.i * cellXDistance + cellXDistance / 2}
+                            y={coord.j * cellYDistance + cellYDistance / 2}
+                            cellParams={rule.cellParams}
+                        />
+                    ))}
+                    {isConnectionStyleRule(rule) && drawPlan.connectionLayers.get(ruleIndex)?.map((connectionKey) => {
+                        const data = findConnectionDataByKey(connections, connectionKey)
 
-            {Object.keys(connections).map((fromKey) => {
-                const [iFrom, jFrom] = fromKey.split(',').map(Number)
+                        if (!data) {
+                            return null
+                        }
 
-                const xFrom = iFrom * cellXDistance + cellXDistance / 2
-                const yFrom = jFrom * cellYDistance + cellYDistance / 2
+                        const xFrom = data.iFrom * cellXDistance + cellXDistance / 2
+                        const yFrom = data.jFrom * cellYDistance + cellYDistance / 2
+                        const xTo = data.iTo * cellXDistance + cellXDistance / 2
+                        const yTo = data.jTo * cellYDistance + cellYDistance / 2
 
-                return Object.keys(connections[fromKey]).map((toKey) => {
-                    const data = connections[fromKey][toKey]
-
-                    if (!data) return null
-
-                    const [iTo, jTo] = toKey.split(',').map(Number)
-
-                    const xTo = iTo * cellXDistance + cellXDistance / 2
-                    const yTo = jTo * cellYDistance + cellYDistance / 2
-
-                    const params = connectionParams(data)
-                    return (
-                        <ConnectionSVGGroup key={`${fromKey}-${toKey}`} x1={xFrom} y1={yFrom} x2={xTo} y2={yTo} connectionParams={params}/>
-                    )
-                })
-            })}
+                        return (
+                            <ConnectionSVGGroup
+                                key={connectionKey}
+                                x1={xFrom}
+                                y1={yFrom}
+                                x2={xTo}
+                                y2={yTo}
+                                connectionParams={rule.connectionParams}
+                            />
+                        )
+                    })}
+                </g>
+            ))}
             {iterGridCoords(n, m).map((coord) => {
                 const index = coord.j * n + coord.i
                 return (

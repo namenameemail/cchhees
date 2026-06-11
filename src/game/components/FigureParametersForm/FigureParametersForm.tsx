@@ -15,6 +15,7 @@ import {
     getDefaultFigureViewParams,
     resolveFigureViewParams,
 } from '../../figureView'
+import { BlurEnterTextInput } from '../../../components/inputs/BlurEnterTextInput/BlurEnterTextInput'
 import styles from './styles.module.css'
 
 const FontAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
@@ -38,6 +39,32 @@ const ImageAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, 
             title="image asset"
             onChange={(assetId) => onChange(name, assetId)}
         />
+    )
+}
+
+const FigureColorField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
+    const textValue = typeof value === 'string' ? value : ''
+    const pickerValue = /^#[0-9a-fA-F]{6}$/.test(textValue) ? textValue : '#000000'
+
+    return (
+        <label className={styles.colorField}>
+            <span className={styles.colorFieldLabel}>color</span>
+            <input
+                type="color"
+                className={styles.colorPicker}
+                value={pickerValue}
+                onChange={(event) => onChange(name, event.target.value)}
+            />
+            <BlurEnterTextInput
+                value={textValue}
+                changeOnEnter
+                changeOnBlur
+                resetOnBlur
+                onChange={(next) => onChange(name, next)}
+                placeholder="#000000"
+                title="color"
+            />
+        </label>
     )
 }
 
@@ -74,8 +101,7 @@ const paramsConfigByDisplayType = {
         },
         {
             name: 'color',
-            type: ParameterTypes.TextInput,
-            props: { placeholder: 'color' },
+            Component: FigureColorField,
         },
     ],
     [FigureDisplayType.image]: () => [

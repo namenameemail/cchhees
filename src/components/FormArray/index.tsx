@@ -7,6 +7,8 @@ import { Form1FieldConfig } from '../Form1/types'
 export interface FormArrayProps<ItemState> {
 
     addText?: string
+    addButtonPrefix?: React.ReactNode
+    addButtonClassName?: string
     className?: string
     itemClassName?: string
     itemFormClassName?: string
@@ -30,7 +32,9 @@ export function FormArray<ItemState>(props: FormArrayProps<ItemState>) {
         itemClassName,
         itemFormClassName,
         isUpDownEnabled,
-        addText = 'add'
+        addText = 'add',
+        addButtonPrefix,
+        addButtonClassName,
     } = props
 
     const handleItemChange = useCallback((newItemValue: ItemState, index: number) => {
@@ -92,7 +96,12 @@ export function FormArray<ItemState>(props: FormArrayProps<ItemState>) {
                     />
                 )
             })}
-            <button onClick={handleItemAdd}>{addText}</button>
+            {(addButtonPrefix || addText) && (
+                <div className={addButtonClassName}>
+                    {addButtonPrefix}
+                    {addText && <button type="button" onClick={handleItemAdd}>{addText}</button>}
+                </div>
+            )}
         </div>
     )
 }

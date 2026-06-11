@@ -1,47 +1,11 @@
-import { CellParameters, CellShape } from '../../game/types/cells'
+import { CellShape } from '../../game/types/cells'
 import { getLegacySvgInlineFile, migrateCellParameters } from '../../game/cellImageShape'
 import { GameState } from '../../game/types/gameState'
+import { isCellStyleRule } from '../../game/types/styleRules'
 import { putAsset } from '../db'
 
 function isInlineDataUrl(value: unknown): value is string {
     return typeof value === 'string' && value.startsWith('data:')
-}
-
-function migrateCellParametersWithAssets(
-    params: CellParameters | undefined,
-    urlToAssetId: Map<string, number>,
-): CellParameters | undefined {
-    const migrated = migrateCellParameters(params)
-
-    if (!migrated?.paramsByShape?.[CellShape.img]) {
-        return migrated
-    }
-
-    const imgParams = migrated.paramsByShape[CellShape.img]
-    const legacyFile = getLegacySvgInlineFile(migrated)
-
-    if (!isInlineDataUrl(legacyFile)) {
-        return migrated
-    }
-
-    const assetId = urlToAssetId.get(legacyFile)
-
-    if (assetId == null) {
-        return migrated
-    }
-
-    const { file: _removed, ...restImgParams } = imgParams as { file?: string; assetId?: number | null }
-
-    return {
-        ...migrated,
-        paramsByShape: {
-            ...migrated.paramsByShape,
-            [CellShape.img]: {
-                ...restImgParams,
-                assetId,
-            },
-        },
-    }
 }
 
 async function createAssetFromDataUrl(
@@ -75,8 +39,12 @@ export async function migrateInlineAssets(
         }
     }
 
-    for (const condition of gameState.boardConditions) {
-        const file = getLegacySvgInlineFile(condition.cellParams)
+    for (const rule of gameState.styleRules) {
+        if (!isCellStyleRule(rule)) {
+            continue
+        }
+
+        const file = getLegacySvgInlineFile(rule.cellParams)
         if (isInlineDataUrl(file)) {
             uniqueUrls.add(file)
         }
@@ -94,17 +62,61 @@ export async function migrateInlineAssets(
         index++
     }
 
+    const migrateParamsWithAssets = (params: GameState['cells'][number]['parameters']) => {
+        const migrated = migrateCellParameters(params)
+
+        if (!migrated?.paramsByShape) {
+            return migrated
+        }
+
+        const legacyFile = getLegacySvgInlineFile(migrated)
+
+        if (!isInlineDataUrl(legacyFile)) {
+            return migrated
+        }
+
+        const assetId = urlToAssetId.get(legacyFile)
+
+        if (assetId == null) {
+            return migrated
+        }
+
+        const imgParams = migrated.paramsByShape.img
+
+        if (!imgParams) {
+            return migrated
+        }
+
+        const { file: _removed, ...restImgParams } = imgParams as { file?: string; assetId?: number | null }
+
+        return {
+            ...migrated,
+            paramsByShape: {
+                ...migrated.paramsByShape,
+                [CellShape.img]: {
+                    ...restImgParams,
+                    assetId,
+                },
+            },
+        }
+    }
+
     const nextState: GameState = {
         ...gameState,
         cells: gameState.cells.map(cell => ({
             ...cell,
-            parameters: migrateCellParametersWithAssets(cell.parameters, urlToAssetId),
+            parameters: migrateParamsWithAssets(cell.parameters),
         })),
-        boardConditions: gameState.boardConditions.map(condition => ({
-            ...condition,
-            cellParams: migrateCellParametersWithAssets(condition.cellParams, urlToAssetId)
-                ?? condition.cellParams,
-        })),
+        styleRules: gameState.styleRules.map(rule => {
+            if (!isCellStyleRule(rule)) {
+                return rule
+            }
+
+            return {
+                ...rule,
+                cellParams: migrateParamsWithAssets(rule.cellParams) ?? rule.cellParams,
+            }
+        }),
     }
 
     return { gameState: nextState, migrated: true }

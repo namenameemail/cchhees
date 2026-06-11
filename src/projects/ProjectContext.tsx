@@ -161,18 +161,19 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                 const rawProjects = await getAllProjects()
                 profileDebug('bootstrap', 'projects.fetched', { count: rawProjects.length, generation })
 
-                let loaded = rawProjects.map(project => {
+                let loaded: Project[] = []
+
+                for (const project of rawProjects) {
                     try {
-                        return migrateProject(project)
+                        loaded.push(migrateProject(project))
                     } catch (error) {
                         console.error('[ProjectProvider] migrateProject failed:', project.id, error)
                         profileDebug('bootstrap', 'project.migrate.error', {
                             projectId: project.id,
                             error: String(error),
                         })
-                        throw error
                     }
-                })
+                }
 
                 loaded = await Promise.all(loaded.map(async (project) => {
                     try {

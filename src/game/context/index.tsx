@@ -10,8 +10,8 @@ import { GameState } from '../types/gameState'
 import { SliceHistory } from '../types/history'
 import { Mode } from '../types'
 import { BoardParameters } from '../types/boardParameters'
-import { BoardConnectionsConditionItem, ConnectionParams } from '../types/connections'
-import { BoardConditionItem } from '../types/conditions'
+import { ConnectionParams } from '../types/connections'
+import { BoardStyleRule } from '../types/styleRules'
 import { cellParametersBrushStateInitialValue, connectionParamsBrushStateInitialValue } from './constants'
 import {
     BoardSlice,
@@ -211,17 +211,10 @@ export function GameProvider({
         setShrinkWarningCount(0)
     }, [])
 
-    const setBoardConditions = useCallback((value: BoardConditionItem[]) => {
+    const setStyleRules = useCallback((value: BoardStyleRule[]) => {
         applyBoardChange({
             ...boardSlice,
-            boardConditions: value,
-        })
-    }, [boardSlice, applyBoardChange])
-
-    const setBoardConnectionsConditions = useCallback((value: BoardConnectionsConditionItem[]) => {
-        applyBoardChange({
-            ...boardSlice,
-            connectionsConditions: value,
+            styleRules: value,
         })
     }, [boardSlice, applyBoardChange])
 
@@ -420,15 +413,22 @@ export function GameProvider({
             }
         }
 
-        const nextBoardConditions = boardSlice.boardConditions.map(condition => {
-            const nextCellParams = clearAssetIdFromCellParameters(condition.cellParams, assetId)
-            if (nextCellParams === condition.cellParams) {
-                return condition
+        const nextStyleRules = boardSlice.styleRules.map(rule => {
+            if (rule.kind !== 'cell') {
+                return rule
             }
+
+            const nextCellParams = clearAssetIdFromCellParameters(rule.cellParams, assetId)
+
+            if (nextCellParams === rule.cellParams) {
+                return rule
+            }
+
             cellParamsChanged = true
+
             return {
-                ...condition,
-                cellParams: nextCellParams ?? condition.cellParams,
+                ...rule,
+                cellParams: nextCellParams ?? rule.cellParams,
             }
         })
 
@@ -457,7 +457,7 @@ export function GameProvider({
         applyBoardChange({
             ...boardSlice,
             cellParametersByCoord: nextCellParametersByCoord,
-            boardConditions: nextBoardConditions,
+            styleRules: nextStyleRules,
             figureCatalog: nextFigureCatalog,
         })
     }, [boardSlice, cellParametersBrushState, applyBoardChange])
@@ -486,8 +486,7 @@ export function GameProvider({
             setCellParameters,
             toTray,
             setBoardParameters,
-            setBoardConnectionsConditions,
-            setBoardConditions,
+            setStyleRules,
             setTray,
             setCells,
             setFigureDefinition,
@@ -513,8 +512,7 @@ export function GameProvider({
             setCellParameters,
             toTray,
             setBoardParameters,
-            setBoardConnectionsConditions,
-            setBoardConditions,
+            setStyleRules,
             setTray,
             setCells,
             setFigureDefinition,

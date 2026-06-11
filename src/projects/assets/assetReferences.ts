@@ -1,6 +1,7 @@
 import { CellParameters, CellShape, CellImageShapeParams } from '../../game/types/cells'
 import { getCellImageShapeParams } from '../../game/cellImageShape'
 import { GameState } from '../../game/types/gameState'
+import { isCellStyleRule } from '../../game/types/styleRules'
 import { FigureDisplayType, FigureViewParams } from '../../game/types/figures'
 
 function getCellImageAssetId(params?: CellParameters): number | null | undefined {
@@ -41,8 +42,12 @@ export function countAssetReferences(gameState: GameState, assetId: number): num
         }
     }
 
-    for (const condition of gameState.boardConditions) {
-        if (getCellImageAssetId(condition.cellParams) === assetId) {
+    for (const rule of gameState.styleRules) {
+        if (!isCellStyleRule(rule)) {
+            continue
+        }
+
+        if (getCellImageAssetId(rule.cellParams) === assetId) {
             count++
         }
     }

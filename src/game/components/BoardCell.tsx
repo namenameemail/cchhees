@@ -1,11 +1,8 @@
-import React, { CSSProperties, FC, useCallback, useMemo } from 'react'
+import React, { FC, useCallback, useMemo } from 'react'
 import styles from '../styles.module.css'
 import { useGameContext } from '../context'
-import { FigureId } from '../types/figures'
-import { Cell, CellParameters } from '../types/cells'
+import { Cell } from '../types/cells'
 import { Mode } from '../types'
-import { getConditionFunctionByType } from '../context/conditions'
-import { CellSVGGroup } from './CellSVGGroup'
 import { FigureSVGGroup } from './FigureSVGGroup'
 import { CellCoord, coordsEqual } from '../types/coords'
 
@@ -32,12 +29,9 @@ export const BoardCell: FC<CellProps> = (props) => {
         boardParameters: {
             cellHeight,
             cellWidth,
-            n,
-            m,
             cellXDistance,
             cellYDistance,
         },
-        boardConditions,
     } = state
 
     const {
@@ -49,21 +43,7 @@ export const BoardCell: FC<CellProps> = (props) => {
 
     const isActive = activeCell !== undefined && coordsEqual(activeCell, coord)
 
-    const isBlack = (i + (j % 2)) % 2
-    const isWhite = !isBlack
     const isDisabled = false
-
-    const cellParams = useMemo(() => {
-        return boardConditions.reduce<CellParameters>((res, { cellConditions, cellParams }) => {
-            const isTrue = cellConditions?.length ? cellConditions.reduce<boolean>((res, cellCondition) => {
-
-                return res && getConditionFunctionByType[cellCondition.type]?.(cellCondition.paramsByType?.[cellCondition.type])?.(i, j)
-            }, true) : false
-
-            return isTrue ? cellParams : res
-        }, { })
-
-    }, [boardConditions, i, j])
 
     const handlerStyle = useMemo(() => ({
         strokeDasharray: '4 1',
@@ -96,9 +76,6 @@ export const BoardCell: FC<CellProps> = (props) => {
                     <stop offset="5%" stopColor="#ff00FF99"/>
                     <stop offset="95%" stopColor="#ff000000"/>
                 </radialGradient>
-                {cellParams && (
-                    <CellSVGGroup x={i * cellXDistance+ (cellXDistance) / 2} y={j * cellYDistance + (cellYDistance) / 2} cellParams={cellParams}/>
-                )}
 
                 <circle
                     data-board-handler

@@ -12,6 +12,10 @@ import {
     migrateCellShapesInBoardHistory,
     migrateCellShapesInGameState,
 } from '../game/cellImageShape'
+import {
+    migrateBoardHistoryStyleRules,
+    migrateGameStateStyleRules,
+} from '../game/styleRules/migrateStyleRules'
 
 export interface Project {
     id: string
@@ -61,14 +65,18 @@ export function migrateProject(project: {
         boardHistory = migrateBoardHistory(project.boardHistory as SliceHistory<LegacyBoardSlice>)
     }
 
-    const { figures, board } = splitGameState(project.gameState)
+    const { figures, board } = splitGameState(migrateGameStateStyleRules(project.gameState as Parameters<typeof migrateGameStateStyleRules>[0]))
+
+    const migratedBoardHistory = migrateCellShapesInBoardHistory(
+        migrateBoardHistoryStyleRules(boardHistory),
+    )
 
     return {
         id: project.id,
         name: project.name,
         updatedAt: project.updatedAt,
         figuresHistory,
-        boardHistory: migrateCellShapesInBoardHistory(boardHistory),
+        boardHistory: migratedBoardHistory,
         gameState: migrateCellShapesInGameState(composeGameState(figures, board)),
     }
 }

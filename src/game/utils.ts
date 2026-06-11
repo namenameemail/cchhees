@@ -43,8 +43,7 @@ export const initialGameState: GameState = {
         swapOnEat: false,
     },
 
-    boardConditions: [],
-    connectionsConditions: [],
+    styleRules: [],
     figureCatalog: createDefaultFigureCatalog(),
 }
 
@@ -70,8 +69,7 @@ export const defaultGameContextValue: GameContextValue = {
     undoBoard: mockFn,
     redoBoard: mockFn,
     setBoardParameters: mockFn,
-    setBoardConnectionsConditions: mockFn,
-    setBoardConditions: mockFn,
+    setStyleRules: mockFn,
 
     setMode: mockFn,
     setActiveFigure: mockFn,

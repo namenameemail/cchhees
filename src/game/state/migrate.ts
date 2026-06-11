@@ -1,8 +1,11 @@
 import { coordKey, indexToCoord } from '../types/coords'
 import { CellParameters } from '../types/cells'
+import { BoardConditionItem } from '../types/conditions'
+import { BoardConnectionsConditionItem } from '../types/connections'
 import { FigureCatalog, FigureId } from '../types/figures'
 import { SliceHistory } from '../types/history'
 import { createDefaultFigureCatalog, migrateToFigureCatalog } from '../figureView'
+import { migrateBoardSliceStyleRules } from '../styleRules/migrateStyleRules'
 import { FiguresSlice, BoardSlice, composeGameState, splitGameState } from './slices'
 import { GameState } from '../types/gameState'
 
@@ -14,8 +17,9 @@ export interface LegacyFiguresSlice {
 
 export interface LegacyBoardSlice {
     boardParameters: BoardSlice['boardParameters']
-    boardConditions?: BoardSlice['boardConditions']
-    connectionsConditions?: BoardSlice['connectionsConditions']
+    styleRules?: BoardSlice['styleRules']
+    boardConditions?: BoardConditionItem[]
+    connectionsConditions?: BoardConnectionsConditionItem[]
     cellParametersByIndex?: Record<number, CellParameters>
     cellParametersByCoord?: Record<string, CellParameters>
     figureCatalog?: FigureCatalog
@@ -26,7 +30,7 @@ function isCoordBasedFiguresSlice(slice: LegacyFiguresSlice): slice is FiguresSl
     return slice.figuresByCoord !== undefined && slice.figuresByIndex === undefined
 }
 
-function isCoordBasedBoardSlice(slice: LegacyBoardSlice): slice is BoardSlice {
+function isCoordBasedBoardSlice(slice: LegacyBoardSlice): boolean {
     return slice.cellParametersByCoord !== undefined && slice.cellParametersByIndex === undefined
 }
 
@@ -52,13 +56,14 @@ export function migrateFiguresSlice(slice: LegacyFiguresSlice, n: number): Figur
 
 export function migrateBoardSlice(slice: LegacyBoardSlice): BoardSlice {
     if (isCoordBasedBoardSlice(slice)) {
-        return {
+        return migrateBoardSliceStyleRules({
             boardParameters: { ...slice.boardParameters },
-            boardConditions: [...(slice.boardConditions ?? [])],
-            connectionsConditions: [...(slice.connectionsConditions ?? [])],
-            cellParametersByCoord: { ...slice.cellParametersByCoord },
+            styleRules: slice.styleRules,
+            boardConditions: slice.boardConditions,
+            connectionsConditions: slice.connectionsConditions,
+            cellParametersByCoord: { ...slice.cellParametersByCoord! },
             figureCatalog: migrateToFigureCatalog(slice),
-        }
+        })
     }
 
     const { n } = slice.boardParameters
@@ -68,13 +73,14 @@ export function migrateBoardSlice(slice: LegacyBoardSlice): BoardSlice {
         cellParametersByCoord[coordKey(indexToCoord(+indexStr, n))] = params
     }
 
-    return {
+    return migrateBoardSliceStyleRules({
         boardParameters: { ...slice.boardParameters },
-        boardConditions: [...(slice.boardConditions ?? [])],
-        connectionsConditions: [...(slice.connectionsConditions ?? [])],
+        styleRules: slice.styleRules,
+        boardConditions: slice.boardConditions,
+        connectionsConditions: slice.connectionsConditions,
         cellParametersByCoord,
         figureCatalog: createDefaultFigureCatalog(),
-    }
+    })
 }
 
 export function migrateFiguresHistory(

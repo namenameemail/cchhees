@@ -64,8 +64,7 @@ export function cloneFiguresSlice(figures: FiguresSlice): FiguresSlice {
 export function cloneBoardSlice(board: BoardSlice): BoardSlice {
     return {
         boardParameters: { ...board.boardParameters },
-        boardConditions: [...board.boardConditions],
-        connectionsConditions: [...board.connectionsConditions],
+        styleRules: board.styleRules.map(rule => ({ ...rule })),
         cellParametersByCoord: { ...board.cellParametersByCoord },
         figureCatalog: board.figureCatalog.map(entry => ({
             id: entry.id,

@@ -1,0 +1,89 @@
+.root {
+    width: fit-content;
+    max-width: 100%;
+}
+
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.array {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    width: fit-content;
+    max-width: 100%;
+    border-top: 1px solid black;
+    margin: 0;
+}
+
+.array .item {
+    border: 1px solid black;
+    position: relative;
+    width: fit-content;
+    max-width: 100%;
+}
+
+.array .item > div:nth-child(2) {
+    visibility: hidden;
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    flex-direction: row-reverse;
+}
+
+.array .item:hover > div:nth-child(2) {
+    visibility: visible;
+}
+
+.array .item > div:nth-child(2):hover {
+    z-index: 1;
+}
+
+.array .item > div:nth-child(2) > button {
+    margin-left: -3px;
+}
+
+.itemForm {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+}
+
+.paramsEditor {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    width: fit-content;
+    margin-top: 20px;
+}
+
+.paramsForm {
+    width: 152px;
+    box-sizing: border-box;
+}
+
+.conditionsAddRow {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+}
+
+.forceCheckbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    margin: 0;
+}
+
+.forceCheckbox input {
+    margin: 0;
+}

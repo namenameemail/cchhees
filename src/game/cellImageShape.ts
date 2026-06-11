@@ -3,6 +3,7 @@ import { CellImageShapeParams, CellParameters, CellShape } from './types/cells'
 import { GameState } from './types/gameState'
 import { SliceHistory } from './types/history'
 import { getDefaultSvgCellParams } from './cellSvgSize'
+import { isCellStyleRule } from './types/styleRules'
 
 const LEGACY_CELL_SHAPE_SVG = 'svg'
 
@@ -69,10 +70,16 @@ function migrateBoardSliceCellShapes(board: BoardSlice): BoardSlice {
 
     return {
         ...board,
-        boardConditions: board.boardConditions.map(condition => ({
-            ...condition,
-            cellParams: migrateCellParameters(condition.cellParams) ?? condition.cellParams,
-        })),
+        styleRules: board.styleRules.map(rule => {
+            if (!isCellStyleRule(rule)) {
+                return rule
+            }
+
+            return {
+                ...rule,
+                cellParams: migrateCellParameters(rule.cellParams) ?? rule.cellParams,
+            }
+        }),
         cellParametersByCoord,
     }
 }
@@ -84,10 +91,16 @@ export function migrateCellShapesInGameState(gameState: GameState): GameState {
             ...cell,
             parameters: migrateCellParameters(cell.parameters),
         })),
-        boardConditions: gameState.boardConditions.map(condition => ({
-            ...condition,
-            cellParams: migrateCellParameters(condition.cellParams) ?? condition.cellParams,
-        })),
+        styleRules: gameState.styleRules.map(rule => {
+            if (!isCellStyleRule(rule)) {
+                return rule
+            }
+
+            return {
+                ...rule,
+                cellParams: migrateCellParameters(rule.cellParams) ?? rule.cellParams,
+            }
+        }),
     }
 }
 

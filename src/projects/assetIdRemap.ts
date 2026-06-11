@@ -1,4 +1,5 @@
 import { BoardSlice } from '../game/state/slices'
+import { isCellStyleRule } from '../game/types/styleRules'
 import { CellParameters, CellShape, CellImageShapeParams } from '../game/types/cells'
 import { GameState } from '../game/types/gameState'
 import { FigureCatalog, FigureDisplayType, FigureViewParams } from '../game/types/figures'
@@ -83,10 +84,16 @@ export function remapAssetIdsInGameState(gameState: GameState, map: IdMap): Game
             ...cell,
             parameters: remapCellParameters(cell.parameters, map),
         })),
-        boardConditions: gameState.boardConditions.map(condition => ({
-            ...condition,
-            cellParams: remapCellParameters(condition.cellParams, map) ?? condition.cellParams,
-        })),
+        styleRules: gameState.styleRules.map(rule => {
+            if (!isCellStyleRule(rule)) {
+                return rule
+            }
+
+            return {
+                ...rule,
+                cellParams: remapCellParameters(rule.cellParams, map) ?? rule.cellParams,
+            }
+        }),
         figureCatalog: remapFigureCatalog(gameState.figureCatalog ?? [], map),
     }
 }
@@ -100,10 +107,16 @@ export function remapAssetIdsInBoardSlice(board: BoardSlice, map: IdMap): BoardS
 
     return {
         ...board,
-        boardConditions: board.boardConditions.map(condition => ({
-            ...condition,
-            cellParams: remapCellParameters(condition.cellParams, map) ?? condition.cellParams,
-        })),
+        styleRules: board.styleRules.map(rule => {
+            if (!isCellStyleRule(rule)) {
+                return rule
+            }
+
+            return {
+                ...rule,
+                cellParams: remapCellParameters(rule.cellParams, map) ?? rule.cellParams,
+            }
+        }),
         cellParametersByCoord,
         figureCatalog: remapFigureCatalog(board.figureCatalog, map),
     }

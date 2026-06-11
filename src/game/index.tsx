@@ -13,8 +13,7 @@ import { Tray } from './components/Tray'
 import { History } from './components/History'
 import { CellParametersForm } from './components/CellParametersForm/CellParametersForm'
 // import { AutomaticConnectionsParametersForm } from './components/AutomaticConnectionsParametersForm'
-import { Conditions } from './components/BoardConditions'
-import { ConnectionsConditions } from './components/BoardConnectionsConditions'
+import { BoardStyleRules } from './components/BoardStyleRules'
 import { AssetsPanel } from '../projects/components/AssetsPanel'
 
 export interface GameProps {
@@ -99,10 +98,6 @@ export const Game: React.FC<GameProps> = () => {
                 onPersist={persistProjectData}
             >
 
-                <div className={styles.board}>
-                    <Board ref={boardRef} />
-                </div>
-
                 <aside className={styles.toolsShell}>
                     <div className={styles.toolTabs}>
                         <button
@@ -148,6 +143,10 @@ export const Game: React.FC<GameProps> = () => {
                     </div>
                 </aside>
 
+                <div className={styles.board}>
+                    <Board ref={boardRef} />
+                </div>
+
                 <aside className={styles.settingsShell}>
                     <div
                         className={cn(
@@ -160,8 +159,7 @@ export const Game: React.FC<GameProps> = () => {
                                 <BoardHistory boardRef={boardRef} />
                                 <BoardParametersForm />
                                 <div className={styles.arrays}>
-                                    <Conditions />
-                                    <ConnectionsConditions />
+                                    <BoardStyleRules />
                                 </div>
                             </div>
                         )}

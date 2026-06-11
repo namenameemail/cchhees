@@ -1,15 +1,13 @@
 import { FigureCatalog, FigureDefinitions, FigureId } from './figures'
 import { Cell } from './cells'
-import { BoardConnectionsConditionItem } from './connections'
-import { BoardConditionItem } from './conditions'
 import { BoardParameters } from './boardParameters'
+import { BoardStyleRule } from './styleRules'
 
 export interface GameState {
 
     boardParameters: BoardParameters
 
-    boardConditions: BoardConditionItem[]
-    connectionsConditions: BoardConnectionsConditionItem[]
+    styleRules: BoardStyleRule[]
 
     figureCatalog: FigureCatalog
 
