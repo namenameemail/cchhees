@@ -2,24 +2,17 @@ import { useMemo } from 'react'
 import { ImageSelect, ImageSelectProps } from '../../components/ImageSelect/ImageSelect'
 import { useAssetsContext } from '../assets/AssetsContext'
 
-export interface ProjectImageSelectProps extends Omit<ImageSelectProps, 'assets'> {
-    svgOnly?: boolean
-}
+export function ProjectImageSelect(props: Omit<ImageSelectProps, 'assets'>) {
+    const { assets, isImageAsset } = useAssetsContext()
 
-export function ProjectImageSelect(props: ProjectImageSelectProps) {
-    const { svgOnly = false, ...rest } = props
-    const { assets, isSvgAsset } = useAssetsContext()
-
-    const filteredAssets = useMemo(() => {
-        if (!svgOnly) {
-            return assets
-        }
-        return assets.filter(isSvgAsset)
-    }, [assets, isSvgAsset, svgOnly])
+    const filteredAssets = useMemo(
+        () => assets.filter(isImageAsset),
+        [assets, isImageAsset],
+    )
 
     return (
         <ImageSelect
-            {...rest}
+            {...props}
             assets={filteredAssets}
         />
     )

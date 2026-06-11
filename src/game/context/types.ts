@@ -1,5 +1,5 @@
 
-import { FigureTypes } from '../types/figures'
+import { FigureId, FigureViewParams } from '../types/figures'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
 import { SliceHistory } from '../types/history'
@@ -27,13 +27,13 @@ export interface GameContextValue {
     connectionParamsBrushState: ConnectionParams
     setConnectionParamsBrushState: (value) => void
 
-    activeFigure?: string
-    setActiveFigure: (value) => void
+    activeFigure?: FigureId
+    setActiveFigure: (value: FigureId | undefined) => void
 
     activeCell?: CellCoord
     setActiveCell: (value: CellCoord | undefined) => void
     moveActiveCellFigureTo: (to: CellCoord) => void
-    setCellFigure: (coord: CellCoord, figure: FigureTypes) => void
+    setCellFigure: (coord: CellCoord, figure: FigureId) => void
     setCellParameters: (coord: CellCoord) => void
     toTray: (coord: CellCoord) => void
 
@@ -42,7 +42,10 @@ export interface GameContextValue {
     setBoardConditions: (value: BoardConditionItem[]) => void
 
     setMode: (value) => void
-    setTray: (value) => void
+    setTray: (value: FigureId[]) => void
     setCells: (value) => void
+    setFigureDefinition: (figureId: FigureId, params: FigureViewParams) => void
+    addFigure: () => void
+    removeFigure: (figureId: FigureId) => void
     clearAssetReferences: (assetId: number) => void
 }

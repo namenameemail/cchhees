@@ -1,9 +1,23 @@
-import { FigureTypes } from './figures'
+import { FigureId } from './figures'
 
 export enum CellShape {
     rect = 'rect',
     circle = 'circle',
-    svg = 'svg',
+    img = 'img',
+}
+
+export interface CellImageShapeParams {
+    assetId?: number | null
+    /** Percent of cell width (100 = full cell) */
+    width?: number
+    /** Percent of cell height (100 = full cell) */
+    height?: number
+    /** false = height follows image aspect ratio from width */
+    manualWidth?: boolean
+    /** false = width follows image aspect ratio from height */
+    manualHeight?: boolean
+    /** @deprecated legacy inline data URL */
+    file?: string
 }
 
 export interface CellParameters {
@@ -26,27 +40,12 @@ export interface CellParameters {
             strokeColor?: string
             strokeDasharray?: string
         }
-        [CellShape.svg]?: {
-            assetId?: number | null
-            /** Percent of cell width (100 = full cell) */
-            width?: number
-            /** Percent of cell height (100 = full cell) */
-            height?: number
-            /** false = height follows image aspect ratio from width */
-            manualWidth?: boolean
-            /** false = width follows image aspect ratio from height */
-            manualHeight?: boolean
-            /** @deprecated legacy inline data URL */
-            file?: string
-        }
+        [CellShape.img]?: CellImageShapeParams
     }
-
-
-
 }
 
 
 export interface Cell {
     parameters?: CellParameters
-    figure?: FigureTypes
+    figure?: FigureId
 }

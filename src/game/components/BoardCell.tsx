@@ -1,12 +1,12 @@
 import React, { CSSProperties, FC, useCallback, useMemo } from 'react'
 import styles from '../styles.module.css'
-import { FigureSigns } from '../constants'
 import { useGameContext } from '../context'
-import { FigureTypes } from '../types/figures'
+import { FigureId } from '../types/figures'
 import { Cell, CellParameters } from '../types/cells'
 import { Mode } from '../types'
 import { getConditionFunctionByType } from '../context/conditions'
 import { CellSVGGroup } from './CellSVGGroup'
+import { FigureSVGGroup } from './FigureSVGGroup'
 import { CellCoord, coordsEqual } from '../types/coords'
 
 export interface CellProps {
@@ -65,13 +65,6 @@ export const BoardCell: FC<CellProps> = (props) => {
 
     }, [boardConditions, i, j])
 
-    const textStyle = useMemo(() => ({
-        pointerEvents: 'none',
-        fontSize: 26,
-        textAnchor: 'middle',
-        dominantBaseline: 'middle',
-        alignmentBaseline: 'middle',
-    }), [])
     const handlerStyle = useMemo(() => ({
         strokeDasharray: '4 1',
         fill: isActive ? 'url(#MyGradient)' : 'transparent',
@@ -84,7 +77,7 @@ export const BoardCell: FC<CellProps> = (props) => {
     const handleCellClick = useCallback(() => {
         if (mode === Mode.FiguresArrange) {
 
-            activeFigure && setCellFigure(coord, activeFigure as FigureTypes)
+            activeFigure && setCellFigure(coord, activeFigure)
 
         } else if (mode === Mode.Game) {
             if (activeCell === undefined) {
@@ -108,6 +101,7 @@ export const BoardCell: FC<CellProps> = (props) => {
                 )}
 
                 <circle
+                    data-board-handler
                     cx={i * cellXDistance + (cellXDistance) / 2}
                     cy={j * cellYDistance + (cellYDistance) / 2}
                     r={Math.min(cellXDistance, cellYDistance) / 2}
@@ -116,14 +110,13 @@ export const BoardCell: FC<CellProps> = (props) => {
                     style={handlerStyle}
                     onClick={handleCellClick}
                 />
-                <text
-                    x={i * cellXDistance + (cellXDistance) / 2}
-                    y={j * cellYDistance + (cellYDistance) / 2}
-                    style={textStyle as CSSProperties}
-
-                >
-                    {cell.figure ? FigureSigns[cell.figure] : undefined}
-                </text>
+                {cell.figure && (
+                    <FigureSVGGroup
+                        figureId={cell.figure}
+                        x={i * cellXDistance + (cellXDistance) / 2}
+                        y={j * cellYDistance + (cellYDistance) / 2}
+                    />
+                )}
             </>)}
         </g>
     )

@@ -1,4 +1,4 @@
-import { FigureTypes } from './figures'
+import { FigureCatalog, FigureDefinitions, FigureId } from './figures'
 import { Cell } from './cells'
 import { BoardConnectionsConditionItem } from './connections'
 import { BoardConditionItem } from './conditions'
@@ -11,7 +11,12 @@ export interface GameState {
     boardConditions: BoardConditionItem[]
     connectionsConditions: BoardConnectionsConditionItem[]
 
-    tray: FigureTypes[]
+    figureCatalog: FigureCatalog
+
+    /** @deprecated Migrated to figureCatalog */
+    figureDefinitions?: FigureDefinitions
+
+    tray: FigureId[]
     cells: Cell[]
 
 }

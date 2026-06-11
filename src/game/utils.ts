@@ -2,6 +2,7 @@ import { historyInit } from './context/history'
 import { GameContextValue } from './context/types'
 import { Cell, CellShape } from './types/cells'
 import { getDefaultSvgCellParams } from './cellSvgSize'
+import { createDefaultFigureCatalog } from './figureView'
 import { GameState } from './types/gameState'
 import { Mode } from './types'
 
@@ -44,6 +45,7 @@ export const initialGameState: GameState = {
 
     boardConditions: [],
     connectionsConditions: [],
+    figureCatalog: createDefaultFigureCatalog(),
 }
 
 const mockFn = () => {
@@ -55,7 +57,7 @@ export const defaultGameContextValue: GameContextValue = {
     boardHistory: historyInit(),
     cellParametersBrushState: {
         paramsByShape: {
-            [CellShape.svg]: getDefaultSvgCellParams(),
+            [CellShape.img]: getDefaultSvgCellParams(),
             [CellShape.rect]: {},
             [CellShape.circle]: {},
         }
@@ -80,5 +82,8 @@ export const defaultGameContextValue: GameContextValue = {
     toTray: mockFn,
     setTray: mockFn,
     setCells: mockFn,
+    setFigureDefinition: mockFn,
+    addFigure: mockFn,
+    removeFigure: mockFn,
     clearAssetReferences: mockFn,
 }

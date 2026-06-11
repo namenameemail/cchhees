@@ -13,6 +13,7 @@ import {
     getAssetsByProjectId,
     putAsset,
 } from '../db'
+import { isAllowedAssetFile, isFontAsset, isImageAsset } from './assetKinds'
 import { ProjectAssetView } from './types'
 
 export interface AssetsContextValue {
@@ -23,6 +24,8 @@ export interface AssetsContextValue {
     getAssetUrl: (id: number) => string | undefined
     getAssetById: (id: number) => ProjectAssetView | undefined
     isSvgAsset: (asset: ProjectAssetView) => boolean
+    isFontAsset: (asset: ProjectAssetView) => boolean
+    isImageAsset: (asset: ProjectAssetView) => boolean
 }
 
 const defaultContextValue: AssetsContextValue = {
@@ -33,6 +36,8 @@ const defaultContextValue: AssetsContextValue = {
     getAssetUrl: () => undefined,
     getAssetById: () => undefined,
     isSvgAsset: () => false,
+    isFontAsset: () => false,
+    isImageAsset: () => false,
 }
 
 export const AssetsContext = createContext<AssetsContextValue>(defaultContextValue)
@@ -120,7 +125,7 @@ export function AssetsProvider({ children }: AssetsProviderProps) {
             return
         }
 
-        if (!file.type.startsWith('image/')) {
+        if (!isAllowedAssetFile(file)) {
             return
         }
 
@@ -166,6 +171,8 @@ export function AssetsProvider({ children }: AssetsProviderProps) {
             getAssetUrl,
             getAssetById,
             isSvgAsset,
+            isFontAsset,
+            isImageAsset,
         }),
         [assets, isLoading, addAsset, removeAsset, getAssetUrl, getAssetById],
     )

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import cn from 'classnames'
 
 import styles from './styles.module.css'
@@ -38,6 +38,7 @@ export const Game: React.FC<GameProps> = () => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
     const [leftTab, setLeftTab] = useState(0)
     const [isToolsOpen, setIsToolsOpen] = useState(false)
+    const boardRef = useRef<SVGSVGElement>(null)
 
     const handleBoardTab = () => {
         if (isSettingsOpen && tab === 0) {
@@ -99,7 +100,7 @@ export const Game: React.FC<GameProps> = () => {
             >
 
                 <div className={styles.board}>
-                    <Board />
+                    <Board ref={boardRef} />
                 </div>
 
                 <aside className={styles.toolsShell}>
@@ -156,7 +157,7 @@ export const Game: React.FC<GameProps> = () => {
                     >
                         {tab === 0 && (
                             <div className={styles.settingsBody}>
-                                <BoardHistory />
+                                <BoardHistory boardRef={boardRef} />
                                 <BoardParametersForm />
                                 <div className={styles.arrays}>
                                     <Conditions />

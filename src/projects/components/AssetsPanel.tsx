@@ -2,22 +2,44 @@ import React, { FC, useCallback, useRef } from 'react'
 import { useAssetsContext } from '../assets/AssetsContext'
 import { useGameContext } from '../../game/context'
 import { countAssetReferences } from '../assets/assetReferences'
+import { FONT_UPLOAD_ACCEPT, IMAGE_UPLOAD_ACCEPT } from '../assets/assetKinds'
+import { getFontFamilyName, useFontAssetFamily } from '../assets/useFontAssetFamily'
+import { formatBytes } from '../formatBytes'
+import { ProjectAssetView } from '../assets/types'
 import styles from './AssetsPanel.module.css'
 
-function formatSize(size: number): string {
-    if (size < 1024) {
-        return `${size} B`
+function FontAssetThumbnail({ asset }: { asset: ProjectAssetView }) {
+    const fontFamily = useFontAssetFamily(asset.id)
+
+    return (
+        <div
+            className={styles.fontThumbnail}
+            style={fontFamily ? { fontFamily } : undefined}
+        >
+            Aa
+        </div>
+    )
+}
+
+function AssetThumbnail({ asset, isFontAsset }: { asset: ProjectAssetView; isFontAsset: boolean }) {
+    if (isFontAsset) {
+        return <FontAssetThumbnail asset={asset} />
     }
-    if (size < 1024 * 1024) {
-        return `${(size / 1024).toFixed(1)} KB`
-    }
-    return `${(size / (1024 * 1024)).toFixed(1)} MB`
+
+    return (
+        <img
+            className={styles.thumbnail}
+            src={asset.objectUrl}
+            alt={asset.name}
+        />
+    )
 }
 
 export const AssetsPanel: FC = () => {
-    const { assets, isLoading, addAsset, removeAsset } = useAssetsContext()
+    const { assets, isLoading, addAsset, removeAsset, isFontAsset } = useAssetsContext()
     const { state, clearAssetReferences } = useGameContext()
-    const inputRef = useRef<HTMLInputElement>(null)
+    const imageInputRef = useRef<HTMLInputElement>(null)
+    const fontInputRef = useRef<HTMLInputElement>(null)
 
     const handleUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files
@@ -52,36 +74,49 @@ export const AssetsPanel: FC = () => {
         <div className={styles.assetsPanel}>
             <div className={styles.header}>
                 <div className={styles.title}>Assets</div>
-                <label className={styles.uploadLabel}>
-                    Upload
-                    <input
-                        ref={inputRef}
-                        className={styles.uploadInput}
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleUpload}
-                    />
-                </label>
+                <div className={styles.uploadButtons}>
+                    <label className={styles.uploadLabel}>
+                        images
+                        <input
+                            ref={imageInputRef}
+                            className={styles.uploadInput}
+                            type="file"
+                            accept={IMAGE_UPLOAD_ACCEPT}
+                            multiple
+                            onChange={handleUpload}
+                        />
+                    </label>
+                    <label className={styles.uploadLabel}>
+                        fonts
+                        <input
+                            ref={fontInputRef}
+                            className={styles.uploadInput}
+                            type="file"
+                            accept={FONT_UPLOAD_ACCEPT}
+                            multiple
+                            onChange={handleUpload}
+                        />
+                    </label>
+                </div>
             </div>
 
             {isLoading ? (
                 <div className={styles.empty}>Loading...</div>
             ) : assets.length === 0 ? (
-                <div className={styles.empty}>No assets yet. Upload images to use them in cell settings.</div>
+                <div className={styles.empty}>No assets yet. Upload images or fonts.</div>
             ) : (
                 <div className={styles.list}>
                     {[...assets].reverse().map(asset => (
                         <div className={styles.item} key={asset.id}>
-                            <img
-                                className={styles.thumbnail}
-                                src={asset.objectUrl}
-                                alt={asset.name}
+                            <AssetThumbnail
+                                asset={asset}
+                                isFontAsset={isFontAsset(asset)}
                             />
                             <div className={styles.meta}>
                                 <div className={styles.name}>{asset.name}</div>
                                 <div className={styles.details}>
-                                    {asset.mimeType} · {formatSize(asset.size)}
+                                    {asset.mimeType} · {formatBytes(asset.size)}
+                                    {isFontAsset(asset) ? ` · ${getFontFamilyName(asset.id)}` : ''}
                                 </div>
                             </div>
                             <button

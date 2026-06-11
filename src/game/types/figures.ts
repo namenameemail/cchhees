@@ -1,16 +1,29 @@
-export interface Figures {
+import { SvgCellSizeParams } from '../cellSvgSize'
 
+export type FigureId = string
+
+export enum FigureDisplayType {
+    symbol = 'symbol',
+    image = 'image',
 }
 
-export interface FigureViewParams {
-
+export interface FigureViewParams extends SvgCellSizeParams {
+    displayType?: FigureDisplayType
+    symbol?: string
+    fontSize?: number
+    color?: string
+    fontAssetId?: number | null
+    assetId?: number | null
 }
 
-export interface Figure {
-    name: string
+export interface FigureDefinition {
+    id: FigureId
     viewParams: FigureViewParams
 }
 
+export type FigureCatalog = FigureDefinition[]
+
+/** @deprecated Legacy enum ids used only for migration defaults */
 export enum FigureTypes {
     DraughtsManWhite = 'DraughtsManWhite',
     DraughtsKingWhite = 'DraughtsKingWhite',
@@ -29,3 +42,6 @@ export enum FigureTypes {
     ChessBishopBlack = 'ChessBishopBlack',
     ChessPawnBlack = 'ChessPawnBlack',
 }
+
+/** @deprecated Migrated to figureCatalog */
+export type FigureDefinitions = Partial<Record<FigureId, FigureViewParams>>

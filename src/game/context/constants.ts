@@ -4,7 +4,7 @@ import { ConnectionParams } from '../types/connections'
 export const cellParametersBrushStateInitialValue: CellParameters = {
     shape: CellShape.rect,
     paramsByShape: {
-        [CellShape.svg]: {
+        [CellShape.img]: {
             width: 100,
             height: 100,
             manualWidth: true,

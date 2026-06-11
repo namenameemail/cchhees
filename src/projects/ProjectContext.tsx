@@ -16,9 +16,11 @@ import {
     setCurrentProjectId,
 } from './db'
 import { createEmptyProject, getDefaultProjectName } from './createProject'
+import { exportProjectToFile, importProjectFromFile } from './projectFile'
 import { Project, ProjectPersistData, migrateProject } from './types'
 import { GameState } from '../game/types/gameState'
 import { migrateInlineAssets } from './assets/migrateInlineAssets'
+import { profileDebug } from '../profiler'
 
 const AUTOSAVE_DELAY_MS = 400
 
@@ -33,6 +35,8 @@ export interface ProjectContextValue {
     deleteProject: (id: string) => Promise<void>
     switchProject: (id: string) => Promise<void>
     replaceProjectGameState: (id: string, gameState: GameState) => Promise<void>
+    exportProject: (id: string) => Promise<void>
+    importProjectsFromFiles: (files: File[]) => Promise<Project | null>
 }
 
 const defaultContextValue: ProjectContextValue = {
@@ -46,6 +50,8 @@ const defaultContextValue: ProjectContextValue = {
     deleteProject: async () => {},
     switchProject: async () => {},
     replaceProjectGameState: async () => {},
+    exportProject: async () => {},
+    importProjectsFromFiles: async () => null,
 }
 
 export const ProjectContext = createContext<ProjectContextValue>(defaultContextValue)
@@ -142,31 +148,104 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         return updated
     }, [])
 
+    const bootstrapGenerationRef = useRef(0)
+
     useEffect(() => {
+        const generation = ++bootstrapGenerationRef.current
         let cancelled = false
 
         async function bootstrap() {
-            let loaded = (await getAllProjects()).map(migrateProject)
-            loaded = await Promise.all(loaded.map(migrateProjectInlineAssets))
+            profileDebug('bootstrap', 'start', { generation })
 
-            if (loaded.length === 0) {
-                const project = createEmptyProject(getDefaultProjectName(0))
-                await putProject(project)
-                loaded = [project]
+            try {
+                const rawProjects = await getAllProjects()
+                profileDebug('bootstrap', 'projects.fetched', { count: rawProjects.length, generation })
+
+                let loaded = rawProjects.map(project => {
+                    try {
+                        return migrateProject(project)
+                    } catch (error) {
+                        console.error('[ProjectProvider] migrateProject failed:', project.id, error)
+                        profileDebug('bootstrap', 'project.migrate.error', {
+                            projectId: project.id,
+                            error: String(error),
+                        })
+                        throw error
+                    }
+                })
+
+                loaded = await Promise.all(loaded.map(async (project) => {
+                    try {
+                        const { gameState, migrated } = await migrateInlineAssets(project.id, project.gameState)
+                        if (!migrated) {
+                            return project
+                        }
+
+                        const updated: Project = {
+                            ...project,
+                            gameState,
+                            updatedAt: Date.now(),
+                        }
+
+                        await putProject(updated)
+                        return updated
+                    } catch (error) {
+                        console.error('[ProjectProvider] migrateInlineAssets failed:', project.id, error)
+                        profileDebug('bootstrap', 'project.inlineAssets.error', {
+                            projectId: project.id,
+                            error: String(error),
+                        })
+                        return project
+                    }
+                }))
+
+                if (loaded.length === 0) {
+                    const project = createEmptyProject(getDefaultProjectName(0))
+                    await putProject(project)
+                    loaded = [project]
+                }
+
+                let savedId = await getCurrentProjectId()
+                if (!savedId || !loaded.some(p => p.id === savedId)) {
+                    savedId = loaded[0].id
+                }
+
+                if (cancelled || generation !== bootstrapGenerationRef.current) {
+                    profileDebug('bootstrap', 'cancelled', { generation })
+                    return
+                }
+
+                setProjects(loaded)
+                await applyCurrentProject(savedId)
+                setIsReady(true)
+                profileDebug('bootstrap', 'ready', {
+                    generation,
+                    projectId: savedId,
+                    count: loaded.length,
+                })
+            } catch (error) {
+                console.error('[ProjectProvider] bootstrap failed:', error)
+                profileDebug('bootstrap', 'failed', {
+                    generation,
+                    error: String(error),
+                })
+
+                if (cancelled || generation !== bootstrapGenerationRef.current) {
+                    return
+                }
+
+                try {
+                    const project = createEmptyProject(getDefaultProjectName(0))
+                    await putProject(project)
+                    setProjects([project])
+                    await applyCurrentProject(project.id)
+                } catch (fallbackError) {
+                    console.error('[ProjectProvider] bootstrap fallback failed:', fallbackError)
+                    setProjects([])
+                } finally {
+                    setIsReady(true)
+                }
             }
-
-            let savedId = await getCurrentProjectId()
-            if (!savedId || !loaded.some(p => p.id === savedId)) {
-                savedId = loaded[0].id
-            }
-
-            if (cancelled) {
-                return
-            }
-
-            setProjects(loaded)
-            await applyCurrentProject(savedId)
-            setIsReady(true)
         }
 
         void bootstrap()
@@ -177,7 +256,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                 clearTimeout(debounceTimerRef.current)
             }
         }
-    }, [applyCurrentProject, migrateProjectInlineAssets])
+    }, [applyCurrentProject])
 
     useEffect(() => {
         return () => {
@@ -248,6 +327,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         }
 
         await deleteProjectFromDb(id)
+        await deleteAssetsByProjectId(id)
         setProjects(nextProjects)
 
         if (currentProjectIdRef.current === id) {
@@ -273,6 +353,47 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         setProjects(prev => prev.map(p => p.id === id ? updated : p))
     }, [])
 
+    const exportProject = useCallback(async (id: string) => {
+        await flushPendingSave()
+
+        const project = projectsRef.current.find(item => item.id === id)
+
+        if (!project) {
+            return
+        }
+
+        await exportProjectToFile(project)
+    }, [flushPendingSave])
+
+    const importProjectsFromFiles = useCallback(async (files: File[]) => {
+        if (files.length === 0) {
+            return null
+        }
+
+        await flushPendingSave()
+
+        let currentList = projectsRef.current
+        let lastImported: Project | null = null
+
+        for (const file of files) {
+            const imported = await importProjectFromFile(file, currentList)
+            currentList = [imported, ...currentList]
+            lastImported = imported
+        }
+
+        if (!lastImported) {
+            return null
+        }
+
+        setProjects(currentList)
+
+        skipNextPersistRef.current = true
+        await applyCurrentProject(lastImported.id)
+        skipNextPersistRef.current = false
+
+        return lastImported
+    }, [applyCurrentProject, flushPendingSave])
+
     const value = useMemo(
         () => ({
             isReady,
@@ -285,6 +406,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             deleteProject,
             switchProject,
             replaceProjectGameState,
+            exportProject,
+            importProjectsFromFiles,
         }),
         [
             isReady,
@@ -297,6 +420,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             deleteProject,
             switchProject,
             replaceProjectGameState,
+            exportProject,
+            importProjectsFromFiles,
         ],
     )
 

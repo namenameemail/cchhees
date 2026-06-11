@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+profiling/latest.json
+profiling/console.log
+profiling/sessions/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

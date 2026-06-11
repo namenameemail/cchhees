@@ -1,4 +1,4 @@
-import React, { FC, useCallback, useMemo } from 'react'
+import React, { forwardRef, useCallback, useMemo } from 'react'
 import { useGameContext } from '../context'
 import { BoardCell } from './BoardCell'
 import { CellParameters } from '../types/cells'
@@ -12,7 +12,7 @@ export interface BoardProps {
     className?: string
 }
 
-export const Board: FC<BoardProps> = ({ className }) => {
+export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ className }, ref) {
 
     const { state } = useGameContext()
 
@@ -53,7 +53,7 @@ export const Board: FC<BoardProps> = ({ className }) => {
     }, [connectionsConditions, n])
 
     return (
-        <svg style={boardStyle} className={className}>
+        <svg ref={ref} style={boardStyle} className={className}>
 
             {Object.keys(connections).map((fromKey) => {
                 const [iFrom, jFrom] = fromKey.split(',').map(Number)
@@ -85,4 +85,4 @@ export const Board: FC<BoardProps> = ({ className }) => {
             })}
         </svg>
     )
-}
+})

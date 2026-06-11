@@ -8,12 +8,12 @@ export interface SvgCellSizeParams {
     manualHeight?: boolean
 }
 
-export function isSvgManualWidth(params: SvgCellSizeParams): boolean {
-    return params.manualWidth !== false
+export function isSvgManualWidth(params?: SvgCellSizeParams): boolean {
+    return params?.manualWidth !== false
 }
 
-export function isSvgManualHeight(params: SvgCellSizeParams): boolean {
-    return params.manualHeight !== false
+export function isSvgManualHeight(params?: SvgCellSizeParams): boolean {
+    return params?.manualHeight !== false
 }
 
 export function normalizeSvgCellParams<T extends SvgCellSizeParams>(params: T): T {

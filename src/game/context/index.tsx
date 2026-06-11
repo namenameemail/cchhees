@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { defaultGameContextValue } from '../utils'
 import { historyInit, historyPush, historyRedo, historyUndo } from './history'
 import { GameContextValue } from './types'
-import { FigureTypes } from '../types/figures'
+import { FigureId, FigureViewParams } from '../types/figures'
+import { createNewFigureDefinition } from '../figureView'
+import { removeFigureFromBoard } from '../state/figureReferences'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
 import { SliceHistory } from '../types/history'
@@ -28,7 +30,10 @@ import {
 } from '../state/reconcile'
 import { ShrinkBoardWarningModal } from '../components/ShrinkBoardWarningModal'
 import { CellCoord, coordKey, coordsEqual, indexToCoord, isCoordInGrid } from '../types/coords'
-import { clearAssetIdFromCellParameters } from '../../projects/assets/assetReferences'
+import {
+    clearAssetIdFromCellParameters,
+    clearAssetIdFromFigureViewParams,
+} from '../../projects/assets/assetReferences'
 
 export const GameContext = React.createContext<GameContextValue>(defaultGameContextValue)
 
@@ -60,11 +65,16 @@ export function GameProvider({
     const [figuresHistory, setFiguresHistory] = useState(initialFiguresHistory)
     const [boardHistory, setBoardHistory] = useState(initialBoardHistory)
 
-    const [state, setState] = useState<GameState>(initialState)
+    const [state, setState] = useState<GameState>(() =>
+        composeGameState(
+            createInitialFiguresSliceFromState(initialState),
+            createInitialBoardSliceFromState(initialState),
+        ),
+    )
 
     const [mode, setMode] = useState<Mode>(Mode.Game)
     const [activeCell, setActiveCell] = useState<CellCoord | undefined>(undefined)
-    const [activeFigure, setActiveFigure] = useState<FigureTypes | undefined>(undefined)
+    const [activeFigure, setActiveFigure] = useState<FigureId | undefined>(undefined)
 
     const [cellParametersBrushState, setCellParametersBrushState] = useState<CellParameters>(
         cellParametersBrushStateInitialValue,
@@ -231,7 +241,7 @@ export function GameProvider({
         })
     }, [figuresSlice, pushFiguresChange])
 
-    const replace = useCallback((coord: CellCoord, figure: FigureTypes) => {
+    const replace = useCallback((coord: CellCoord, figure: FigureId) => {
         const key = coordKey(coord)
         const oldFigure = figuresSlice.figuresByCoord[key]
         if (!oldFigure) {
@@ -247,7 +257,7 @@ export function GameProvider({
         })
     }, [figuresSlice, pushFiguresChange])
 
-    const setFigure = useCallback((coord: CellCoord, figure: FigureTypes) => {
+    const setFigure = useCallback((coord: CellCoord, figure: FigureId) => {
         const key = coordKey(coord)
         if (figuresSlice.figuresByCoord[key]) {
             return
@@ -262,7 +272,7 @@ export function GameProvider({
         })
     }, [figuresSlice, pushFiguresChange])
 
-    const setCellFigure = useCallback((coord: CellCoord, figure: FigureTypes) => {
+    const setCellFigure = useCallback((coord: CellCoord, figure: FigureId) => {
         const key = coordKey(coord)
         if (figuresSlice.figuresByCoord[key]) {
             replace(coord, figure)
@@ -327,16 +337,66 @@ export function GameProvider({
         })
     }, [boardSlice, cellParametersBrushState, applyBoardChange])
 
-    const setTray = useCallback((value: FigureTypes[]) => {
+    const setTray = useCallback((value: FigureId[]) => {
         pushFiguresChange({
             ...figuresSlice,
             tray: value,
         })
     }, [figuresSlice, pushFiguresChange])
 
+    const setFigureDefinition = useCallback((figureId: FigureId, params: FigureViewParams) => {
+        applyBoardChange({
+            ...boardSlice,
+            figureCatalog: boardSlice.figureCatalog.map(entry => (
+                entry.id === figureId
+                    ? { ...entry, viewParams: params }
+                    : entry
+            )),
+        })
+    }, [boardSlice, applyBoardChange])
+
+    const addFigure = useCallback(() => {
+        const newFigure = createNewFigureDefinition()
+
+        applyBoardChange({
+            ...boardSlice,
+            figureCatalog: [...boardSlice.figureCatalog, newFigure],
+        })
+
+        setMode(Mode.FiguresArrange)
+        setActiveFigure(newFigure.id)
+    }, [boardSlice, applyBoardChange])
+
+    const removeFigure = useCallback((figureId: FigureId) => {
+        const nextCatalog = boardSlice.figureCatalog.filter(entry => entry.id !== figureId)
+        if (nextCatalog.length === boardSlice.figureCatalog.length) {
+            return
+        }
+
+        const nextBoard = cloneBoardSlice({
+            ...boardSlice,
+            figureCatalog: nextCatalog,
+        })
+        const nextFigures = cloneFiguresSlice(removeFigureFromBoard(figuresSlice, figureId))
+
+        const boardResult = historyPush(boardHistory, boardSlice, nextBoard)
+        const figuresResult = historyPush(figuresHistory, figuresSlice, nextFigures)
+
+        setBoardHistory(boardResult.history)
+        setBoardSlice(boardResult.current)
+        setFiguresHistory(figuresResult.history)
+        setFiguresSlice(figuresResult.current)
+        setState(composeGameState(figuresResult.current, boardResult.current))
+
+        if (activeFigure === figureId) {
+            setActiveFigure(undefined)
+            setMode(Mode.Game)
+        }
+    }, [boardSlice, boardHistory, figuresSlice, figuresHistory, activeFigure])
+
     const setCells = useCallback((value: GameState['cells']) => {
         const { n } = state.boardParameters
-        const figuresByCoord: Record<string, FigureTypes> = {}
+        const figuresByCoord: Record<string, FigureId> = {}
         value.forEach((cell, index) => {
             if (cell.figure) {
                 figuresByCoord[coordKey(indexToCoord(index, n))] = cell.figure
@@ -377,7 +437,20 @@ export function GameProvider({
             setCellParametersBrushState(nextBrushState ?? cellParametersBrushState)
         }
 
-        if (!cellParamsChanged) {
+        let figureDefsChanged = false
+        const nextFigureCatalog = boardSlice.figureCatalog.map(entry => {
+            const nextParams = clearAssetIdFromFigureViewParams(entry.viewParams, assetId)
+            if (nextParams === entry.viewParams) {
+                return entry
+            }
+            figureDefsChanged = true
+            return {
+                ...entry,
+                viewParams: nextParams ?? entry.viewParams,
+            }
+        })
+
+        if (!cellParamsChanged && !figureDefsChanged) {
             return
         }
 
@@ -385,6 +458,7 @@ export function GameProvider({
             ...boardSlice,
             cellParametersByCoord: nextCellParametersByCoord,
             boardConditions: nextBoardConditions,
+            figureCatalog: nextFigureCatalog,
         })
     }, [boardSlice, cellParametersBrushState, applyBoardChange])
 
@@ -416,6 +490,9 @@ export function GameProvider({
             setBoardConditions,
             setTray,
             setCells,
+            setFigureDefinition,
+            addFigure,
+            removeFigure,
             clearAssetReferences,
         }),
         [
@@ -440,6 +517,9 @@ export function GameProvider({
             setBoardConditions,
             setTray,
             setCells,
+            setFigureDefinition,
+            addFigure,
+            removeFigure,
             clearAssetReferences,
         ],
     )

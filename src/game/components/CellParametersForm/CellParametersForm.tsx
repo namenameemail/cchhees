@@ -3,6 +3,7 @@ import { useGameContext } from '../../context'
 
 import { Form1, ParameterInputComponentProps } from '../../../components/Form1'
 import { CellParameters, CellShape } from '../../types/cells'
+import { isCellImageShape, ensureCellShapeParams } from '../../cellImageShape'
 import { Mode } from '../../types'
 import { ParameterTypes } from '../../../components/Form1/types'
 import { CellSVG } from '../CellSVG'
@@ -10,14 +11,13 @@ import { ProjectImageSelect } from '../../../projects/components/ProjectImageSel
 import { isSvgManualHeight, isSvgManualWidth, normalizeSvgCellParams } from '../../cellSvgSize'
 import styles from './styles.module.css'
 
-const SvgAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
+const ImgAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
     return (
         <ProjectImageSelect
             name={name}
             value={typeof value === 'number' ? value : null}
-            svgOnly
-            placeholder="svg asset"
-            title="svg asset"
+            placeholder="image asset"
+            title="image asset"
             onChange={(assetId) => onChange(name, assetId)}
         />
     )
@@ -37,6 +37,41 @@ const SvgManualDimensionCheckbox: FC<ParameterInputComponentProps> = ({ name, va
         </label>
     )
 }
+
+const createImageShapeConfig = (
+    AssetSelectField: FC<ParameterInputComponentProps>,
+) => () => [
+    {
+        name: 'assetId',
+        Component: AssetSelectField,
+    },
+    {
+        name: 'manualWidth',
+        Component: SvgManualDimensionCheckbox,
+        props: { text: 'width' },
+    },
+    {
+        name: 'width',
+        type: ParameterTypes.NumberInput,
+        props: { placeholder: 'width %' },
+        propsByState: (state: Record<string, unknown>) => ({
+            disabled: !isSvgManualWidth(state),
+        }),
+    },
+    {
+        name: 'manualHeight',
+        Component: SvgManualDimensionCheckbox,
+        props: { text: 'height' },
+    },
+    {
+        name: 'height',
+        type: ParameterTypes.NumberInput,
+        props: { placeholder: 'height %' },
+        propsByState: (state: Record<string, unknown>) => ({
+            disabled: !isSvgManualHeight(state),
+        }),
+    },
+]
 
 const paramsConfigByShapeType = {
     [CellShape.rect]: [
@@ -103,38 +138,7 @@ const paramsConfigByShapeType = {
             props: { placeholder: 'strokeDasharray' },
         },
     ],
-    [CellShape.svg]: (_svgParams: Record<string, unknown>) => [
-        {
-            name: 'assetId',
-            Component: SvgAssetSelectField,
-        },
-        {
-            name: 'manualWidth',
-            Component: SvgManualDimensionCheckbox,
-            props: { text: 'width' },
-        },
-        {
-            name: 'width',
-            type: ParameterTypes.NumberInput,
-            props: { placeholder: 'width %' },
-            propsByState: (state: Record<string, unknown>) => ({
-                disabled: !isSvgManualWidth(state),
-            }),
-        },
-        {
-            name: 'manualHeight',
-            Component: SvgManualDimensionCheckbox,
-            props: { text: 'height' },
-        },
-        {
-            name: 'height',
-            type: ParameterTypes.NumberInput,
-            props: { placeholder: 'height %' },
-            propsByState: (state: Record<string, unknown>) => ({
-                disabled: !isSvgManualHeight(state),
-            }),
-        },
-    ],
+    [CellShape.img]: createImageShapeConfig(ImgAssetSelectField),
 
 }
 
@@ -219,16 +223,19 @@ export const CellParametersFormBase: React.FC<CellParametersFormBaseProps> = (pr
     const { value, onChange, className } = props
 
     const handleChange = useCallback((nextValue: CellParameters) => {
-        if (nextValue.shape === CellShape.svg) {
-            const svgParams = nextValue.paramsByShape?.[CellShape.svg]
-            if (svgParams) {
-                const normalized = normalizeSvgCellParams(svgParams)
-                if (normalized !== svgParams) {
+        const withShapeParams = ensureCellShapeParams(nextValue)
+        const shape = withShapeParams.shape
+
+        if (isCellImageShape(shape)) {
+            const imageParams = withShapeParams.paramsByShape?.[shape]
+            if (imageParams) {
+                const normalized = normalizeSvgCellParams(imageParams)
+                if (normalized !== imageParams) {
                     onChange({
-                        ...nextValue,
+                        ...withShapeParams,
                         paramsByShape: {
-                            ...nextValue.paramsByShape,
-                            [CellShape.svg]: normalized,
+                            ...withShapeParams.paramsByShape,
+                            [shape]: normalized,
                         },
                     })
                     return
@@ -236,7 +243,7 @@ export const CellParametersFormBase: React.FC<CellParametersFormBaseProps> = (pr
             }
         }
 
-        onChange(nextValue)
+        onChange(withShapeParams)
     }, [onChange])
 
     return (

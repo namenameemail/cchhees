@@ -1,6 +1,7 @@
 import React, { CSSProperties, FC, useMemo } from 'react'
 import { useGameContext } from '../context'
 import { CellParameters, CellShape } from '../types/cells'
+import { isCellImageShape } from '../cellImageShape'
 import { useAssetHref } from '../../projects/assets/useAssetHref'
 import { useAssetAspectRatio } from '../../projects/assets/useAssetAspectRatio'
 import { resolveSvgCellPixelSize } from '../cellSvgSize'
@@ -41,9 +42,9 @@ export const CellSVGGroup: FC<CellSVGGroupProps> = (props) => {
     } = paramsByShape?.[shape as string] || {}
 
     const imageHref = useAssetHref(cellParams)
-    const aspectRatio = useAssetAspectRatio(shape === CellShape.svg ? imageHref : undefined)
+    const aspectRatio = useAssetAspectRatio(isCellImageShape(shape) ? imageHref : undefined)
 
-    const svgPixelSize = shape === CellShape.svg
+    const imagePixelSize = isCellImageShape(shape)
         ? resolveSvgCellPixelSize(
             { width: rawWidth, height: rawHeight, ...shapeParams },
             cellXDistance,
@@ -52,8 +53,8 @@ export const CellSVGGroup: FC<CellSVGGroupProps> = (props) => {
         )
         : null
 
-    const width = svgPixelSize?.width ?? rawWidth ?? 0
-    const height = svgPixelSize?.height ?? rawHeight ?? 0
+    const width = imagePixelSize?.width ?? rawWidth ?? 0
+    const height = imagePixelSize?.height ?? rawHeight ?? 0
 
 
     const cellStyle = useMemo(() => ({
@@ -86,7 +87,7 @@ export const CellSVGGroup: FC<CellSVGGroupProps> = (props) => {
                     style={cellStyle as CSSProperties}
                 />
             )}
-            {shape === CellShape.svg && imageHref && (
+            {isCellImageShape(shape) && imageHref && (
                 <image
                     xlinkHref={imageHref}
                     href={imageHref}

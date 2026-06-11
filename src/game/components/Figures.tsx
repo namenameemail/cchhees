@@ -1,40 +1,70 @@
 import React, { FC, useCallback } from 'react'
-import { FigureSigns } from '../constants'
 import { useGameContext } from '../context'
 import { FigureButton } from './FigureButton'
-import { FigureTypes } from '../types/figures'
+import { FigureId } from '../types/figures'
 import { Mode } from '../types'
+import { FigureParametersForm } from './FigureParametersForm/FigureParametersForm'
+import styles from './Figures.module.css'
 
-export interface FiguresProps {
+export const Figures: FC = () => {
+    const {
+        mode,
+        setMode,
+        activeFigure,
+        setActiveFigure,
+        state,
+        addFigure,
+        removeFigure,
+    } = useGameContext()
 
-}
-
-
-export const Figures: FC<FiguresProps> = () => {
-
-    const { mode, setMode, activeFigure, setActiveFigure } = useGameContext()
-
-    const handleFigureClick = useCallback((figure) => {
-        if (activeFigure !== figure) {
+    const handleFigureClick = useCallback((figureId: FigureId) => {
+        if (activeFigure !== figureId) {
             setMode(Mode.FiguresArrange)
-            setActiveFigure(figure)
+            setActiveFigure(figureId)
         } else {
             setMode(Mode.Game)
             setActiveFigure(undefined)
         }
     }, [setMode, activeFigure, setActiveFigure])
 
+    const handleAddFigure = useCallback(() => {
+        addFigure()
+    }, [addFigure])
+
+    const handleRemoveFigure = useCallback(() => {
+        if (!activeFigure) {
+            return
+        }
+        removeFigure(activeFigure)
+    }, [activeFigure, removeFigure])
+
+    const canRemove = Boolean(activeFigure) && state.figureCatalog.length > 1
+
     return (
-        <div>
-            {Object.values(FigureTypes).map(figure => {
-                return (
+        <div className={styles.figuresPanel}>
+            <div className={styles.figureToolbar}>
+                <button type="button" onClick={handleAddFigure}>
+                    add figure
+                </button>
+                <button
+                    type="button"
+                    onClick={handleRemoveFigure}
+                    disabled={!canRemove}
+                >
+                    delete figure
+                </button>
+            </div>
+            <div className={styles.figurePicker}>
+                {state.figureCatalog.map(entry => (
                     <FigureButton
-                        type={figure}
+                        key={entry.id}
+                        figureId={entry.id}
                         onClick={handleFigureClick}
-                        isActive={activeFigure === figure}
+                        isActive={activeFigure === entry.id}
                     />
-                )
-            })}
+                ))}
+            </div>
+            <FigureParametersForm />
         </div>
     )
 }

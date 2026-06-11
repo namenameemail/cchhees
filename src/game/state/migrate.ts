@@ -1,14 +1,15 @@
 import { coordKey, indexToCoord } from '../types/coords'
 import { CellParameters } from '../types/cells'
-import { FigureTypes } from '../types/figures'
+import { FigureCatalog, FigureId } from '../types/figures'
 import { SliceHistory } from '../types/history'
+import { createDefaultFigureCatalog, migrateToFigureCatalog } from '../figureView'
 import { FiguresSlice, BoardSlice, composeGameState, splitGameState } from './slices'
 import { GameState } from '../types/gameState'
 
 export interface LegacyFiguresSlice {
-    figuresByIndex?: Record<number, FigureTypes>
-    figuresByCoord?: Record<string, FigureTypes>
-    tray?: FigureTypes[]
+    figuresByIndex?: Record<number, FigureId>
+    figuresByCoord?: Record<string, FigureId>
+    tray?: FigureId[]
 }
 
 export interface LegacyBoardSlice {
@@ -17,6 +18,8 @@ export interface LegacyBoardSlice {
     connectionsConditions?: BoardSlice['connectionsConditions']
     cellParametersByIndex?: Record<number, CellParameters>
     cellParametersByCoord?: Record<string, CellParameters>
+    figureCatalog?: FigureCatalog
+    figureDefinitions?: GameState['figureDefinitions']
 }
 
 function isCoordBasedFiguresSlice(slice: LegacyFiguresSlice): slice is FiguresSlice {
@@ -35,7 +38,7 @@ export function migrateFiguresSlice(slice: LegacyFiguresSlice, n: number): Figur
         }
     }
 
-    const figuresByCoord: Record<string, FigureTypes> = {}
+    const figuresByCoord: Record<string, FigureId> = {}
 
     for (const [indexStr, figure] of Object.entries(slice.figuresByIndex ?? {})) {
         figuresByCoord[coordKey(indexToCoord(+indexStr, n))] = figure
@@ -54,6 +57,7 @@ export function migrateBoardSlice(slice: LegacyBoardSlice): BoardSlice {
             boardConditions: [...(slice.boardConditions ?? [])],
             connectionsConditions: [...(slice.connectionsConditions ?? [])],
             cellParametersByCoord: { ...slice.cellParametersByCoord },
+            figureCatalog: migrateToFigureCatalog(slice),
         }
     }
 
@@ -69,6 +73,7 @@ export function migrateBoardSlice(slice: LegacyBoardSlice): BoardSlice {
         boardConditions: [...(slice.boardConditions ?? [])],
         connectionsConditions: [...(slice.connectionsConditions ?? [])],
         cellParametersByCoord,
+        figureCatalog: createDefaultFigureCatalog(),
     }
 }
 

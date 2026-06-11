@@ -1,26 +1,34 @@
-import React, {FC, useCallback} from "react";
-import {useGameContext} from "../context";
-import styles from "../styles.module.css";
-import {FigureSigns} from "../constants";
+import React, { FC, useCallback } from 'react'
+import { useGameContext } from '../context'
+import styles from '../styles.module.css'
+import { FigureSVG } from './FigureSVG'
 
-export interface TrayProps {
-
-}
-
-export const Tray: FC<TrayProps> = () => {
-
-    const {state, activeCell, setActiveCell, toTray} = useGameContext();
+export const Tray: FC = () => {
+    const { state, activeCell, setActiveCell, toTray } = useGameContext()
 
     const handleTrayClick = useCallback(() => {
         if (activeCell !== undefined) {
-            toTray(activeCell);
-            setActiveCell(undefined);
+            toTray(activeCell)
+            setActiveCell(undefined)
         }
-    }, [activeCell, state, toTray]);
+    }, [activeCell, toTray, setActiveCell])
+
+    const {
+        boardParameters: { cellXDistance, cellYDistance },
+    } = state
+
+    const previewSize = Math.max(24, Math.min(cellXDistance, cellYDistance) * 0.5)
 
     return (
         <div className={styles.eaten} onClick={handleTrayClick}>
-            {state.tray.map(item => FigureSigns[item])}
+            {state.tray.map((item, index) => (
+                <span
+                    key={`${item}-${index}`}
+                    className={styles.trayFigure}
+                >
+                    <FigureSVG figureId={item} size={previewSize} />
+                </span>
+            ))}
         </div>
-    );
-};
+    )
+}

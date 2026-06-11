@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")"
+
+DEFAULT_PORT=5173
+
+usage() {
+    cat <<'EOF'
+Usage: ./run [port]
+       ./run --port <port>
+       ./run -p <port>
+
+Starts the Vite dev server on the given port (default: 5173).
+If the port is busy, shows which process holds it and prompts for another port.
+EOF
+}
+
+is_port_in_use() {
+    local port=$1
+
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltnH "sport = :${port}" 2>/dev/null | grep -q .
+        return
+    fi
+
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -iTCP:"${port}" -sTCP:LISTEN -t >/dev/null 2>&1
+        return
+    fi
+
+    (echo >/dev/tcp/127.0.0.1/"${port}") 2>/dev/null
+}
+
+describe_port_process() {
+    local port=$1
+    local pid cmd
+
+    if command -v lsof >/dev/null 2>&1; then
+        pid=$(lsof -t -iTCP:"${port}" -sTCP:LISTEN 2>/dev/null | head -1 || true)
+    elif command -v fuser >/dev/null 2>&1; then
+        pid=$(fuser "${port}/tcp" 2>/dev/null | tr -d ' ' || true)
+    fi
+
+    if [[ -n "${pid:-}" ]]; then
+        cmd=$(ps -p "$pid" -o args= 2>/dev/null || echo "unknown process")
+        echo "Port ${port} is in use by PID ${pid}: ${cmd}"
+    else
+        echo "Port ${port} is in use."
+    fi
+}
+
+find_next_free_port() {
+    local port=$1
+
+    while is_port_in_use "$port"; do
+        port=$((port + 1))
+        if (( port > 65535 )); then
+            echo "No free ports found above ${1}." >&2
+            exit 1
+        fi
+    done
+
+    echo "$port"
+}
+
+prompt_for_port() {
+    local port=$1
+    local suggested next
+
+    while is_port_in_use "$port"; do
+        describe_port_process "$port" >&2
+        suggested=$(find_next_free_port $((port + 1)))
+
+        if [[ ! -t 0 ]]; then
+            echo "Port ${port} is busy. Run interactively or pass a free port." >&2
+            exit 1
+        fi
+
+        read -r -p "Enter another port [${suggested}]: " next
+        next=${next:-$suggested}
+
+        if ! [[ "$next" =~ ^[0-9]+$ ]] || (( next < 1 || next > 65535 )); then
+            echo "Invalid port: ${next}" >&2
+            continue
+        fi
+
+        port=$next
+    done
+
+    echo "$port"
+}
+
+parse_port() {
+    local port=$DEFAULT_PORT
+
+    if [[ $# -eq 0 ]]; then
+        echo "$port"
+        return
+    fi
+
+    case "$1" in
+        -p|--port)
+            if [[ $# -lt 2 ]] || ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                usage >&2
+                return 1
+            fi
+            port=$2
+            ;;
+        *)
+            if [[ "$1" =~ ^[0-9]+$ ]]; then
+                port=$1
+            else
+                usage >&2
+                return 1
+            fi
+            ;;
+    esac
+
+    if (( port < 1 || port > 65535 )); then
+        echo "Invalid port: ${port}" >&2
+        return 1
+    fi
+
+    echo "$port"
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    usage
+    exit 0
+fi
+
+port=$(parse_port "$@") || exit 1
+port=$(prompt_for_port "$port")
+
+echo "Starting dev server on port ${port}..."
+exec npm run dev -- --port "$port" --strictPort

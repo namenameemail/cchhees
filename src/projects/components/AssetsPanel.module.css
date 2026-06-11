@@ -16,6 +16,11 @@
     font-weight: 600;
 }
 
+.uploadButtons {
+    display: flex;
+    gap: 6px;
+}
+
 .uploadLabel {
     display: inline-flex;
     align-items: center;
@@ -51,11 +56,21 @@
     background: white;
 }
 
-.thumbnail {
+.thumbnail,
+.fontThumbnail {
     width: 40px;
     height: 40px;
     object-fit: contain;
     flex: 0 0 40px;
+}
+
+.fontThumbnail {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #ccc;
+    font-size: 20px;
+    background: white;
 }
 
 .meta {

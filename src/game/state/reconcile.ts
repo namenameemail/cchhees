@@ -1,5 +1,5 @@
 import { CellCoord, coordKey, isCoordInGrid, parseCoordKey } from '../types/coords'
-import { FigureTypes } from '../types/figures'
+import { FigureId } from '../types/figures'
 import { FiguresSlice, BoardSlice } from './slices'
 
 export function getGridLength(n: number, m: number): number {
@@ -25,7 +25,7 @@ export function isGridShrink(
 }
 
 export function pruneFigures(figures: FiguresSlice, n: number, m: number): FiguresSlice {
-    const figuresByCoord: Record<string, FigureTypes> = {}
+    const figuresByCoord: Record<string, FigureId> = {}
 
     for (const [key, figure] of Object.entries(figures.figuresByCoord)) {
         if (isCoordInGrid(parseCoordKey(key), n, m)) {
@@ -67,5 +67,9 @@ export function cloneBoardSlice(board: BoardSlice): BoardSlice {
         boardConditions: [...board.boardConditions],
         connectionsConditions: [...board.connectionsConditions],
         cellParametersByCoord: { ...board.cellParametersByCoord },
+        figureCatalog: board.figureCatalog.map(entry => ({
+            id: entry.id,
+            viewParams: { ...entry.viewParams },
+        })),
     }
 }

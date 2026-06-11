@@ -8,6 +8,10 @@ import {
     LegacyBoardSlice,
     LegacyFiguresSlice,
 } from '../game/state/migrate'
+import {
+    migrateCellShapesInBoardHistory,
+    migrateCellShapesInGameState,
+} from '../game/cellImageShape'
 
 export interface Project {
     id: string
@@ -39,6 +43,9 @@ export function migrateProject(project: {
     figuresHistory?: SliceHistory<unknown>
     boardHistory?: SliceHistory<unknown>
 }): Project {
+    if (!project.gameState?.boardParameters) {
+        throw new Error(`Invalid project ${project.id}: missing boardParameters`)
+    }
     let figuresHistory: SliceHistory<FiguresSlice>
     let boardHistory: SliceHistory<BoardSlice>
 
@@ -51,7 +58,7 @@ export function migrateProject(project: {
         boardHistory = migrateBoardHistory(project.boardHistory as SliceHistory<LegacyBoardSlice>)
     } else {
         figuresHistory = project.figuresHistory as SliceHistory<FiguresSlice>
-        boardHistory = project.boardHistory as SliceHistory<BoardSlice>
+        boardHistory = migrateBoardHistory(project.boardHistory as SliceHistory<LegacyBoardSlice>)
     }
 
     const { figures, board } = splitGameState(project.gameState)
@@ -61,8 +68,8 @@ export function migrateProject(project: {
         name: project.name,
         updatedAt: project.updatedAt,
         figuresHistory,
-        boardHistory,
-        gameState: composeGameState(figures, board),
+        boardHistory: migrateCellShapesInBoardHistory(boardHistory),
+        gameState: migrateCellShapesInGameState(composeGameState(figures, board)),
     }
 }
 

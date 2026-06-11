@@ -1,0 +1,31 @@
+.figuresPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.figureToolbar {
+    display: flex;
+    gap: 8px;
+}
+
+.figureToolbar button {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    border: 1px solid black;
+    background: white;
+}
+
+.figureToolbar button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.figurePicker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 4px;
+}

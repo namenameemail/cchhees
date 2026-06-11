@@ -1,21 +1,27 @@
 import { useMemo } from 'react'
 import { CellParameters, CellShape } from '../../game/types/cells'
+import { getCellImageShapeParams, isCellImageShape } from '../../game/cellImageShape'
 import { useAssetsContext } from './AssetsContext'
 
 export function useAssetHref(cellParams?: CellParameters): string | undefined {
     const { getAssetUrl } = useAssetsContext()
 
     return useMemo(() => {
-        const svgParams = cellParams?.paramsByShape?.[CellShape.svg]
-        if (!svgParams) {
+        if (!isCellImageShape(cellParams?.shape)) {
             return undefined
         }
 
-        if (svgParams.assetId != null) {
-            return getAssetUrl(svgParams.assetId)
+        const imageParams = getCellImageShapeParams(cellParams)
+
+        if (!imageParams) {
+            return undefined
         }
 
-        const legacyFile = (svgParams as { file?: string }).file
+        if (imageParams.assetId != null) {
+            return getAssetUrl(imageParams.assetId)
+        }
+
+        const legacyFile = (imageParams as { file?: string }).file
         if (typeof legacyFile === 'string' && legacyFile.length > 0) {
             return legacyFile
         }

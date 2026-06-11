@@ -1,4 +1,5 @@
 import { CellParameters, CellShape } from '../../game/types/cells'
+import { getLegacySvgInlineFile, migrateCellParameters } from '../../game/cellImageShape'
 import { GameState } from '../../game/types/gameState'
 import { putAsset } from '../db'
 
@@ -6,37 +7,37 @@ function isInlineDataUrl(value: unknown): value is string {
     return typeof value === 'string' && value.startsWith('data:')
 }
 
-function migrateCellParameters(
+function migrateCellParametersWithAssets(
     params: CellParameters | undefined,
     urlToAssetId: Map<string, number>,
 ): CellParameters | undefined {
-    if (!params?.paramsByShape?.[CellShape.svg]) {
-        return params
+    const migrated = migrateCellParameters(params)
+
+    if (!migrated?.paramsByShape?.[CellShape.img]) {
+        return migrated
     }
 
-    const svgParams = params.paramsByShape[CellShape.svg]
-    const legacyFile = (svgParams as { file?: string }).file
+    const imgParams = migrated.paramsByShape[CellShape.img]
+    const legacyFile = getLegacySvgInlineFile(migrated)
 
     if (!isInlineDataUrl(legacyFile)) {
-        if (svgParams.assetId != null || !legacyFile) {
-            return params
-        }
-        return params
+        return migrated
     }
 
     const assetId = urlToAssetId.get(legacyFile)
+
     if (assetId == null) {
-        return params
+        return migrated
     }
 
-    const { file: _removed, ...restSvgParams } = svgParams as { file?: string; assetId?: number | null }
+    const { file: _removed, ...restImgParams } = imgParams as { file?: string; assetId?: number | null }
 
     return {
-        ...params,
+        ...migrated,
         paramsByShape: {
-            ...params.paramsByShape,
-            [CellShape.svg]: {
-                ...restSvgParams,
+            ...migrated.paramsByShape,
+            [CellShape.img]: {
+                ...restImgParams,
                 assetId,
             },
         },
@@ -68,14 +69,14 @@ export async function migrateInlineAssets(
     const uniqueUrls = new Set<string>()
 
     for (const cell of gameState.cells) {
-        const file = (cell.parameters?.paramsByShape?.[CellShape.svg] as { file?: string } | undefined)?.file
+        const file = getLegacySvgInlineFile(cell.parameters)
         if (isInlineDataUrl(file)) {
             uniqueUrls.add(file)
         }
     }
 
     for (const condition of gameState.boardConditions) {
-        const file = (condition.cellParams?.paramsByShape?.[CellShape.svg] as { file?: string } | undefined)?.file
+        const file = getLegacySvgInlineFile(condition.cellParams)
         if (isInlineDataUrl(file)) {
             uniqueUrls.add(file)
         }
@@ -97,11 +98,12 @@ export async function migrateInlineAssets(
         ...gameState,
         cells: gameState.cells.map(cell => ({
             ...cell,
-            parameters: migrateCellParameters(cell.parameters, urlToAssetId),
+            parameters: migrateCellParametersWithAssets(cell.parameters, urlToAssetId),
         })),
         boardConditions: gameState.boardConditions.map(condition => ({
             ...condition,
-            cellParams: migrateCellParameters(condition.cellParams, urlToAssetId) ?? condition.cellParams,
+            cellParams: migrateCellParametersWithAssets(condition.cellParams, urlToAssetId)
+                ?? condition.cellParams,
         })),
     }
 

@@ -156,10 +156,10 @@ const parametersConfig = [
             const { value, onChange, name } = props
 
             const handleChange = useCallback((value) => onChange(name, value), [name, onChange])
-            const handleClick = useCallback(() =>  inputRef.current?.focus(), [inputRef])
+            const handleClick = useCallback(() => inputRef.current?.focus(), [inputRef])
             const handleDoubleClick = useCallback(() => setIsOpen(!isOpen), [isOpen])
             const handleFocus = useCallback(() => setIsSelected(true), [])
-            const handleBlur= useCallback(() => setIsSelected(false), [])
+            const handleBlur = useCallback(() => setIsSelected(false), [])
             const handleCopy = useCallback(() => copyCellParamsService.setValue(value), [value])
             const handlePaste = useCallback(() => handleChange(copyCellParamsService.getValue()), [handleChange])
 

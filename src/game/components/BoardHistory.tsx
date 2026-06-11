@@ -1,12 +1,13 @@
-import React, { FC, useCallback } from 'react'
+import React, { FC, RefObject, useCallback } from 'react'
 import { useGameContext } from '../context'
+import { BoardExportButton } from './BoardExportButton'
 import styles from '../styles.module.css'
 
 export interface BoardHistoryProps {
-
+    boardRef: RefObject<SVGSVGElement | null>
 }
 
-export const BoardHistory: FC<BoardHistoryProps> = () => {
+export const BoardHistory: FC<BoardHistoryProps> = ({ boardRef }) => {
     const { undoBoard, redoBoard, boardHistory } = useGameContext()
 
     const handleUndo = useCallback(() => {
@@ -25,6 +26,7 @@ export const BoardHistory: FC<BoardHistoryProps> = () => {
             <button type="button" onClick={handleRedo}>
                 redo{boardHistory.after.length ? ` (${boardHistory.after.length})` : ''}
             </button>
+            <BoardExportButton boardRef={boardRef} />
         </div>
     )
 }

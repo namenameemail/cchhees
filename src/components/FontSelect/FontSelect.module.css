@@ -1,0 +1,49 @@
+.fontSelect {
+    position: relative;
+}
+
+.images {
+    position: absolute;
+    z-index: 5;
+    top: 100%;
+    left: 0;
+    min-width: 180px;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid black;
+    background: white;
+}
+
+.empty {
+    padding: 8px;
+    font-size: 12px;
+    color: #666;
+}
+
+.fontItem {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    cursor: pointer;
+}
+
+.fontItem:hover {
+    background: #eee;
+}
+
+.preview {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #ccc;
+    font-size: 18px;
+    flex: 0 0 30px;
+}
+
+.name {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
