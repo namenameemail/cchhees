@@ -34,6 +34,12 @@ function isCoordBasedBoardSlice(slice: LegacyBoardSlice): boolean {
     return slice.cellParametersByCoord !== undefined && slice.cellParametersByIndex === undefined
 }
 
+function stripCatalogFromLegacyBoardSlice(slice: LegacyBoardSlice): BoardSlice {
+    const migrated = migrateBoardSlice(slice)
+    const { figureCatalog: _removed, ...board } = migrated as BoardSlice & { figureCatalog?: FigureCatalog }
+    return board
+}
+
 export function migrateFiguresSlice(slice: LegacyFiguresSlice, n: number): FiguresSlice {
     if (isCoordBasedFiguresSlice(slice)) {
         return {
@@ -62,7 +68,6 @@ export function migrateBoardSlice(slice: LegacyBoardSlice): BoardSlice {
             boardConditions: slice.boardConditions,
             connectionsConditions: slice.connectionsConditions,
             cellParametersByCoord: { ...slice.cellParametersByCoord! },
-            figureCatalog: migrateToFigureCatalog(slice),
         })
     }
 
@@ -79,8 +84,11 @@ export function migrateBoardSlice(slice: LegacyBoardSlice): BoardSlice {
         boardConditions: slice.boardConditions,
         connectionsConditions: slice.connectionsConditions,
         cellParametersByCoord,
-        figureCatalog: createDefaultFigureCatalog(),
     })
+}
+
+export function extractCatalogFromLegacyBoardSlice(slice: LegacyBoardSlice): FigureCatalog {
+    return migrateToFigureCatalog(slice)
 }
 
 export function migrateFiguresHistory(
@@ -98,13 +106,14 @@ export function migrateBoardHistory(
 ): SliceHistory<BoardSlice> {
     return {
         before: history.before.map(migrateBoardSlice),
-        after: history.after.map(migrateBoardSlice),
+        after: history.after.map(snapshot => migrateBoardSlice(snapshot)),
     }
 }
 
-export function migrateGameStateFromCoords(state: GameState): GameState {
+export function migrateGameStateFromCoords(state: GameState, catalog?: FigureCatalog): GameState {
     const { figures, board } = splitGameState(state)
-    return composeGameState(figures, board)
+    const resolvedCatalog = catalog ?? state.figureCatalog ?? createDefaultFigureCatalog()
+    return composeGameState(figures, board, resolvedCatalog)
 }
 
 export function needsCoordMigration(project: {

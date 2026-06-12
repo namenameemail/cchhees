@@ -1,7 +1,7 @@
 import styles from './FontSelect.module.css'
 import cn from 'classnames'
 import { BlurEnterTextInput } from '../inputs/BlurEnterTextInput/BlurEnterTextInput'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type MouseEvent } from 'react'
 import { ProjectAssetView } from '../../projects/assets/types'
 import { useFontAssetFamily } from '../../projects/assets/useFontAssetFamily'
 
@@ -41,9 +41,16 @@ export function FontSelect(props: FontSelectProps) {
         return assets.find(asset => asset.id === value)
     }, [assets, value])
 
-    const handleFontClick = useCallback((assetId: number) => {
+    const handleFontSelect = useCallback((assetId: number) => {
         onChange?.(assetId, name)
+        setFocused(false)
+        setListFocused(false)
     }, [onChange, name])
+
+    const handleFontMouseDown = useCallback((event: MouseEvent, assetId: number) => {
+        event.preventDefault()
+        handleFontSelect(assetId)
+    }, [handleFontSelect])
 
     const handleFocus = useCallback(() => {
         setFocused(true)
@@ -71,9 +78,9 @@ export function FontSelect(props: FontSelectProps) {
         >
             <BlurEnterTextInput
                 value={selectedAsset?.name || ''}
-                changeOnEnter
                 resetOnBlur
-                onChange={() => onChange?.(null, name)}
+                readOnly
+                onChange={() => {}}
                 onFocus={handleFocus}
                 onBlur={handleBlur}
                 placeholder={placeholder}
@@ -88,7 +95,7 @@ export function FontSelect(props: FontSelectProps) {
                             <div
                                 className={styles.fontItem}
                                 key={asset.id}
-                                onClick={() => handleFontClick(asset.id)}
+                                onMouseDown={(event) => handleFontMouseDown(event, asset.id)}
                             >
                                 <FontPreview asset={asset} />
                                 <div className={styles.name}>{asset.name}</div>

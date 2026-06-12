@@ -13,6 +13,7 @@
     border-bottom: 1px solid black;
     box-sizing: border-box;
     font-family: sans-serif;
+    overflow: visible;
 }
 
 .projectsButton {
@@ -48,7 +49,8 @@
 }
 
 .projectName {
-    flex: 1;
+    flex-shrink: 0;
+    max-width: 160px;
     min-width: 0;
     font-size: 13px;
     font-weight: 600;
@@ -59,9 +61,25 @@
     user-select: none;
 }
 
-.renameInput {
+.boardTabsSlot {
     flex: 1;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    margin-left: 4px;
+    padding-left: 8px;
+    border-left: 1px solid #999;
+}
+
+.boardTabsInline {
+    width: 100%;
+    min-width: 0;
+}
+
+.renameInput {
+    flex-shrink: 0;
+    width: 160px;
     height: 22px;
     padding: 0 6px;
     font-size: 13px;

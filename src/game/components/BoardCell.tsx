@@ -5,10 +5,12 @@ import { Cell } from '../types/cells'
 import { Mode } from '../types'
 import { FigureSVGGroup } from './FigureSVGGroup'
 import { CellCoord, coordsEqual } from '../types/coords'
+import { selectionDebugLog } from '../selectionDebugLog'
 
 export interface CellProps {
     cell: Cell
     coord: CellCoord
+    selectionGradientId: string
 }
 
 
@@ -37,6 +39,7 @@ export const BoardCell: FC<CellProps> = (props) => {
     const {
         cell,
         coord,
+        selectionGradientId,
     } = props
 
     const { i, j } = coord
@@ -47,36 +50,36 @@ export const BoardCell: FC<CellProps> = (props) => {
 
     const handlerStyle = useMemo(() => ({
         strokeDasharray: '4 1',
-        fill: isActive ? 'url(#MyGradient)' : 'transparent',
+        fill: isActive ? `url(#${selectionGradientId})` : 'transparent',
         cursor: 'pointer',
         rx: cellWidth,
         ry: cellHeight,
-    }), [cellWidth, cellHeight, isActive])
+    }), [cellWidth, cellHeight, isActive, selectionGradientId])
 
 
     const handleCellClick = useCallback(() => {
+        const hasFigure = Boolean(cell.figure)
+        selectionDebugLog.cellClick(coord, Mode[mode] ?? String(mode), activeCell, hasFigure)
+
         if (mode === Mode.FiguresArrange) {
 
             activeFigure && setCellFigure(coord, activeFigure)
 
         } else if (mode === Mode.Game) {
             if (activeCell === undefined) {
-                setActiveCell(coord)
+                setActiveCell(coord, 'cell click · select')
+            } else if (coordsEqual(activeCell, coord)) {
+                // Keep selection — repeat click used to deselect immediately (double-click felt like a bug).
             } else {
                 moveActiveCellFigureTo(coord)
             }
         } else if (mode === Mode.PaintTheBoard) {
             setCellParameters(coord)
         }
-    }, [mode, coord, activeFigure, activeCell, setActiveCell, moveActiveCellFigureTo, setCellParameters, setCellFigure])
+    }, [mode, coord, cell.figure, activeFigure, activeCell, setActiveCell, moveActiveCellFigureTo, setCellParameters, setCellFigure])
     return (
         <g>
             {!isDisabled && (<>
-                <radialGradient id="MyGradient">
-                    <stop offset="5%" stopColor="#ff00FF99"/>
-                    <stop offset="95%" stopColor="#ff000000"/>
-                </radialGradient>
-
                 <circle
                     data-board-handler
                     cx={i * cellXDistance + (cellXDistance) / 2}

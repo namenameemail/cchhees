@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { defaultGameContextValue } from '../utils'
-import { historyInit, historyPush, historyRedo, historyUndo } from './history'
+import { historyPush, historyRedo, historyUndo } from './history'
 import { GameContextValue } from './types'
-import { FigureId, FigureViewParams } from '../types/figures'
+import { FigureId, FigureViewParams, FigureCatalog } from '../types/figures'
 import { createNewFigureDefinition } from '../figureView'
 import { removeFigureFromBoard } from '../state/figureReferences'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
 import { SliceHistory } from '../types/history'
+import { ProjectPersistData } from '../../projects/types'
+import { ActiveBoardPersistPayload } from '../../projects/projectPersist'
 import { Mode } from '../types'
 import { BoardParameters } from '../types/boardParameters'
 import { ConnectionParams } from '../types/connections'
@@ -19,6 +21,7 @@ import {
     composeGameState,
     createInitialBoardSliceFromState,
     createInitialFiguresSliceFromState,
+    cloneFigureCatalog,
 } from '../state/slices'
 import {
     cloneBoardSlice,
@@ -34,47 +37,113 @@ import {
     clearAssetIdFromCellParameters,
     clearAssetIdFromFigureViewParams,
 } from '../../projects/assets/assetReferences'
+import {
+    CollabOp,
+    normalizeCollabOps,
+    applyCollabOps,
+    withBoardId,
+    isBoardScopedCollabOp,
+    resolveCollabOpBoardId,
+} from '../../collab/ops'
+import { selectionDebugLog } from '../selectionDebugLog'
 
 export const GameContext = React.createContext<GameContextValue>(defaultGameContextValue)
 
 export interface GameProviderProps {
     children: React.ReactNode
+    activeBoardId: string
     initialState: GameState
+    initialCatalog: FigureCatalog
     initialFiguresHistory: SliceHistory<FiguresSlice>
     initialBoardHistory: SliceHistory<BoardSlice>
-    onPersist?: (data: {
-        state: GameState
-        figuresHistory: SliceHistory<FiguresSlice>
-        boardHistory: SliceHistory<BoardSlice>
-    }) => void
+    initialCatalogHistory: SliceHistory<FigureCatalog>
+    onPersist?: (data: ActiveBoardPersistPayload) => void
+    onCollabOp?: (op: CollabOp | CollabOp[]) => void
+}
+
+export function applyRemotePersistDataFromProject(data: ProjectPersistData): {
+    boardId: string
+    figuresSlice: FiguresSlice
+    boardSlice: BoardSlice
+    figureCatalog: FigureCatalog
+    figuresHistory: SliceHistory<FiguresSlice>
+    boardHistory: SliceHistory<BoardSlice>
+    catalogHistory: SliceHistory<FigureCatalog>
+    state: GameState
+} | null {
+    const board = data.boards.find(item => item.id === data.activeBoardId) ?? data.boards[0]
+
+    if (!board) {
+        return null
+    }
+
+    const figureCatalog = cloneFigureCatalog(data.figureCatalog)
+    const figuresSlice = createInitialFiguresSliceFromState(board.gameState)
+    const boardSlice = createInitialBoardSliceFromState(board.gameState)
+
+    return {
+        boardId: board.id,
+        figuresSlice,
+        boardSlice,
+        figureCatalog,
+        figuresHistory: board.figuresHistory,
+        boardHistory: board.boardHistory,
+        catalogHistory: data.catalogHistory,
+        state: composeGameState(figuresSlice, boardSlice, figureCatalog),
+    }
 }
 
 export function GameProvider({
     children,
+    activeBoardId,
     initialState,
+    initialCatalog,
     initialFiguresHistory,
     initialBoardHistory,
+    initialCatalogHistory,
     onPersist,
+    onCollabOp,
 }: GameProviderProps) {
+    const activeBoardIdRef = useRef(activeBoardId)
+    activeBoardIdRef.current = activeBoardId
+
     const [figuresSlice, setFiguresSlice] = useState<FiguresSlice>(() =>
         createInitialFiguresSliceFromState(initialState),
     )
     const [boardSlice, setBoardSlice] = useState<BoardSlice>(() =>
         createInitialBoardSliceFromState(initialState),
     )
+    const [figureCatalog, setFigureCatalog] = useState<FigureCatalog>(() =>
+        cloneFigureCatalog(initialCatalog),
+    )
     const [figuresHistory, setFiguresHistory] = useState(initialFiguresHistory)
     const [boardHistory, setBoardHistory] = useState(initialBoardHistory)
+    const [catalogHistory, setCatalogHistory] = useState(initialCatalogHistory)
 
     const [state, setState] = useState<GameState>(() =>
         composeGameState(
             createInitialFiguresSliceFromState(initialState),
             createInitialBoardSliceFromState(initialState),
+            initialCatalog,
         ),
     )
 
     const [mode, setMode] = useState<Mode>(Mode.Game)
-    const [activeCell, setActiveCell] = useState<CellCoord | undefined>(undefined)
+    const [activeCell, setActiveCellState] = useState<CellCoord | undefined>(undefined)
     const [activeFigure, setActiveFigure] = useState<FigureId | undefined>(undefined)
+
+    const setActiveCell = useCallback((value: CellCoord | undefined, reason = 'unknown') => {
+        setActiveCellState(previous => {
+            const unchanged = previous === undefined && value === undefined
+                || (previous !== undefined && value !== undefined && coordsEqual(previous, value))
+
+            if (!unchanged) {
+                selectionDebugLog.activeCell(value, reason, previous)
+            }
+
+            return value
+        })
+    }, [])
 
     const [cellParametersBrushState, setCellParametersBrushState] = useState<CellParameters>(
         cellParametersBrushStateInitialValue,
@@ -90,35 +159,64 @@ export function GameProvider({
     const clearActiveCellIfInvalid = useCallback((n: number, m: number, cell?: CellCoord) => {
         const active = cell ?? activeCell
         if (active !== undefined && !isCoordInGrid(active, n, m)) {
-            setActiveCell(undefined)
+            selectionDebugLog.cleared('outside grid after board change', active)
+            setActiveCell(undefined, 'outside grid after board change')
         }
-    }, [activeCell])
+    }, [activeCell, setActiveCell])
 
     const syncComposedState = useCallback((
         nextFigures: FiguresSlice,
         nextBoard: BoardSlice,
+        catalog: FigureCatalog = figureCatalog,
         cellToValidate?: CellCoord,
     ) => {
         const { n, m } = nextBoard.boardParameters
         const prunedBoard = pruneCellParameters(nextBoard, n, m)
         const prunedFigures = pruneFigures(nextFigures, n, m)
-        const nextState = composeGameState(prunedFigures, prunedBoard)
+        const nextState = composeGameState(prunedFigures, prunedBoard, catalog)
         setFiguresSlice(prunedFigures)
         setBoardSlice(prunedBoard)
         setState(nextState)
         clearActiveCellIfInvalid(n, m, cellToValidate)
         return { nextState, prunedFigures, prunedBoard }
-    }, [clearActiveCellIfInvalid])
+    }, [figureCatalog, clearActiveCellIfInvalid])
 
-    const pushFiguresChange = useCallback((nextFigures: FiguresSlice) => {
+    const skipInitialPersistRef = useRef(true)
+    const skipPersistRef = useRef(false)
+    const skipCollabOpRef = useRef(false)
+
+    const emitCollabOp = useCallback((op: CollabOp | CollabOp[]) => {
+        if (skipCollabOpRef.current || !onCollabOp) {
+            return
+        }
+
+        const boardId = activeBoardIdRef.current
+        const resolved = normalizeCollabOps(op).map(item => withBoardId(item, boardId))
+        onCollabOp(resolved.length === 1 ? resolved[0] : resolved)
+    }, [onCollabOp])
+
+    const pushFiguresChange = useCallback((
+        nextFigures: FiguresSlice,
+        op?: CollabOp | CollabOp[],
+    ) => {
         const cloned = cloneFiguresSlice(nextFigures)
         const result = historyPush(figuresHistory, figuresSlice, cloned)
         setFiguresHistory(result.history)
         setFiguresSlice(result.current)
-        syncComposedState(result.current, boardSlice)
-    }, [figuresHistory, figuresSlice, boardSlice, syncComposedState])
+        syncComposedState(result.current, boardSlice, figureCatalog)
 
-    const applyBoardChange = useCallback((nextBoard: BoardSlice, pushHistory = true) => {
+        if (op) {
+            emitCollabOp(op)
+        } else {
+            emitCollabOp({ kind: 'figures', boardId: activeBoardIdRef.current, figures: result.current })
+        }
+    }, [figuresHistory, figuresSlice, boardSlice, figureCatalog, syncComposedState, emitCollabOp])
+
+    const applyBoardChange = useCallback((
+        nextBoard: BoardSlice,
+        pushHistory = true,
+        op?: CollabOp | CollabOp[],
+    ) => {
         const cloned = cloneBoardSlice(nextBoard)
         const { n, m } = cloned.boardParameters
         const prunedBoard = pruneCellParameters(cloned, n, m)
@@ -133,42 +231,131 @@ export function GameProvider({
         }
 
         setFiguresSlice(prunedFigures)
-        const nextState = composeGameState(prunedFigures, prunedBoard)
+        const nextState = composeGameState(prunedFigures, prunedBoard, figureCatalog)
         setState(nextState)
         clearActiveCellIfInvalid(n, m)
-    }, [boardHistory, boardSlice, figuresSlice, clearActiveCellIfInvalid])
 
-    const skipInitialPersistRef = useRef(true)
+        if (op) {
+            const resolved = normalizeCollabOps(op).map(item => (
+                item.kind === 'board-sync' ? { ...item, board: prunedBoard } : item
+            ))
+            emitCollabOp(resolved.length === 1 ? resolved[0] : resolved)
+        }
+    }, [boardHistory, boardSlice, figuresSlice, figureCatalog, clearActiveCellIfInvalid, emitCollabOp])
+
+    const applyCatalogChange = useCallback((
+        nextCatalog: FigureCatalog,
+        pushHistory = true,
+        op?: CollabOp | CollabOp[],
+    ) => {
+        const cloned = cloneFigureCatalog(nextCatalog)
+        let resolvedCatalog = cloned
+
+        if (pushHistory) {
+            const result = historyPush(catalogHistory, figureCatalog, cloned)
+            setCatalogHistory(result.history)
+            setFigureCatalog(result.current)
+            resolvedCatalog = result.current
+        } else {
+            setFigureCatalog(cloned)
+        }
+
+        setState(composeGameState(figuresSlice, boardSlice, resolvedCatalog))
+
+        if (op) {
+            emitCollabOp(op)
+        }
+    }, [catalogHistory, figureCatalog, figuresSlice, boardSlice, emitCollabOp])
+
+    const applyRemotePersistData = useCallback((data: ProjectPersistData) => {
+        skipPersistRef.current = true
+
+        const resolved = applyRemotePersistDataFromProject(data)
+
+        if (!resolved) {
+            return
+        }
+
+        setFiguresSlice(resolved.figuresSlice)
+        setBoardSlice(resolved.boardSlice)
+        setFigureCatalog(resolved.figureCatalog)
+        setFiguresHistory(resolved.figuresHistory)
+        setBoardHistory(resolved.boardHistory)
+        setCatalogHistory(resolved.catalogHistory)
+        setState(resolved.state)
+    }, [])
+
+    const applyRemoteOps = useCallback((ops: CollabOp[]): GameState => {
+        skipPersistRef.current = true
+        skipCollabOpRef.current = true
+
+        const visibleBoardId = activeBoardIdRef.current
+        const relevantOps = ops.filter(op => {
+            if (!isBoardScopedCollabOp(op)) {
+                return true
+            }
+
+            return resolveCollabOpBoardId(op, visibleBoardId) === visibleBoardId
+        })
+
+        if (relevantOps.length === 0) {
+            return composeGameState(figuresSlice, boardSlice, figureCatalog)
+        }
+
+        const result = applyCollabOps(figuresSlice, boardSlice, figureCatalog, relevantOps)
+        setFiguresSlice(result.figures)
+        setBoardSlice(result.board)
+        setFigureCatalog(result.catalog)
+        setState(result.state)
+        return result.state
+    }, [figuresSlice, boardSlice, figureCatalog])
+
     useEffect(() => {
         if (skipInitialPersistRef.current) {
             skipInitialPersistRef.current = false
             return
         }
-        onPersist?.({ state, figuresHistory, boardHistory })
-    }, [state, figuresHistory, boardHistory, onPersist])
+
+        if (skipPersistRef.current) {
+            skipPersistRef.current = false
+            skipCollabOpRef.current = false
+            return
+        }
+
+        onPersist?.({
+            activeBoardId: activeBoardIdRef.current,
+            state,
+            figuresHistory,
+            boardHistory,
+            figureCatalog,
+            catalogHistory,
+        })
+    }, [state, figuresHistory, boardHistory, figureCatalog, catalogHistory, onPersist])
 
     const undoFigures = useCallback(() => {
         const result = historyUndo(figuresHistory, figuresSlice)
         setFiguresHistory(result.history)
-        syncComposedState(result.current, boardSlice)
-    }, [figuresHistory, figuresSlice, boardSlice, syncComposedState])
+        syncComposedState(result.current, boardSlice, figureCatalog)
+        emitCollabOp({ kind: 'figures', boardId: activeBoardIdRef.current, figures: result.current })
+    }, [figuresHistory, figuresSlice, boardSlice, figureCatalog, syncComposedState, emitCollabOp])
 
     const redoFigures = useCallback(() => {
         const result = historyRedo(figuresHistory, figuresSlice)
         setFiguresHistory(result.history)
-        syncComposedState(result.current, boardSlice)
-    }, [figuresHistory, figuresSlice, boardSlice, syncComposedState])
+        syncComposedState(result.current, boardSlice, figureCatalog)
+        emitCollabOp({ kind: 'figures', boardId: activeBoardIdRef.current, figures: result.current })
+    }, [figuresHistory, figuresSlice, boardSlice, figureCatalog, syncComposedState, emitCollabOp])
 
     const undoBoard = useCallback(() => {
         const result = historyUndo(boardHistory, boardSlice)
         setBoardHistory(result.history)
-        applyBoardChange(result.current, false)
+        applyBoardChange(result.current, false, { kind: 'board-sync', boardId: activeBoardIdRef.current, board: result.current })
     }, [boardHistory, boardSlice, applyBoardChange])
 
     const redoBoard = useCallback(() => {
         const result = historyRedo(boardHistory, boardSlice)
         setBoardHistory(result.history)
-        applyBoardChange(result.current, false)
+        applyBoardChange(result.current, false, { kind: 'board-sync', boardId: activeBoardIdRef.current, board: result.current })
     }, [boardHistory, boardSlice, applyBoardChange])
 
     const setBoardParameters = useCallback((value: BoardParameters) => {
@@ -187,7 +374,7 @@ export function GameProvider({
             return
         }
 
-        applyBoardChange(nextBoard)
+        applyBoardChange(nextBoard, true, { kind: 'board-parameters', boardId: activeBoardIdRef.current, boardParameters: value })
     }, [boardSlice, figuresSlice, applyBoardChange])
 
     const confirmShrinkBoard = useCallback(() => {
@@ -202,7 +389,7 @@ export function GameProvider({
         applyBoardChange({
             ...boardSlice,
             boardParameters: pending,
-        })
+        }, true, { kind: 'board-parameters', boardId: activeBoardIdRef.current, boardParameters: pending })
     }, [boardSlice, applyBoardChange])
 
     const cancelShrinkBoard = useCallback(() => {
@@ -215,7 +402,7 @@ export function GameProvider({
         applyBoardChange({
             ...boardSlice,
             styleRules: value,
-        })
+        }, true, { kind: 'style-rules', boardId: activeBoardIdRef.current, styleRules: value })
     }, [boardSlice, applyBoardChange])
 
     const toTray = useCallback((coord: CellCoord) => {
@@ -280,12 +467,12 @@ export function GameProvider({
         }
 
         if (coordsEqual(activeCell, to)) {
-            setActiveCell(undefined)
+            setActiveCell(undefined, 'move to same cell')
             return
         }
 
         const from = activeCell
-        setActiveCell(undefined)
+        setActiveCell(undefined, 'figure move start')
 
         const fromKey = coordKey(from)
         const toKey = coordKey(to)
@@ -317,7 +504,7 @@ export function GameProvider({
             figuresByCoord,
             tray: newTray,
         })
-    }, [activeCell, figuresSlice, state.boardParameters.swapOnEat, pushFiguresChange])
+    }, [activeCell, figuresSlice, state.boardParameters.swapOnEat, pushFiguresChange, setActiveCell])
 
     const setCellParameters = useCallback((coord: CellCoord) => {
         const key = coordKey(coord)
@@ -327,6 +514,11 @@ export function GameProvider({
                 ...boardSlice.cellParametersByCoord,
                 [key]: cellParametersBrushState,
             },
+        }, true, {
+            kind: 'cell-parameters',
+            boardId: activeBoardIdRef.current,
+            coordKey: key,
+            parameters: cellParametersBrushState,
         })
     }, [boardSlice, cellParametersBrushState, applyBoardChange])
 
@@ -338,54 +530,53 @@ export function GameProvider({
     }, [figuresSlice, pushFiguresChange])
 
     const setFigureDefinition = useCallback((figureId: FigureId, params: FigureViewParams) => {
-        applyBoardChange({
-            ...boardSlice,
-            figureCatalog: boardSlice.figureCatalog.map(entry => (
+        applyCatalogChange(
+            figureCatalog.map(entry => (
                 entry.id === figureId
                     ? { ...entry, viewParams: params }
                     : entry
             )),
-        })
-    }, [boardSlice, applyBoardChange])
+            true,
+            { kind: 'figure-view-params', figureId, viewParams: params },
+        )
+    }, [figureCatalog, applyCatalogChange])
 
     const addFigure = useCallback(() => {
         const newFigure = createNewFigureDefinition()
 
-        applyBoardChange({
-            ...boardSlice,
-            figureCatalog: [...boardSlice.figureCatalog, newFigure],
-        })
+        applyCatalogChange(
+            [...figureCatalog, newFigure],
+            true,
+            { kind: 'figure-add', figure: newFigure },
+        )
 
         setMode(Mode.FiguresArrange)
         setActiveFigure(newFigure.id)
-    }, [boardSlice, applyBoardChange])
+    }, [figureCatalog, applyCatalogChange])
 
     const removeFigure = useCallback((figureId: FigureId) => {
-        const nextCatalog = boardSlice.figureCatalog.filter(entry => entry.id !== figureId)
-        if (nextCatalog.length === boardSlice.figureCatalog.length) {
+        const nextCatalog = figureCatalog.filter(entry => entry.id !== figureId)
+        if (nextCatalog.length === figureCatalog.length) {
             return
         }
 
-        const nextBoard = cloneBoardSlice({
-            ...boardSlice,
-            figureCatalog: nextCatalog,
-        })
         const nextFigures = cloneFiguresSlice(removeFigureFromBoard(figuresSlice, figureId))
 
-        const boardResult = historyPush(boardHistory, boardSlice, nextBoard)
+        const catalogResult = historyPush(catalogHistory, figureCatalog, cloneFigureCatalog(nextCatalog))
         const figuresResult = historyPush(figuresHistory, figuresSlice, nextFigures)
 
-        setBoardHistory(boardResult.history)
-        setBoardSlice(boardResult.current)
+        setCatalogHistory(catalogResult.history)
+        setFigureCatalog(catalogResult.current)
         setFiguresHistory(figuresResult.history)
         setFiguresSlice(figuresResult.current)
-        setState(composeGameState(figuresResult.current, boardResult.current))
+        setState(composeGameState(figuresResult.current, boardSlice, catalogResult.current))
+        emitCollabOp({ kind: 'figure-remove', figureId })
 
         if (activeFigure === figureId) {
             setActiveFigure(undefined)
             setMode(Mode.Game)
         }
-    }, [boardSlice, boardHistory, figuresSlice, figuresHistory, activeFigure])
+    }, [figureCatalog, catalogHistory, boardSlice, figuresSlice, figuresHistory, activeFigure, emitCollabOp])
 
     const setCells = useCallback((value: GameState['cells']) => {
         const { n } = state.boardParameters
@@ -438,7 +629,7 @@ export function GameProvider({
         }
 
         let figureDefsChanged = false
-        const nextFigureCatalog = boardSlice.figureCatalog.map(entry => {
+        const nextFigureCatalog = figureCatalog.map(entry => {
             const nextParams = clearAssetIdFromFigureViewParams(entry.viewParams, assetId)
             if (nextParams === entry.viewParams) {
                 return entry
@@ -454,13 +645,27 @@ export function GameProvider({
             return
         }
 
-        applyBoardChange({
-            ...boardSlice,
-            cellParametersByCoord: nextCellParametersByCoord,
-            styleRules: nextStyleRules,
-            figureCatalog: nextFigureCatalog,
-        })
-    }, [boardSlice, cellParametersBrushState, applyBoardChange])
+        if (cellParamsChanged) {
+            const nextBoard = {
+                ...boardSlice,
+                cellParametersByCoord: nextCellParametersByCoord,
+                styleRules: nextStyleRules,
+            }
+
+            applyBoardChange(nextBoard, true, {
+                kind: 'board-sync',
+                boardId: activeBoardIdRef.current,
+                board: nextBoard,
+            })
+        }
+
+        if (figureDefsChanged) {
+            applyCatalogChange(nextFigureCatalog, true, {
+                kind: 'catalog-sync',
+                catalog: nextFigureCatalog,
+            })
+        }
+    }, [boardSlice, figureCatalog, cellParametersBrushState, applyBoardChange, applyCatalogChange])
 
     const value = useMemo(
         () => ({
@@ -469,6 +674,8 @@ export function GameProvider({
             state,
             figuresHistory,
             boardHistory,
+            figureCatalog,
+            catalogHistory,
             undoFigures,
             redoFigures,
             undoBoard,
@@ -493,12 +700,16 @@ export function GameProvider({
             addFigure,
             removeFigure,
             clearAssetReferences,
+            applyRemotePersistData,
+            applyRemoteOps,
         }),
         [
             mode,
             state,
             figuresHistory,
             boardHistory,
+            figureCatalog,
+            catalogHistory,
             undoFigures,
             redoFigures,
             undoBoard,
@@ -519,6 +730,8 @@ export function GameProvider({
             addFigure,
             removeFigure,
             clearAssetReferences,
+            applyRemotePersistData,
+            applyRemoteOps,
         ],
     )
 

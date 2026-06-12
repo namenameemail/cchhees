@@ -4,7 +4,6 @@ import { GameState } from '../types/gameState'
 import { BoardParameters } from '../types/boardParameters'
 import { BoardStyleRule } from '../types/styleRules'
 import { coordKey, coordToIndex, indexToCoord, isCoordInGrid, iterGridCoords } from '../types/coords'
-import { migrateToFigureCatalog } from '../figureView'
 import { initialGameState } from '../utils'
 
 export interface FiguresSlice {
@@ -16,7 +15,6 @@ export interface BoardSlice {
     boardParameters: BoardParameters
     styleRules: BoardStyleRule[]
     cellParametersByCoord: Record<string, CellParameters>
-    figureCatalog: FigureCatalog
 }
 
 export function splitGameState(state: GameState): { figures: FiguresSlice; board: BoardSlice } {
@@ -43,12 +41,15 @@ export function splitGameState(state: GameState): { figures: FiguresSlice; board
             boardParameters: { ...state.boardParameters },
             styleRules: [...state.styleRules],
             cellParametersByCoord,
-            figureCatalog: migrateToFigureCatalog(state),
         },
     }
 }
 
-export function composeGameState(figures: FiguresSlice, board: BoardSlice): GameState {
+export function composeGameState(
+    figures: FiguresSlice,
+    board: BoardSlice,
+    catalog: FigureCatalog,
+): GameState {
     const { n, m } = board.boardParameters
     const cells: Cell[] = iterGridCoords(n, m).map(({ i, j }) => {
         const key = coordKey({ i, j })
@@ -61,7 +62,7 @@ export function composeGameState(figures: FiguresSlice, board: BoardSlice): Game
     return {
         boardParameters: board.boardParameters,
         styleRules: board.styleRules,
-        figureCatalog: board.figureCatalog.map(entry => ({
+        figureCatalog: catalog.map(entry => ({
             id: entry.id,
             viewParams: { ...entry.viewParams },
         })),
@@ -92,4 +93,11 @@ export function createInitialFiguresSlice(): FiguresSlice {
 
 export function createInitialBoardSlice(): BoardSlice {
     return splitGameState(initialGameState).board
+}
+
+export function cloneFigureCatalog(catalog: FigureCatalog): FigureCatalog {
+    return catalog.map(entry => ({
+        id: entry.id,
+        viewParams: { ...entry.viewParams },
+    }))
 }

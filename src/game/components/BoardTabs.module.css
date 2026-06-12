@@ -1,0 +1,91 @@
+.boardTabs {
+    min-width: 0;
+    width: 100%;
+}
+
+.boardTabsScroll {
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.boardTabsScroll::-webkit-scrollbar {
+    display: none;
+}
+
+.boardTabsTrack {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: min-content;
+    padding: 1px 0;
+}
+
+.tabGroup {
+    display: inline-flex;
+    align-items: stretch;
+    flex-shrink: 0;
+}
+
+.tab,
+.tabActive,
+.addTab,
+.deleteTab {
+    height: 22px;
+    border: 1px solid black;
+    background: white;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.tab,
+.tabActive {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 8px;
+}
+
+.tabActive {
+    background: #eef4ff;
+    font-weight: 600;
+}
+
+.addTab {
+    position: sticky;
+    right: 0;
+    flex-shrink: 0;
+    width: 22px;
+    padding: 0;
+    margin-left: 4px;
+    font-weight: 700;
+    z-index: 1;
+    background: lightgrey;
+    box-shadow: -6px 0 6px lightgrey;
+}
+
+.deleteTab {
+    width: 18px;
+    padding: 0;
+    margin-left: -1px;
+    color: #a00;
+}
+
+.renameInput {
+    height: 22px;
+    width: 100px;
+    padding: 0 6px;
+    font-size: 12px;
+    border: 1px solid black;
+    box-sizing: border-box;
+}
+
+.tab:not(.tabActive):hover,
+.addTab:hover,
+.deleteTab:hover {
+    background: #f0f0f0;
+}

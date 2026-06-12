@@ -1,0 +1,76 @@
+{
+  "recordedAt": "2026-06-12T12:13:32.040Z",
+  "clickCount": 8,
+  "clicks": [
+    {
+      "ts": "2026-06-12T12:13:21.747Z",
+      "tag": "button",
+      "className": "_settingTab_15fhm_99",
+      "text": "assets",
+      "selector": "button._settingTab_15fhm_99:nth-of-type(3)",
+      "x": 1228,
+      "y": 206
+    },
+    {
+      "ts": "2026-06-12T12:13:22.470Z",
+      "tag": "span",
+      "className": "_settingTabText_15fhm_138",
+      "text": "assets",
+      "selector": "span._settingTabText_15fhm_138",
+      "x": 1222,
+      "y": 206
+    },
+    {
+      "ts": "2026-06-12T12:13:23.319Z",
+      "tag": "span",
+      "className": "_settingTabText_15fhm_138",
+      "text": "figures",
+      "selector": "span._settingTabText_15fhm_138",
+      "x": 1221,
+      "y": 129
+    },
+    {
+      "ts": "2026-06-12T12:13:24.481Z",
+      "tag": "button",
+      "className": "_settingTab_15fhm_99 _settingTabActive_15fhm_149",
+      "text": "figures",
+      "selector": "button._settingTab_15fhm_99._settingTabActive_15fhm_149:nth-of-type(2)",
+      "x": 1219,
+      "y": 99
+    },
+    {
+      "ts": "2026-06-12T12:13:25.388Z",
+      "tag": "button",
+      "className": "_settingTab_15fhm_99",
+      "text": "board",
+      "selector": "button._settingTab_15fhm_99:nth-of-type(1)",
+      "x": 1224,
+      "y": 96
+    },
+    {
+      "ts": "2026-06-12T12:13:26.549Z",
+      "tag": "div",
+      "className": "_settingsBody_15fhm_92",
+      "text": "undo (80) redo export png + cell + connection all white black oddRow evenRow odd…",
+      "selector": "div._settingsBody_15fhm_92",
+      "x": 938,
+      "y": 104
+    },
+    {
+      "ts": "2026-06-12T12:13:28.400Z",
+      "tag": "input",
+      "className": "blur-text-input",
+      "selector": "input.blur-text-input:nth-of-type(4)",
+      "x": 807,
+      "y": 110
+    },
+    {
+      "ts": "2026-06-12T12:13:30.438Z",
+      "tag": "input",
+      "className": "blur-text-input",
+      "selector": "input.blur-text-input:nth-of-type(2)",
+      "x": 795,
+      "y": 86
+    }
+  ]
+}

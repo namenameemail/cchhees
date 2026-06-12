@@ -1,4 +1,4 @@
-import React, { forwardRef, useMemo } from 'react'
+import React, { forwardRef, useId, useMemo } from 'react'
 import { useGameContext } from '../context'
 import { BoardCell } from './BoardCell'
 import { getConnections } from '../context/connections'
@@ -18,6 +18,7 @@ export interface BoardProps {
 export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ className }, ref) {
 
     const { state } = useGameContext()
+    const selectionGradientId = useId().replace(/:/g, '')
 
     const {
         boardParameters: {
@@ -51,6 +52,12 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
 
     return (
         <svg ref={ref} style={boardStyle} className={className}>
+            <defs>
+                <radialGradient id={selectionGradientId}>
+                    <stop offset="5%" stopColor="#ff00FF99" />
+                    <stop offset="95%" stopColor="#ff000000" />
+                </radialGradient>
+            </defs>
             {styleRules.map((rule, ruleIndex) => (
                 <g key={ruleIndex}>
                     {isCellStyleRule(rule) && drawPlan.cellLayers.get(ruleIndex)?.map((coord) => (
@@ -89,7 +96,12 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
             {iterGridCoords(n, m).map((coord) => {
                 const index = coord.j * n + coord.i
                 return (
-                    <BoardCell key={coordKey(coord)} cell={cells[index]} coord={coord}/>
+                    <BoardCell
+                        key={coordKey(coord)}
+                        cell={cells[index]}
+                        coord={coord}
+                        selectionGradientId={selectionGradientId}
+                    />
                 )
             })}
         </svg>

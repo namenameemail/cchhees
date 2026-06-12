@@ -142,17 +142,49 @@ function getSvgExportSize(svg: SVGSVGElement): { width: number; height: number }
 }
 
 export interface ExportBoardImageOptions {
-    filename: string
     background?: string
     scale?: number
+    maxWidth?: number
+    mimeType?: 'image/png' | 'image/jpeg'
+    quality?: number
     getFontFaceForAsset?: (assetId: number) => ExportFontFaceSource | undefined
 }
 
-export async function exportBoardAsPng(
+export interface ExportBoardDownloadOptions extends ExportBoardImageOptions {
+    filename: string
+}
+
+function resolveCanvasSize(
+    width: number,
+    height: number,
+    scale: number,
+    maxWidth?: number,
+): { canvasWidth: number; canvasHeight: number; drawScale: number } {
+    let drawScale = scale
+
+    if (maxWidth && width * drawScale > maxWidth) {
+        drawScale = maxWidth / width
+    }
+
+    return {
+        canvasWidth: Math.max(1, Math.round(width * drawScale)),
+        canvasHeight: Math.max(1, Math.round(height * drawScale)),
+        drawScale,
+    }
+}
+
+export async function renderBoardImageDataUrl(
     svg: SVGSVGElement,
-    options: ExportBoardImageOptions,
-): Promise<void> {
-    const { filename, background = '#ffffff', scale = 2, getFontFaceForAsset } = options
+    options: ExportBoardImageOptions = {},
+): Promise<string> {
+    const {
+        background = '#ffffff',
+        scale = 2,
+        maxWidth,
+        mimeType = 'image/png',
+        quality = 0.85,
+        getFontFaceForAsset,
+    } = options
     const { width, height } = getSvgExportSize(svg)
 
     const clone = svg.cloneNode(true) as SVGSVGElement
@@ -184,9 +216,11 @@ export async function exportBoardAsPng(
             await image.decode()
         }
 
+        const { canvasWidth, canvasHeight } = resolveCanvasSize(width, height, scale, maxWidth)
+
         const canvas = document.createElement('canvas')
-        canvas.width = Math.max(1, Math.round(width * scale))
-        canvas.height = Math.max(1, Math.round(height * scale))
+        canvas.width = canvasWidth
+        canvas.height = canvasHeight
 
         const context = canvas.getContext('2d')
         if (!context) {
@@ -197,14 +231,27 @@ export async function exportBoardAsPng(
         context.fillRect(0, 0, canvas.width, canvas.height)
         context.drawImage(image, 0, 0, canvas.width, canvas.height)
 
-        const pngUrl = canvas.toDataURL('image/png')
-        const link = document.createElement('a')
-        link.download = filename.endsWith('.png') ? filename : `${filename}.png`
-        link.href = pngUrl
-        link.click()
+        return mimeType === 'image/jpeg'
+            ? canvas.toDataURL('image/jpeg', quality)
+            : canvas.toDataURL('image/png')
     } finally {
         URL.revokeObjectURL(objectUrl)
     }
+}
+
+export async function exportBoardAsPng(
+    svg: SVGSVGElement,
+    options: ExportBoardDownloadOptions,
+): Promise<void> {
+    const { filename, ...renderOptions } = options
+    const pngUrl = await renderBoardImageDataUrl(svg, {
+        ...renderOptions,
+        mimeType: 'image/png',
+    })
+    const link = document.createElement('a')
+    link.download = filename.endsWith('.png') ? filename : `${filename}.png`
+    link.href = pngUrl
+    link.click()
 }
 
 export function createBoardImageFilename(projectName: string): string {

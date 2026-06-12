@@ -1,4 +1,5 @@
 import React, { FC, RefObject, useCallback, useState } from 'react'
+import { ConfirmModal } from '../../components/ConfirmModal'
 import { getFontFormat } from '../../projects/assets/assetKinds'
 import { useAssetsContext } from '../../projects/assets/AssetsContext'
 import { getFontFamilyName } from '../../projects/assets/useFontAssetFamily'
@@ -14,6 +15,7 @@ export const BoardExportButton: FC<BoardExportButtonProps> = ({ boardRef }) => {
     const { currentProject } = useProjectContext()
     const { getAssetById, getAssetUrl } = useAssetsContext()
     const [isExporting, setIsExporting] = useState(false)
+    const [exportError, setExportError] = useState<string | null>(null)
 
     const handleExport = useCallback(async () => {
         const svg = boardRef.current
@@ -43,20 +45,30 @@ export const BoardExportButton: FC<BoardExportButtonProps> = ({ boardRef }) => {
             })
         } catch (error) {
             console.error('[BoardExportButton] export failed:', error)
-            window.alert('Не удалось экспортировать доску как картинку')
+            setExportError('Не удалось экспортировать доску как картинку')
         } finally {
             setIsExporting(false)
         }
     }, [boardRef, currentProject?.name, getAssetById, getAssetUrl])
 
     return (
-        <button
-            type="button"
-            className={styles.boardExportButton}
-            onClick={() => void handleExport()}
-            disabled={isExporting}
-        >
-            {isExporting ? 'export...' : 'export png'}
-        </button>
+        <>
+            <button
+                type="button"
+                className={styles.boardExportButton}
+                onClick={() => void handleExport()}
+                disabled={isExporting}
+            >
+                {isExporting ? 'export...' : 'export png'}
+            </button>
+
+            <ConfirmModal
+                open={exportError !== null}
+                title="Ошибка экспорта"
+                message={exportError ?? ''}
+                alert
+                onConfirm={() => setExportError(null)}
+            />
+        </>
     )
 }

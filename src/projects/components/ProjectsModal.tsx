@@ -10,6 +10,10 @@ import { useProjectContext } from '../ProjectContext'
 import { formatMegabytes } from '../formatBytes'
 import { isProjectImportFile } from '../projectFile'
 import { getProjectByteSize, readStorageEstimate, StorageEstimate } from '../storageEstimate'
+import { ConfirmModal } from '../../components/ConfirmModal'
+import { getBoardPreviewBoxStyle } from '../boardPreviewSize'
+import { getActiveBoardGameState } from '../types'
+import { visitedRoomToProject } from '../visitedRooms/types'
 import styles from './ProjectsModal.module.css'
 
 export interface ProjectsModalProps {
@@ -28,11 +32,15 @@ function formatFreePercent(estimate: StorageEstimate): string {
 export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
     const {
         projects,
+        visitedRooms,
         currentProjectId,
+        currentProjectKind,
         createProject,
         renameProject,
         deleteProject,
         switchProject,
+        switchVisitedRoom,
+        promoteVisitedRoomToLocal,
         exportProject,
         importProjectsFromFiles,
     } = useProjectContext()
@@ -44,6 +52,7 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
     const [isImporting, setIsImporting] = useState(false)
     const [isDragActive, setIsDragActive] = useState(false)
     const [statusMessage, setStatusMessage] = useState<string | null>(null)
+    const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const dragDepthRef = useRef(0)
 
@@ -84,6 +93,17 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
         onClose()
     }, [switchProject, onClose])
 
+    const handleOpenVisitedRoom = useCallback(async (hostProjectId: string) => {
+        await switchVisitedRoom(hostProjectId)
+        onClose()
+    }, [switchVisitedRoom, onClose])
+
+    const handlePromoteVisitedRoom = useCallback(async (hostProjectId: string) => {
+        await promoteVisitedRoomToLocal(hostProjectId)
+        await refreshStorageInfo()
+        setStatusMessage('Комната перенесена в локальные проекты')
+    }, [promoteVisitedRoomToLocal, refreshStorageInfo])
+
     const handleStartRename = useCallback((id: string, name: string) => {
         setRenamingId(id)
         setRenameValue(name)
@@ -100,14 +120,24 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
         await refreshStorageInfo()
     }, [renameProject, renameValue, handleCancelRename, refreshStorageInfo])
 
-    const handleDelete = useCallback(async (id: string, name: string) => {
-        if (!confirm(`Удалить проект «${name}»?`)) {
+    const handleDeleteClick = useCallback((id: string, name: string) => {
+        setPendingDelete({ id, name })
+    }, [])
+
+    const handleConfirmDelete = useCallback(async () => {
+        if (!pendingDelete) {
             return
         }
 
+        const { id } = pendingDelete
+        setPendingDelete(null)
         await deleteProject(id)
         await refreshStorageInfo()
-    }, [deleteProject, refreshStorageInfo])
+    }, [pendingDelete, deleteProject, refreshStorageInfo])
+
+    const handleCancelDelete = useCallback(() => {
+        setPendingDelete(null)
+    }, [])
 
     const handleExport = useCallback(async (id: string) => {
         try {
@@ -231,94 +261,202 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
                     </button>
                 </div>
 
-                <div className={styles.list}>
+                <div className={styles.scrollBody}>
+                    {visitedRooms.length > 0 && (
+                        <section className={styles.section}>
+                            <h3 className={styles.sectionTitle}>
+                                Collab-проекты
+                                <span className={styles.sectionHint}>до 10, по UUID хоста</span>
+                            </h3>
+                            <div className={styles.grid}>
+                                {visitedRooms.map(room => {
+                                    const isCurrent = currentProjectKind === 'visited'
+                                        && room.localProjectId === currentProjectId
+                                    const previewBox = getBoardPreviewBoxStyle(
+                                        getActiveBoardGameState(visitedRoomToProject(room)).boardParameters,
+                                        56,
+                                    )
+
+                                    return (
+                                        <article
+                                            key={room.hostProjectId}
+                                            className={`${styles.item} ${styles.itemVisited} ${isCurrent ? styles.itemCurrent : ''}`}
+                                        >
+                                            <div
+                                                className={styles.preview}
+                                                style={{
+                                                    width: previewBox.width,
+                                                    height: previewBox.height,
+                                                }}
+                                                aria-hidden
+                                            >
+                                                {room.previewDataUrl ? (
+                                                    <img
+                                                        className={styles.previewImage}
+                                                        src={room.previewDataUrl}
+                                                        alt=""
+                                                    />
+                                                ) : (
+                                                    <span className={styles.previewPlaceholder}>?</span>
+                                                )}
+                                            </div>
+
+                                            <div className={styles.itemBody}>
+                                                <div className={styles.itemMain}>
+                                                    <button
+                                                        type="button"
+                                                        className={styles.nameButton}
+                                                        onClick={() => void handleOpenVisitedRoom(room.hostProjectId)}
+                                                    >
+                                                        {room.name}
+                                                        {isCurrent ? ' · текущий' : ''}
+                                                    </button>
+                                                    <div className={styles.metaRow}>
+                                                        <span className={styles.roomId}>{room.lastRoomId}</span>
+                                                        <span className={styles.updatedAt}>
+                                                            {formatUpdatedAt(room.lastVisitedAt)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className={styles.actions}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void handleOpenVisitedRoom(room.hostProjectId)}
+                                                    >
+                                                        Открыть
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className={styles.promoteButton}
+                                                        onClick={() => void handlePromoteVisitedRoom(room.hostProjectId)}
+                                                    >
+                                                        В локальные
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </article>
+                                    )
+                                })}
+                            </div>
+                        </section>
+                    )}
+
+                    <section className={styles.section}>
+                        <h3 className={styles.sectionTitle}>Локальные проекты</h3>
+                        <div className={styles.grid}>
                     {projects.map(project => {
-                        const isCurrent = project.id === currentProjectId
+                        const isCurrent = currentProjectKind === 'local' && project.id === currentProjectId
                         const isRenaming = renamingId === project.id
                         const projectSize = projectSizes[project.id]
+                        const previewBox = getBoardPreviewBoxStyle(getActiveBoardGameState(project).boardParameters, 56)
 
                         return (
-                            <div
+                            <article
                                 key={project.id}
                                 className={`${styles.item} ${isCurrent ? styles.itemCurrent : ''}`}
                             >
-                                <div className={styles.itemMain}>
-                                    {isRenaming ? (
-                                        <input
-                                            className={styles.renameInput}
-                                            value={renameValue}
-                                            autoFocus
-                                            onChange={e => setRenameValue(e.target.value)}
-                                            onKeyDown={e => {
-                                                if (e.key === 'Enter') {
-                                                    void handleConfirmRename(project.id)
-                                                }
-                                                if (e.key === 'Escape') {
-                                                    handleCancelRename()
-                                                }
-                                            }}
+                                <div
+                                    className={styles.preview}
+                                    style={{
+                                        width: previewBox.width,
+                                        height: previewBox.height,
+                                    }}
+                                    aria-hidden
+                                >
+                                    {project.previewDataUrl ? (
+                                        <img
+                                            className={styles.previewImage}
+                                            src={project.previewDataUrl}
+                                            alt=""
                                         />
                                     ) : (
-                                        <button
-                                            type="button"
-                                            className={styles.nameButton}
-                                            onClick={() => void handleSwitch(project.id)}
-                                        >
-                                            {project.name}
-                                            {isCurrent ? ' (текущий)' : ''}
-                                        </button>
+                                        <span className={styles.previewPlaceholder}>?</span>
                                     )}
-                                    <div className={styles.metaRow}>
-                                        <span className={styles.updatedAt}>
-                                            {formatUpdatedAt(project.updatedAt)}
-                                        </span>
-                                        {projectSize != null && (
-                                            <span className={styles.projectSize}>
-                                                {formatMegabytes(projectSize)}
+                                </div>
+
+                                <div className={styles.itemBody}>
+                                    <div className={styles.itemMain}>
+                                        {isRenaming ? (
+                                            <input
+                                                className={styles.renameInput}
+                                                value={renameValue}
+                                                autoFocus
+                                                onChange={e => setRenameValue(e.target.value)}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') {
+                                                        void handleConfirmRename(project.id)
+                                                    }
+                                                    if (e.key === 'Escape') {
+                                                        handleCancelRename()
+                                                    }
+                                                }}
+                                            />
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                className={styles.nameButton}
+                                                onClick={() => void handleSwitch(project.id)}
+                                            >
+                                                {project.name}
+                                                {isCurrent ? ' · текущий' : ''}
+                                            </button>
+                                        )}
+                                        <div className={styles.metaRow}>
+                                            <span className={styles.updatedAt}>
+                                                {formatUpdatedAt(project.updatedAt)}
                                             </span>
+                                            {projectSize != null && (
+                                                <span className={styles.projectSize}>
+                                                    {formatMegabytes(projectSize)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className={styles.actions}>
+                                        {isRenaming ? (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleConfirmRename(project.id)}
+                                                >
+                                                    OK
+                                                </button>
+                                                <button type="button" onClick={handleCancelRename}>
+                                                    Отмена
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleExport(project.id)}
+                                                >
+                                                    Экспорт
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleStartRename(project.id, project.name)}
+                                                >
+                                                    Имя
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className={styles.deleteButton}
+                                                    onClick={() => handleDeleteClick(project.id, project.name)}
+                                                >
+                                                    Удалить
+                                                </button>
+                                            </>
                                         )}
                                     </div>
                                 </div>
-
-                                <div className={styles.actions}>
-                                    {isRenaming ? (
-                                        <>
-                                            <button
-                                                type="button"
-                                                onClick={() => void handleConfirmRename(project.id)}
-                                            >
-                                                OK
-                                            </button>
-                                            <button type="button" onClick={handleCancelRename}>
-                                                Отмена
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <button
-                                                type="button"
-                                                onClick={() => void handleExport(project.id)}
-                                            >
-                                                Экспорт
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleStartRename(project.id, project.name)}
-                                            >
-                                                Переименовать
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => void handleDelete(project.id, project.name)}
-                                            >
-                                                Удалить
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
+                            </article>
                         )
                     })}
+                        </div>
+                    </section>
                 </div>
 
                 {statusMessage && (
@@ -350,6 +488,16 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
                     onChange={handleFileInputChange}
                 />
             </div>
+
+            <ConfirmModal
+                open={pendingDelete !== null}
+                title="Удалить проект"
+                message={pendingDelete ? `Удалить проект «${pendingDelete.name}»? Это действие нельзя отменить.` : ''}
+                confirmLabel="Удалить"
+                destructive
+                onConfirm={() => void handleConfirmDelete()}
+                onCancel={handleCancelDelete}
+            />
         </div>
     )
 }

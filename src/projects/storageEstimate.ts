@@ -36,9 +36,11 @@ function estimateProjectDocumentSize(project: Project): number {
         id: project.id,
         name: project.name,
         updatedAt: project.updatedAt,
-        gameState: project.gameState,
-        figuresHistory: project.figuresHistory,
-        boardHistory: project.boardHistory,
+        figureCatalog: project.figureCatalog,
+        catalogHistory: project.catalogHistory,
+        boards: project.boards,
+        activeBoardId: project.activeBoardId,
+        previewDataUrl: project.previewDataUrl,
     })]).size
 }
 

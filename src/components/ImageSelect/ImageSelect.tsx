@@ -1,7 +1,7 @@
 import styles from './ImageSelect.module.css'
 import cn from 'classnames'
 import { BlurEnterTextInput } from '../inputs/BlurEnterTextInput/BlurEnterTextInput'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type MouseEvent } from 'react'
 import { ProjectAssetView } from '../../projects/assets/types'
 
 export interface ImageSelectProps {
@@ -27,9 +27,16 @@ export function ImageSelect(props: ImageSelectProps) {
         return assets.find(asset => asset.id === value)
     }, [assets, value])
 
-    const handleImageClick = useCallback((assetId: number) => {
+    const handleImageSelect = useCallback((assetId: number) => {
         onChange?.(assetId, name)
+        setFocused(false)
+        setListFocused(false)
     }, [onChange, name])
+
+    const handleImageMouseDown = useCallback((event: MouseEvent, assetId: number) => {
+        event.preventDefault()
+        handleImageSelect(assetId)
+    }, [handleImageSelect])
 
     const handleFocus = useCallback(() => {
         setFocused(true)
@@ -55,9 +62,9 @@ export function ImageSelect(props: ImageSelectProps) {
         >
             <BlurEnterTextInput
                 value={selectedAsset?.name || ''}
-                changeOnEnter
                 resetOnBlur
-                onChange={() => onChange?.(null, name)}
+                readOnly
+                onChange={() => {}}
                 onFocus={handleFocus}
                 onBlur={handleBlur}
                 placeholder={placeholder}
@@ -72,7 +79,7 @@ export function ImageSelect(props: ImageSelectProps) {
                             <div
                                 className={styles.image}
                                 key={asset.id}
-                                onClick={() => handleImageClick(asset.id)}
+                                onMouseDown={(event) => handleImageMouseDown(event, asset.id)}
                             >
                                 <img
                                     className={styles.thumbnail}

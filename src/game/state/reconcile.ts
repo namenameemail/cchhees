@@ -66,9 +66,5 @@ export function cloneBoardSlice(board: BoardSlice): BoardSlice {
         boardParameters: { ...board.boardParameters },
         styleRules: board.styleRules.map(rule => ({ ...rule })),
         cellParametersByCoord: { ...board.cellParametersByCoord },
-        figureCatalog: board.figureCatalog.map(entry => ({
-            id: entry.id,
-            viewParams: { ...entry.viewParams },
-        })),
     }
 }

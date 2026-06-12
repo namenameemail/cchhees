@@ -4,15 +4,18 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 DEFAULT_PORT=5173
+DEFAULT_SIGNALING_PORT=8787
 
 usage() {
     cat <<'EOF'
 Usage: ./run [port]
        ./run --port <port>
        ./run -p <port>
+       ./run --signaling-port <port>
 
-Starts the Vite dev server on the given port (default: 5173).
-If the port is busy, shows which process holds it and prompts for another port.
+Starts the signaling server (default: 8787) and the Vite dev server (default: 5173).
+If a port is busy, shows which process holds it and prompts for another port.
+Sets VITE_SIGNALING_URL for the frontend automatically.
 EOF
 }
 
@@ -91,38 +94,50 @@ prompt_for_port() {
     echo "$port"
 }
 
-parse_port() {
-    local port=$DEFAULT_PORT
+parse_args() {
+    local vite_port=$DEFAULT_PORT
+    local signaling_port=$DEFAULT_SIGNALING_PORT
 
-    if [[ $# -eq 0 ]]; then
-        echo "$port"
-        return
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            -p|--port)
+                if [[ $# -lt 2 ]] || ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                    usage >&2
+                    exit 1
+                fi
+                vite_port=$2
+                shift 2
+                ;;
+            --signaling-port)
+                if [[ $# -lt 2 ]] || ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                    usage >&2
+                    exit 1
+                fi
+                signaling_port=$2
+                shift 2
+                ;;
+            *)
+                if [[ "$1" =~ ^[0-9]+$ ]]; then
+                    vite_port=$1
+                    shift
+                else
+                    usage >&2
+                    exit 1
+                fi
+                ;;
+        esac
+    done
+
+    if (( vite_port < 1 || vite_port > 65535 || signaling_port < 1 || signaling_port > 65535 )); then
+        echo "Invalid port." >&2
+        exit 1
     fi
 
-    case "$1" in
-        -p|--port)
-            if [[ $# -lt 2 ]] || ! [[ "$2" =~ ^[0-9]+$ ]]; then
-                usage >&2
-                return 1
-            fi
-            port=$2
-            ;;
-        *)
-            if [[ "$1" =~ ^[0-9]+$ ]]; then
-                port=$1
-            else
-                usage >&2
-                return 1
-            fi
-            ;;
-    esac
-
-    if (( port < 1 || port > 65535 )); then
-        echo "Invalid port: ${port}" >&2
-        return 1
-    fi
-
-    echo "$port"
+    echo "${vite_port} ${signaling_port}"
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -130,8 +145,37 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
-port=$(parse_port "$@") || exit 1
-port=$(prompt_for_port "$port")
+read -r vite_port signaling_port <<< "$(parse_args "$@")"
+vite_port=$(prompt_for_port "$vite_port")
 
-echo "Starting dev server on port ${port}..."
-exec npm run dev -- --port "$port" --strictPort
+if is_port_in_use "$signaling_port"; then
+    echo "Signaling port ${signaling_port} is busy." >&2
+    describe_port_process "$signaling_port" >&2
+    signaling_port=$(find_next_free_port $((signaling_port + 1)))
+    echo "Using signaling port ${signaling_port} instead." >&2
+fi
+
+signaling_pid=
+
+cleanup() {
+    if [[ -n "${signaling_pid:-}" ]]; then
+        kill "$signaling_pid" 2>/dev/null || true
+    fi
+}
+
+trap cleanup EXIT INT TERM
+
+if [[ ! -d signaling-server/node_modules ]]; then
+    echo "Installing signaling-server dependencies..."
+    npm --prefix signaling-server install
+fi
+
+echo "Starting signaling server on port ${signaling_port}..."
+PORT="$signaling_port" npm --prefix signaling-server run start &
+signaling_pid=$!
+
+export VITE_SIGNALING_URL="ws://127.0.0.1:${signaling_port}"
+
+echo "Starting dev server on port ${vite_port}..."
+echo "VITE_SIGNALING_URL=${VITE_SIGNALING_URL}"
+npm run dev -- --port "$vite_port" --strictPort

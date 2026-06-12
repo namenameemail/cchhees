@@ -48,8 +48,20 @@ export function isFontAsset(asset: Pick<ProjectAssetView, 'mimeType' | 'name'>):
 }
 
 export function isImageAsset(asset: Pick<ProjectAssetView, 'mimeType' | 'name'>): boolean {
-    return asset.mimeType.startsWith('image/')
-        || asset.name.toLowerCase().endsWith('.svg')
+    if (asset.mimeType.startsWith('image/')) {
+        return true
+    }
+
+    const extension = getFileExtension(asset.name)
+
+    return extension === 'svg'
+        || extension === 'png'
+        || extension === 'jpg'
+        || extension === 'jpeg'
+        || extension === 'gif'
+        || extension === 'webp'
+        || extension === 'bmp'
+        || extension === 'ico'
 }
 
 export function isAllowedAssetFile(file: File): boolean {

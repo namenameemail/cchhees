@@ -1,5 +1,10 @@
 import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useProjectContext } from '../ProjectContext'
+import { CollabPanel } from '../../collab/components/CollabPanel'
+import { HostSnapshotBar } from '../../collab/components/HostSnapshotBar'
+import { JoinProgressBar } from '../../collab/components/JoinProgressBar'
+import { useCollab } from '../../collab/CollabProvider'
+import { BoardTabs } from '../../game/components/BoardTabs'
 import styles from './TopBar.module.css'
 
 export const TOP_BAR_HEIGHT = 32
@@ -24,6 +29,7 @@ function FileIcon() {
 
 export const TopBar: FC<TopBarProps> = ({ onOpenProjects }) => {
     const { currentProject, isReady, renameProject } = useProjectContext()
+    const { hostSnapshotProgress, joinProgress } = useCollab()
     const [isRenaming, setIsRenaming] = useState(false)
     const [renameValue, setRenameValue] = useState('')
     const inputRef = useRef<HTMLInputElement>(null)
@@ -99,6 +105,16 @@ export const TopBar: FC<TopBarProps> = ({ onOpenProjects }) => {
                     {isReady ? currentProject?.name ?? 'Без проекта' : 'Загрузка...'}
                 </div>
             )}
+
+            {isReady && currentProject && (
+                <div className={styles.boardTabsSlot}>
+                    <BoardTabs className={styles.boardTabsInline} />
+                </div>
+            )}
+
+            <CollabPanel />
+            <HostSnapshotBar progress={hostSnapshotProgress} />
+            <JoinProgressBar progress={joinProgress} />
         </header>
     )
 }

@@ -1,0 +1,23 @@
+.barShell {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: #d8d8d8;
+    pointer-events: none;
+}
+
+.barFill {
+    height: 100%;
+    background: #4a90d9;
+    transition: width 0.2s ease;
+}
+
+.barFill[data-phase='error'] {
+    background: #c44;
+}
+
+.barFill[data-phase='done'] {
+    background: #3a8;
+}

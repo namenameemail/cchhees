@@ -9,7 +9,7 @@ export const Tray: FC = () => {
     const handleTrayClick = useCallback(() => {
         if (activeCell !== undefined) {
             toTray(activeCell)
-            setActiveCell(undefined)
+            setActiveCell(undefined, 'tray drop')
         }
     }, [activeCell, toTray, setActiveCell])
 

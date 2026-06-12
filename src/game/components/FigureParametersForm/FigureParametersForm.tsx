@@ -9,6 +9,7 @@ import { ProjectFontSelect } from '../../../projects/components/ProjectFontSelec
 import {
     isSvgManualHeight,
     isSvgManualWidth,
+    getDefaultSvgCellParams,
     normalizeSvgCellParams,
 } from '../../cellSvgSize'
 import {
@@ -202,16 +203,21 @@ export const FigureParametersFormBase: FC<FigureParametersFormBaseProps> = ({
     }) => {
         const displayType = nextValue.displayType ?? FigureDisplayType.symbol
         const typeParams = nextValue.paramsByDisplayType?.[displayType] ?? {}
+
+        if (displayType === FigureDisplayType.image) {
+            onChange(normalizeSvgCellParams({
+                displayType: FigureDisplayType.image,
+                assetId: typeof typeParams.assetId === 'number' ? typeParams.assetId : null,
+                ...getDefaultSvgCellParams(),
+                ...typeParams,
+            }))
+            return
+        }
+
         const merged: FigureViewParams = {
             ...getDefaultFigureViewParams(figureId),
             ...typeParams,
             displayType,
-        }
-
-        if (displayType === FigureDisplayType.image) {
-            const normalized = normalizeSvgCellParams(merged)
-            onChange(normalized)
-            return
         }
 
         onChange(merged)

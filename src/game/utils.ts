@@ -84,4 +84,6 @@ export const defaultGameContextValue: GameContextValue = {
     addFigure: mockFn,
     removeFigure: mockFn,
     clearAssetReferences: mockFn,
+    applyRemotePersistData: mockFn,
+    applyRemoteOps: () => initialGameState,
 }

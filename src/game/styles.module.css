@@ -11,6 +11,16 @@ div {
     box-sizing: border-box;
 }
 
+.boardColumn {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
 .board {
     flex: 1;
     min-width: 0;

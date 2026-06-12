@@ -1,5 +1,5 @@
 
-import { FigureId, FigureViewParams } from '../types/figures'
+import { FigureId, FigureViewParams, FigureCatalog } from '../types/figures'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
 import { SliceHistory } from '../types/history'
@@ -9,6 +9,8 @@ import { BoardStyleRule } from '../types/styleRules'
 import { ConnectionParams } from '../types/connections'
 import { FiguresSlice, BoardSlice } from '../state/slices'
 import { CellCoord } from '../types/coords'
+import { ProjectPersistData } from '../../projects/types'
+import { CollabOp } from '../../collab/ops'
 
 export interface GameContextValue {
     mode: Mode
@@ -16,6 +18,8 @@ export interface GameContextValue {
 
     figuresHistory: SliceHistory<FiguresSlice>
     boardHistory: SliceHistory<BoardSlice>
+    figureCatalog?: FigureCatalog
+    catalogHistory?: SliceHistory<FigureCatalog>
     undoFigures: () => void
     redoFigures: () => void
     undoBoard: () => void
@@ -31,7 +35,7 @@ export interface GameContextValue {
     setActiveFigure: (value: FigureId | undefined) => void
 
     activeCell?: CellCoord
-    setActiveCell: (value: CellCoord | undefined) => void
+    setActiveCell: (value: CellCoord | undefined, reason?: string) => void
     moveActiveCellFigureTo: (to: CellCoord) => void
     setCellFigure: (coord: CellCoord, figure: FigureId) => void
     setCellParameters: (coord: CellCoord) => void
@@ -47,4 +51,6 @@ export interface GameContextValue {
     addFigure: () => void
     removeFigure: (figureId: FigureId) => void
     clearAssetReferences: (assetId: number) => void
+    applyRemotePersistData: (data: ProjectPersistData) => void
+    applyRemoteOps: (ops: CollabOp[]) => GameState
 }

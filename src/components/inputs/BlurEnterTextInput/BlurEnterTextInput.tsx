@@ -14,6 +14,7 @@ export interface BlurEnterTextInputProps {
     title?: string
     onFocus?: () => void
     onBlur?: () => void
+    readOnly?: boolean
 }
 
 export function BlurEnterTextInput (props: BlurEnterTextInputProps) {
@@ -29,6 +30,7 @@ export function BlurEnterTextInput (props: BlurEnterTextInputProps) {
         title,
         onFocus,
         onBlur,
+        readOnly,
     } = props;
 
     const [_value, setValue] = useState<string>('');
@@ -69,6 +71,7 @@ export function BlurEnterTextInput (props: BlurEnterTextInputProps) {
             onFocus={onFocus}
             placeholder={placeholder}
             title={title}
+            readOnly={readOnly}
         />
     );
 };

@@ -1,12 +1,11 @@
 import { getAssetsByProjectId, putAsset, putProject } from './db'
 import {
-    remapAssetIdsInBoardHistory,
-    remapAssetIdsInGameState,
+    remapAssetIdsInProjectPersist,
 } from './assetIdRemap'
-import { Project, normalizeLoadedProject } from './types'
+import { Project, normalizeLoadedProject, projectToPersistData } from './types'
 
 export const PROJECT_FILE_KIND = 'cchhees-project'
-export const PROJECT_FILE_VERSION = 1
+export const PROJECT_FILE_VERSION = 2
 
 export interface ProjectFileAsset {
     id: number
@@ -15,9 +14,25 @@ export interface ProjectFileAsset {
     data: string
 }
 
-export interface ProjectFile {
+export interface ProjectFileV2 {
     kind: typeof PROJECT_FILE_KIND
     version: typeof PROJECT_FILE_VERSION
+    exportedAt: number
+    project: {
+        name: string
+        updatedAt: number
+        figureCatalog: unknown
+        catalogHistory: unknown
+        boards: unknown
+        activeBoardId: string
+        previewDataUrl?: string
+    }
+    assets: ProjectFileAsset[]
+}
+
+export interface ProjectFileV1 {
+    kind: typeof PROJECT_FILE_KIND
+    version: 1
     exportedAt: number
     project: {
         name: string
@@ -28,6 +43,8 @@ export interface ProjectFile {
     }
     assets: ProjectFileAsset[]
 }
+
+export type ProjectFile = ProjectFileV1 | ProjectFileV2
 
 async function blobToBase64(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -62,9 +79,8 @@ function isProjectFile(value: unknown): value is ProjectFile {
     const file = value as Partial<ProjectFile>
 
     return file.kind === PROJECT_FILE_KIND
-        && file.version === PROJECT_FILE_VERSION
+        && (file.version === 1 || file.version === PROJECT_FILE_VERSION)
         && typeof file.project?.name === 'string'
-        && file.project.gameState != null
         && Array.isArray(file.assets)
 }
 
@@ -98,7 +114,7 @@ function downloadJson(filename: string, data: unknown): void {
     URL.revokeObjectURL(url)
 }
 
-export async function buildProjectExportFile(project: Project): Promise<ProjectFile> {
+export async function buildProjectExportFile(project: Project): Promise<ProjectFileV2> {
     const assets = await getAssetsByProjectId(project.id)
     const exportedAssets = await Promise.all(assets.map(async asset => ({
         id: asset.id,
@@ -106,6 +122,7 @@ export async function buildProjectExportFile(project: Project): Promise<ProjectF
         mimeType: asset.mimeType,
         data: await blobToBase64(asset.blob),
     })))
+    const persist = projectToPersistData(project)
 
     return {
         kind: PROJECT_FILE_KIND,
@@ -114,9 +131,11 @@ export async function buildProjectExportFile(project: Project): Promise<ProjectF
         project: {
             name: project.name,
             updatedAt: project.updatedAt,
-            gameState: project.gameState,
-            figuresHistory: project.figuresHistory,
-            boardHistory: project.boardHistory,
+            figureCatalog: persist.figureCatalog,
+            catalogHistory: persist.catalogHistory,
+            boards: persist.boards,
+            activeBoardId: persist.activeBoardId,
+            previewDataUrl: project.previewDataUrl,
         },
         assets: exportedAssets,
     }
@@ -125,6 +144,30 @@ export async function buildProjectExportFile(project: Project): Promise<ProjectF
 export async function exportProjectToFile(project: Project): Promise<void> {
     const file = await buildProjectExportFile(project)
     downloadJson(`${createSafeFilename(project.name)}.cchhees.json`, file)
+}
+
+function normalizeImportProject(file: ProjectFile): Project {
+    if (file.version === PROJECT_FILE_VERSION) {
+        return normalizeLoadedProject({
+            id: 'import',
+            name: file.project.name,
+            updatedAt: file.project.updatedAt ?? Date.now(),
+            figureCatalog: file.project.figureCatalog,
+            catalogHistory: file.project.catalogHistory,
+            boards: file.project.boards,
+            activeBoardId: file.project.activeBoardId,
+            previewDataUrl: file.project.previewDataUrl,
+        } as Parameters<typeof normalizeLoadedProject>[0])
+    }
+
+    return normalizeLoadedProject({
+        id: 'import',
+        name: file.project.name,
+        updatedAt: file.project.updatedAt ?? Date.now(),
+        gameState: file.project.gameState,
+        figuresHistory: file.project.figuresHistory,
+        boardHistory: file.project.boardHistory,
+    })
 }
 
 export async function importProjectFromFile(
@@ -143,15 +186,7 @@ export async function importProjectFromFile(
         throw new Error('Неверный формат файла проекта')
     }
 
-    const migrated = normalizeLoadedProject({
-        id: 'import',
-        name: parsed.project.name,
-        updatedAt: parsed.project.updatedAt ?? Date.now(),
-        gameState: parsed.project.gameState,
-        figuresHistory: parsed.project.figuresHistory,
-        boardHistory: parsed.project.boardHistory,
-    })
-
+    const migrated = normalizeImportProject(parsed)
     const projectId = crypto.randomUUID()
     const idMap = new Map<number, number>()
 
@@ -172,13 +207,16 @@ export async function importProjectFromFile(
         idMap.set(asset.id, newId)
     }
 
+    const remapped = remapAssetIdsInProjectPersist(projectToPersistData(migrated), idMap)
+
     const project: Project = {
         id: projectId,
         name: resolveImportName(migrated.name.trim() || 'Импортированный проект', existingProjects),
         updatedAt: Date.now(),
-        gameState: remapAssetIdsInGameState(migrated.gameState, idMap),
-        figuresHistory: migrated.figuresHistory,
-        boardHistory: remapAssetIdsInBoardHistory(migrated.boardHistory, idMap),
+        figureCatalog: remapped.figureCatalog,
+        catalogHistory: remapped.catalogHistory,
+        boards: remapped.boards,
+        activeBoardId: remapped.activeBoardId,
     }
 
     await putProject(project)

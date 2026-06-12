@@ -1,10 +1,14 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import cn from 'classnames'
 
 import styles from './styles.module.css'
 
 import { GameProvider } from './context'
 import { useProjectContext } from '../projects/ProjectContext'
+import { useCollab } from '../collab/CollabProvider'
+import { CollabGameBridge } from '../collab/components/CollabGameBridge'
+import { ProjectPreviewBridge } from '../projects/components/ProjectPreviewBridge'
+import { getActiveBoard, getActiveBoardGameState } from '../projects/types'
 import { BoardParametersForm } from './components/BoardParametersForm/BoardParametersForm'
 import { BoardHistory } from './components/BoardHistory'
 import { Figures } from './components/Figures'
@@ -15,6 +19,7 @@ import { CellParametersForm } from './components/CellParametersForm/CellParamete
 // import { AutomaticConnectionsParametersForm } from './components/AutomaticConnectionsParametersForm'
 import { BoardStyleRules } from './components/BoardStyleRules'
 import { AssetsPanel } from '../projects/components/AssetsPanel'
+import { selectionDebugLog } from './selectionDebugLog'
 
 export interface GameProps {
 
@@ -32,12 +37,31 @@ export interface GameProps {
 
 export const Game: React.FC<GameProps> = () => {
 
-    const { isReady, currentProject, persistProjectData } = useProjectContext()
+    const { isReady, currentProject, currentProjectKind, activeBoardId, gameSessionEpoch, persistProjectData } = useProjectContext()
+    const { createCollabOnPersist, createCollabOnOp } = useCollab()
+    const collabOnPersist = React.useMemo(
+        () => createCollabOnPersist(persistProjectData),
+        [createCollabOnPersist, persistProjectData],
+    )
+    const collabOnOp = React.useMemo(
+        () => createCollabOnOp(),
+        [createCollabOnOp],
+    )
     const [tab, setTab] = useState(0)
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
     const [leftTab, setLeftTab] = useState(0)
     const [isToolsOpen, setIsToolsOpen] = useState(false)
     const boardRef = useRef<SVGSVGElement>(null)
+
+    useEffect(() => {
+        if (!isReady || !currentProject) {
+            return
+        }
+
+        const key = `${currentProjectKind}:${currentProject.id}:${gameSessionEpoch}`
+        selectionDebugLog.mount(key)
+        return () => selectionDebugLog.unmount(key)
+    }, [isReady, currentProject, currentProjectKind, gameSessionEpoch])
 
     const handleBoardTab = () => {
         if (isSettingsOpen && tab === 0) {
@@ -88,15 +112,24 @@ export const Game: React.FC<GameProps> = () => {
         return null
     }
 
+    const activeBoard = getActiveBoard(currentProject)
+    const gameSessionKey = `${currentProjectKind}:${currentProject.id}:${activeBoardId}:${gameSessionEpoch}`
+
     return (
         <div className={styles.gameLayout}>
             <GameProvider
-                key={currentProject.id}
-                initialState={currentProject.gameState}
-                initialFiguresHistory={currentProject.figuresHistory}
-                initialBoardHistory={currentProject.boardHistory}
-                onPersist={persistProjectData}
+                key={gameSessionKey}
+                activeBoardId={activeBoard.id}
+                initialState={getActiveBoardGameState(currentProject)}
+                initialCatalog={currentProject.figureCatalog}
+                initialFiguresHistory={activeBoard.figuresHistory}
+                initialBoardHistory={activeBoard.boardHistory}
+                initialCatalogHistory={currentProject.catalogHistory}
+                onPersist={collabOnPersist}
+                onCollabOp={collabOnOp}
             >
+                <CollabGameBridge />
+                <ProjectPreviewBridge boardRef={boardRef} />
 
                 <aside className={styles.toolsShell}>
                     <div className={styles.toolTabs}>
@@ -143,8 +176,10 @@ export const Game: React.FC<GameProps> = () => {
                     </div>
                 </aside>
 
-                <div className={styles.board}>
-                    <Board ref={boardRef} />
+                <div className={styles.boardColumn}>
+                    <div className={styles.board}>
+                        <Board ref={boardRef} />
+                    </div>
                 </div>
 
                 <aside className={styles.settingsShell}>

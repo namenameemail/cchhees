@@ -4,10 +4,11 @@ import { CellParameters, CellShape, CellImageShapeParams } from '../game/types/c
 import { GameState } from '../game/types/gameState'
 import { FigureCatalog, FigureDisplayType, FigureViewParams } from '../game/types/figures'
 import { SliceHistory } from '../game/types/history'
+import { ProjectPersistData } from './types'
 
 type IdMap = ReadonlyMap<number, number>
 
-function remapId(map: IdMap, id: number | null | undefined): number | null | undefined {
+function remapIdStrict(map: IdMap, id: number | null | undefined): number | null | undefined {
     if (id == null) {
         return id
     }
@@ -21,7 +22,46 @@ function remapId(map: IdMap, id: number | null | undefined): number | null | und
     return next
 }
 
-function remapCellParameters(
+export function remapAssetIdWithFallback(
+    map: IdMap | null | undefined,
+    id: number | null | undefined,
+): number | null | undefined {
+    if (id == null || !map || map.size === 0) {
+        return id
+    }
+
+    return map.get(id) ?? id
+}
+
+export function toAssetIdMap(record: Record<number, number> | null | undefined): IdMap | null {
+    if (!record || Object.keys(record).length === 0) {
+        return null
+    }
+
+    return new Map(
+        Object.entries(record).map(([from, to]) => [Number(from), to]),
+    )
+}
+
+export function invertHostAssetIdRemap(
+    hostAssetIdRemap: Record<number, number> | null | undefined,
+): Record<number, number> | undefined {
+    if (!hostAssetIdRemap) {
+        return undefined
+    }
+
+    const inverted: Record<number, number> = {}
+
+    for (const [hostId, localId] of Object.entries(hostAssetIdRemap)) {
+        if (Number(hostId) !== localId) {
+            inverted[localId] = Number(hostId)
+        }
+    }
+
+    return Object.keys(inverted).length > 0 ? inverted : undefined
+}
+
+function remapCellParametersStrict(
     params: CellParameters | undefined,
     map: IdMap,
 ): CellParameters | undefined {
@@ -41,7 +81,7 @@ function remapCellParameters(
 
         nextParamsByShape[shape] = {
             ...shapeParams,
-            assetId: remapId(map, shapeParams.assetId),
+            assetId: remapIdStrict(map, shapeParams.assetId),
         }
         changed = true
     }
@@ -56,25 +96,144 @@ function remapCellParameters(
     }
 }
 
-function remapFigureViewParams(params: FigureViewParams, map: IdMap): FigureViewParams {
+function remapFigureViewParamsStrict(params: FigureViewParams, map: IdMap): FigureViewParams {
     const nextParams = { ...params }
 
     if (params.displayType === FigureDisplayType.image && params.assetId != null) {
-        nextParams.assetId = remapId(map, params.assetId)
+        nextParams.assetId = remapIdStrict(map, params.assetId)
     }
 
     if (params.fontAssetId != null) {
-        nextParams.fontAssetId = remapId(map, params.fontAssetId)
+        nextParams.fontAssetId = remapIdStrict(map, params.fontAssetId)
     }
 
     return nextParams
 }
 
-function remapFigureCatalog(catalog: FigureCatalog, map: IdMap): FigureCatalog {
+export function remapCellParametersWithFallback(
+    params: CellParameters | null | undefined,
+    map: IdMap | null | undefined,
+): CellParameters | null | undefined {
+    if (!params?.paramsByShape) {
+        return params
+    }
+
+    let changed = false
+    const nextParamsByShape = { ...params.paramsByShape }
+
+    for (const shape of [CellShape.img] as const) {
+        const shapeParams = params.paramsByShape[shape] as CellImageShapeParams | undefined
+
+        if (!shapeParams || shapeParams.assetId == null) {
+            continue
+        }
+
+        const nextAssetId = remapAssetIdWithFallback(map, shapeParams.assetId)
+
+        if (nextAssetId === shapeParams.assetId) {
+            continue
+        }
+
+        nextParamsByShape[shape] = {
+            ...shapeParams,
+            assetId: nextAssetId,
+        }
+        changed = true
+    }
+
+    if (!changed) {
+        return params
+    }
+
+    return {
+        ...params,
+        paramsByShape: nextParamsByShape,
+    }
+}
+
+export function remapFigureViewParamsWithFallback(
+    params: FigureViewParams,
+    map: IdMap | null | undefined,
+): FigureViewParams {
+    const nextParams = { ...params }
+
+    if (params.displayType === FigureDisplayType.image && params.assetId != null) {
+        nextParams.assetId = remapAssetIdWithFallback(map, params.assetId) as number
+    }
+
+    if (params.fontAssetId != null) {
+        nextParams.fontAssetId = remapAssetIdWithFallback(map, params.fontAssetId) as number
+    }
+
+    return nextParams
+}
+
+function remapFigureCatalogStrict(catalog: FigureCatalog, map: IdMap): FigureCatalog {
     return catalog.map(entry => ({
         ...entry,
-        viewParams: remapFigureViewParams(entry.viewParams, map),
+        viewParams: remapFigureViewParamsStrict(entry.viewParams, map),
     }))
+}
+
+function remapCellParameters(
+    params: CellParameters | undefined,
+    map: IdMap,
+): CellParameters | undefined {
+    return remapCellParametersStrict(params, map)
+}
+
+function remapFigureViewParams(params: FigureViewParams, map: IdMap): FigureViewParams {
+    return remapFigureViewParamsStrict(params, map)
+}
+
+function remapFigureCatalog(catalog: FigureCatalog, map: IdMap): FigureCatalog {
+    return remapFigureCatalogStrict(catalog, map)
+}
+
+export function remapAssetIdsInBoardSliceWithFallback(
+    board: BoardSlice,
+    map: IdMap | null | undefined,
+): BoardSlice {
+    if (!map || map.size === 0) {
+        return board
+    }
+
+    const cellParametersByCoord: BoardSlice['cellParametersByCoord'] = {}
+
+    for (const [key, params] of Object.entries(board.cellParametersByCoord)) {
+        cellParametersByCoord[key] = remapCellParametersWithFallback(params, map) ?? params
+    }
+
+    const styleRules = board.styleRules.map(rule => {
+        if (!isCellStyleRule(rule)) {
+            return rule
+        }
+
+        return {
+            ...rule,
+            cellParams: remapCellParametersWithFallback(rule.cellParams, map) ?? rule.cellParams,
+        }
+    })
+
+    return {
+        ...board,
+        cellParametersByCoord,
+        styleRules,
+    }
+}
+
+export function remapAssetIdsInFigureCatalog(catalog: FigureCatalog, map: IdMap): FigureCatalog {
+    return remapFigureCatalog(catalog, map)
+}
+
+export function remapAssetIdsInCatalogHistory(
+    history: SliceHistory<FigureCatalog>,
+    map: IdMap,
+): SliceHistory<FigureCatalog> {
+    return {
+        before: history.before.map(catalog => remapFigureCatalog(catalog, map)),
+        after: history.after.map(catalog => remapFigureCatalog(catalog, map)),
+    }
 }
 
 export function remapAssetIdsInGameState(gameState: GameState, map: IdMap): GameState {
@@ -118,7 +277,6 @@ export function remapAssetIdsInBoardSlice(board: BoardSlice, map: IdMap): BoardS
             }
         }),
         cellParametersByCoord,
-        figureCatalog: remapFigureCatalog(board.figureCatalog, map),
     }
 }
 
@@ -129,5 +287,18 @@ export function remapAssetIdsInBoardHistory(
     return {
         before: history.before.map(slice => remapAssetIdsInBoardSlice(slice, map)),
         after: history.after.map(slice => remapAssetIdsInBoardSlice(slice, map)),
+    }
+}
+
+export function remapAssetIdsInProjectPersist(data: ProjectPersistData, map: IdMap): ProjectPersistData {
+    return {
+        figureCatalog: remapAssetIdsInFigureCatalog(data.figureCatalog, map),
+        catalogHistory: remapAssetIdsInCatalogHistory(data.catalogHistory, map),
+        activeBoardId: data.activeBoardId,
+        boards: data.boards.map(board => ({
+            ...board,
+            gameState: remapAssetIdsInGameState(board.gameState, map),
+            boardHistory: remapAssetIdsInBoardHistory(board.boardHistory, map),
+        })),
     }
 }

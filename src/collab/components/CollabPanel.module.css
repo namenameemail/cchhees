@@ -1,0 +1,106 @@
+.collabPanel {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.collabButton {
+    height: 22px;
+    padding: 0 8px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid black;
+    background: white;
+}
+
+.collabButton:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.collabButton:not(:disabled):hover {
+    background: #f0f0f0;
+}
+
+.roomInfo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.roomId {
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.sessionProjectName {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #1a5a9e;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.sessionProjectName:hover {
+    color: #0d3d6e;
+}
+
+.status {
+    color: #333;
+}
+
+.snapshotStatus {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #1a5a9e;
+    font-weight: 600;
+}
+
+.error {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: #a00;
+}
+
+.joinRow {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.joinInput {
+    width: 88px;
+    height: 22px;
+    padding: 0 6px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border: 1px solid black;
+    box-sizing: border-box;
+}
+
+.joinStatus {
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: #1a5a9e;
+    font-weight: 600;
+}
