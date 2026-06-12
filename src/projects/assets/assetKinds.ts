@@ -68,6 +68,70 @@ export function isAllowedAssetFile(file: File): boolean {
     return file.type.startsWith('image/') || isFontFile(file)
 }
 
+export function collectAllowedAssetFiles(files: Iterable<File>): File[] {
+    const result: File[] = []
+
+    for (const file of files) {
+        if (isAllowedAssetFile(file)) {
+            result.push(file)
+        }
+    }
+
+    return result
+}
+
+export function collectAssetFilesFromDataTransfer(dataTransfer: DataTransfer | null): File[] {
+    if (!dataTransfer) {
+        return []
+    }
+
+    if (dataTransfer.files.length > 0) {
+        return collectAllowedAssetFiles(dataTransfer.files)
+    }
+
+    const files: File[] = []
+
+    for (const item of Array.from(dataTransfer.items)) {
+        if (item.kind !== 'file') {
+            continue
+        }
+
+        const file = item.getAsFile()
+        if (file) {
+            files.push(file)
+        }
+    }
+
+    return collectAllowedAssetFiles(files)
+}
+
+export function collectAssetFilesFromClipboard(
+    clipboardData: DataTransfer | null,
+): File[] {
+    if (!clipboardData) {
+        return []
+    }
+
+    const fromItems: File[] = []
+
+    for (const item of Array.from(clipboardData.items)) {
+        if (item.kind !== 'file') {
+            continue
+        }
+
+        const file = item.getAsFile()
+        if (file) {
+            fromItems.push(file)
+        }
+    }
+
+    if (fromItems.length > 0) {
+        return collectAllowedAssetFiles(fromItems)
+    }
+
+    return collectAllowedAssetFiles(clipboardData.files)
+}
+
 export function getFontFormat(asset: Pick<ProjectAssetView, 'name' | 'mimeType'>): string {
     const extension = getFileExtension(asset.name)
 
@@ -88,3 +152,4 @@ export function getFontFormat(asset: Pick<ProjectAssetView, 'name' | 'mimeType'>
 
 export const FONT_UPLOAD_ACCEPT = '.woff,.woff2,.ttf,.otf,font/woff,font/woff2,font/ttf,font/otf'
 export const IMAGE_UPLOAD_ACCEPT = 'image/*'
+export const ASSET_UPLOAD_ACCEPT = `${IMAGE_UPLOAD_ACCEPT},${FONT_UPLOAD_ACCEPT}`

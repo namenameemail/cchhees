@@ -14,6 +14,7 @@ export enum ParameterTypes {
     YDragPointerLock = 'YDragPointerLock',
     SelectArray = 'SelectArray',
     Checkbox = 'Checkbox',
+    ColorInput = 'ColorInput',
     FileSVG = 'FileSVG',
 }
 

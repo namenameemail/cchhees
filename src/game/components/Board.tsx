@@ -14,6 +14,11 @@ import { isCellStyleRule, isConnectionStyleRule } from '../types/styleRules'
 import { Mode } from '../types'
 import { resolveFigureDefinition } from '../figureView'
 import { getLegalMoveDestinations } from '../moveRules'
+import {
+    getBoardBackgroundRect,
+    resolveBoardAppearance,
+} from '../boardAppearance'
+import { BoardBackgroundLayer, BoardBackgroundPattern } from './BoardBackground'
 
 export interface BoardProps {
     className?: string
@@ -24,19 +29,28 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
     const { state, mode, activeCell, figureCatalog } = useGameContext()
     const selectionGradientId = useId().replace(/:/g, '')
     const legalMoveGradientId = useId().replace(/:/g, '')
+    const boardClipId = useId().replace(/:/g, '')
+    const backgroundPatternId = useId().replace(/:/g, '')
 
     const {
-        boardParameters: {
-            n,
-            m,
-            cellHeight,
-            cellWidth,
-            cellXDistance,
-            cellYDistance,
-        },
+        boardParameters,
         styleRules,
         cells,
     } = state
+
+    const {
+        n,
+        m,
+        cellHeight,
+        cellWidth,
+        cellXDistance,
+        cellYDistance,
+    } = boardParameters
+
+    const appearance = useMemo(
+        () => resolveBoardAppearance(boardParameters),
+        [boardParameters],
+    )
 
     const connections = useMemo(() => {
         return (n && m) ? getConnections(n, m) : {}
@@ -45,7 +59,16 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
     const boardStyle = useMemo(() => ({
         width: n * cellXDistance,
         height: m * cellYDistance,
-    }), [n, m, cellHeight, cellWidth, cellXDistance, cellYDistance])
+    }), [n, m, cellXDistance, cellYDistance])
+
+    const backgroundRect = useMemo(
+        () => getBoardBackgroundRect(boardStyle.width, boardStyle.height, appearance),
+        [boardStyle.width, boardStyle.height, appearance],
+    )
+
+    const boardClipPath = appearance.borderRadius > 0
+        ? `url(#${boardClipId})`
+        : undefined
 
     const drawPlan = useMemo(() => {
         if (!n || !m) {
@@ -89,6 +112,16 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
     return (
         <svg ref={ref} style={boardStyle} className={className}>
             <defs>
+                {appearance.borderRadius > 0 && (
+                    <clipPath id={boardClipId}>
+                        <rect
+                            width={boardStyle.width}
+                            height={boardStyle.height}
+                            rx={appearance.borderRadius}
+                            ry={appearance.borderRadius}
+                        />
+                    </clipPath>
+                )}
                 <radialGradient id={selectionGradientId}>
                     <stop offset="5%" stopColor="#ff00FF99" />
                     <stop offset="95%" stopColor="#ff000000" />
@@ -97,7 +130,18 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                     <stop offset="5%" stopColor="#00aa4455" />
                     <stop offset="95%" stopColor="#00aa4400" />
                 </radialGradient>
+                <BoardBackgroundPattern
+                    boardParameters={boardParameters}
+                    backgroundRect={backgroundRect}
+                    patternId={backgroundPatternId}
+                />
             </defs>
+            <g clipPath={boardClipPath}>
+            <BoardBackgroundLayer
+                boardParameters={boardParameters}
+                backgroundRect={backgroundRect}
+                patternId={backgroundPatternId}
+            />
             {styleRules.map((rule, ruleIndex) => (
                 <g key={ruleIndex}>
                     {isCellStyleRule(rule) && drawPlan.cellLayers.get(ruleIndex)?.map((coord) => (
@@ -146,6 +190,7 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                     />
                 )
             })}
+            </g>
         </svg>
     )
 })

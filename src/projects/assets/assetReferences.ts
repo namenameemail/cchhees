@@ -43,6 +43,9 @@ function collectFromGameState(ids: Set<number>, gameState: GameState) {
         collectFromCellParameters(ids, rule.cellParams)
     }
 
+    const { boardParameters } = gameState
+    addAssetId(ids, boardParameters.backgroundAssetId)
+
     if (gameState.figureCatalog) {
         for (const entry of gameState.figureCatalog) {
             collectFromFigureViewParams(ids, entry.viewParams)
@@ -68,6 +71,8 @@ export function collectReferencedAssetIdsFromBoardSlice(board: BoardSlice): Set<
 
         collectFromCellParameters(ids, rule.cellParams)
     }
+
+    addAssetId(ids, board.boardParameters.backgroundAssetId)
 
     return ids
 }
@@ -152,14 +157,38 @@ function pruneMissingAssetReferencesInBoardSlice(
         return { ...rule, cellParams: cellParams ?? rule.cellParams }
     })
 
+    const boardParameters = clearMissingBoardBackgroundAsset(board.boardParameters, availableIds)
+
+    if (boardParameters !== board.boardParameters) {
+        changed = true
+    }
+
     if (!changed) {
         return board
     }
 
     return {
         ...board,
+        boardParameters,
         cellParametersByCoord,
         styleRules,
+    }
+}
+
+function clearMissingBoardBackgroundAsset(
+    boardParameters: BoardSlice['boardParameters'],
+    availableIds: ReadonlySet<number>,
+): BoardSlice['boardParameters'] {
+    if (
+        boardParameters.backgroundAssetId == null
+        || availableIds.has(boardParameters.backgroundAssetId)
+    ) {
+        return boardParameters
+    }
+
+    return {
+        ...boardParameters,
+        backgroundAssetId: null,
     }
 }
 
@@ -267,6 +296,12 @@ export function pruneMissingAssetReferences(
         figureCatalog = nextCatalog
     }
 
+    const boardParameters = clearMissingBoardBackgroundAsset(gameState.boardParameters, availableIds)
+
+    if (boardParameters !== gameState.boardParameters) {
+        changed = true
+    }
+
     if (!changed) {
         return gameState
     }
@@ -275,6 +310,7 @@ export function pruneMissingAssetReferences(
         ...gameState,
         cells,
         styleRules,
+        boardParameters,
         figureCatalog,
     }
 }
@@ -365,6 +401,10 @@ export function countAssetReferences(gameState: GameState, assetId: number): num
         }
     }
 
+    if (gameState.boardParameters.backgroundAssetId === assetId) {
+        count++
+    }
+
     if (gameState.figureCatalog) {
         for (const entry of gameState.figureCatalog) {
             count += countFigureAssetReferences(entry.viewParams, assetId)
@@ -376,6 +416,20 @@ export function countAssetReferences(gameState: GameState, assetId: number): num
     }
 
     return count
+}
+
+export function clearAssetIdFromBoardParameters(
+    parameters: GameState['boardParameters'],
+    assetId: number,
+): GameState['boardParameters'] {
+    if (parameters.backgroundAssetId !== assetId) {
+        return parameters
+    }
+
+    return {
+        ...parameters,
+        backgroundAssetId: null,
+    }
 }
 
 export function clearAssetIdFromCellParameters(

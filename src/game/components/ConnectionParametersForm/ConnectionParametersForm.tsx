@@ -15,7 +15,7 @@ export interface ConnectionParametersFormProps {
 const parametersConfig = [
     {
         name: 'strokeColor',
-        type: ParameterTypes.TextInput,
+        type: ParameterTypes.ColorInput,
         props: { placeholder: 'strokeColor' },
     },
     {

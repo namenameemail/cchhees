@@ -35,6 +35,7 @@ import {
 import { ShrinkBoardWarningModal } from '../components/ShrinkBoardWarningModal'
 import { CellCoord, coordKey, coordsEqual, indexToCoord, isCoordInGrid } from '../types/coords'
 import {
+    clearAssetIdFromBoardParameters,
     clearAssetIdFromCellParameters,
     clearAssetIdFromFigureViewParams,
 } from '../../projects/assets/assetReferences'
@@ -675,15 +676,19 @@ export function GameProvider({
             }
         })
 
-        if (!cellParamsChanged && !figureDefsChanged) {
+        const nextBoardParameters = clearAssetIdFromBoardParameters(boardSlice.boardParameters, assetId)
+        const boardParamsChanged = nextBoardParameters !== boardSlice.boardParameters
+
+        if (!cellParamsChanged && !figureDefsChanged && !boardParamsChanged) {
             return
         }
 
-        if (cellParamsChanged) {
+        if (cellParamsChanged || boardParamsChanged) {
             const nextBoard = {
                 ...boardSlice,
                 cellParametersByCoord: nextCellParametersByCoord,
                 styleRules: nextStyleRules,
+                boardParameters: nextBoardParameters,
             }
 
             applyBoardChange(nextBoard, true, {

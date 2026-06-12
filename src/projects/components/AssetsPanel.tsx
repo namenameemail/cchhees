@@ -1,18 +1,41 @@
-import React, { FC, useCallback, useRef, useState } from 'react'
+import React, {
+    DragEvent,
+    FC,
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+} from 'react'
+import cn from 'classnames'
 import { ConfirmModal } from '../../components/ConfirmModal'
+import { AssetPreviewModal } from './AssetPreviewModal'
 import { useAssetsContext } from '../assets/AssetsContext'
 import { useGameContext } from '../../game/context'
 import { countAssetReferences } from '../assets/assetReferences'
-import { FONT_UPLOAD_ACCEPT, IMAGE_UPLOAD_ACCEPT } from '../assets/assetKinds'
-import { getFontFamilyName, useFontAssetFamily } from '../assets/useFontAssetFamily'
+import {
+    collectAllowedAssetFiles,
+    collectAssetFilesFromClipboard,
+    collectAssetFilesFromDataTransfer,
+    ASSET_UPLOAD_ACCEPT,
+} from '../assets/assetKinds'
+import { useFontAssetFamily } from '../assets/useFontAssetFamily'
 import { formatBytes } from '../formatBytes'
 import { ProjectAssetView } from '../assets/types'
 import styles from './AssetsPanel.module.css'
+
+const DELETE_HOLD_MS = 1000
 
 interface PendingAssetDelete {
     assetId: number
     assetName: string
     referenceCount: number
+}
+
+interface AssetCardProps {
+    asset: ProjectAssetView
+    isFont: boolean
+    onDeleteRequest: (assetId: number, assetName: string) => void
+    onPreview: (asset: ProjectAssetView) => void
 }
 
 function FontAssetThumbnail({ asset }: { asset: ProjectAssetView }) {
@@ -37,17 +60,85 @@ function AssetThumbnail({ asset, isFontAsset }: { asset: ProjectAssetView; isFon
         <img
             className={styles.thumbnail}
             src={asset.objectUrl}
-            alt={asset.name}
+            alt=""
         />
+    )
+}
+
+function AssetCard({ asset, isFont, onDeleteRequest, onPreview }: AssetCardProps) {
+    const [isHolding, setIsHolding] = useState(false)
+    const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    const clearHold = useCallback(() => {
+        if (holdTimerRef.current) {
+            clearTimeout(holdTimerRef.current)
+            holdTimerRef.current = null
+        }
+        setIsHolding(false)
+    }, [])
+
+    const handleDeletePointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+        event.preventDefault()
+        event.currentTarget.setPointerCapture(event.pointerId)
+        setIsHolding(true)
+        holdTimerRef.current = setTimeout(() => {
+            holdTimerRef.current = null
+            setIsHolding(false)
+            onDeleteRequest(asset.id, asset.name)
+        }, DELETE_HOLD_MS)
+    }, [asset.id, asset.name, onDeleteRequest])
+
+    const handleDeletePointerEnd = useCallback(() => {
+        clearHold()
+    }, [clearHold])
+
+    useEffect(() => () => clearHold(), [clearHold])
+
+    const handleDoubleClick = useCallback(() => {
+        onPreview(asset)
+    }, [asset, onPreview])
+
+    return (
+        <div
+            className={cn(styles.item, isHolding && styles.itemHoldDeleting)}
+            title={asset.name}
+            onDoubleClick={handleDoubleClick}
+        >
+            <button
+                type="button"
+                className={styles.deleteButton}
+                aria-label={`Удалить ${asset.name}`}
+                onDoubleClick={event => event.stopPropagation()}
+                onPointerDown={handleDeletePointerDown}
+                onPointerUp={handleDeletePointerEnd}
+                onPointerCancel={handleDeletePointerEnd}
+                onLostPointerCapture={handleDeletePointerEnd}
+            >
+                ×
+            </button>
+            <div className={styles.thumbnailWrap}>
+                <AssetThumbnail asset={asset} isFontAsset={isFont} />
+            </div>
+            <div className={styles.size}>{formatBytes(asset.size)}</div>
+        </div>
     )
 }
 
 export const AssetsPanel: FC = () => {
     const { assets, isLoading, addAsset, removeAsset, isFontAsset } = useAssetsContext()
     const { state, clearAssetReferences } = useGameContext()
-    const imageInputRef = useRef<HTMLInputElement>(null)
-    const fontInputRef = useRef<HTMLInputElement>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+    const dragDepthRef = useRef(0)
+    const isMouseOverRef = useRef(false)
     const [pendingDelete, setPendingDelete] = useState<PendingAssetDelete | null>(null)
+    const [previewAsset, setPreviewAsset] = useState<ProjectAssetView | null>(null)
+    const [isDragActive, setIsDragActive] = useState(false)
+
+    const addFiles = useCallback(async (files: File[]) => {
+        for (const file of files) {
+            await addAsset(file)
+        }
+    }, [addAsset])
 
     const handleUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files
@@ -55,14 +146,75 @@ export const AssetsPanel: FC = () => {
             return
         }
 
-        for (const file of Array.from(files)) {
-            await addAsset(file)
+        await addFiles(collectAllowedAssetFiles(files))
+        event.target.value = ''
+    }, [addFiles])
+
+    const handleDragEnter = useCallback((event: DragEvent) => {
+        event.preventDefault()
+        dragDepthRef.current += 1
+        setIsDragActive(true)
+    }, [])
+
+    const handleDragLeave = useCallback((event: DragEvent) => {
+        event.preventDefault()
+        dragDepthRef.current -= 1
+
+        if (dragDepthRef.current <= 0) {
+            dragDepthRef.current = 0
+            setIsDragActive(false)
+        }
+    }, [])
+
+    const handleDragOver = useCallback((event: DragEvent) => {
+        event.preventDefault()
+    }, [])
+
+    const handleDrop = useCallback((event: DragEvent) => {
+        event.preventDefault()
+        dragDepthRef.current = 0
+        setIsDragActive(false)
+
+        void addFiles(collectAssetFilesFromDataTransfer(event.dataTransfer))
+    }, [addFiles])
+
+    const handlePaste = useCallback((event: ClipboardEvent) => {
+        if (!isMouseOverRef.current) {
+            return
         }
 
-        event.target.value = ''
-    }, [addAsset])
+        const files = collectAssetFilesFromClipboard(event.clipboardData)
 
-    const handleDeleteClick = useCallback((assetId: number, assetName: string) => {
+        if (files.length === 0) {
+            return
+        }
+
+        event.preventDefault()
+        void addFiles(files)
+    }, [addFiles])
+
+    const handleMouseEnter = useCallback(() => {
+        isMouseOverRef.current = true
+    }, [])
+
+    const handleMouseLeave = useCallback(() => {
+        isMouseOverRef.current = false
+    }, [])
+
+    useEffect(() => {
+        document.addEventListener('paste', handlePaste)
+        return () => document.removeEventListener('paste', handlePaste)
+    }, [handlePaste])
+
+    const handlePreview = useCallback((asset: ProjectAssetView) => {
+        setPreviewAsset(asset)
+    }, [])
+
+    const handleClosePreview = useCallback(() => {
+        setPreviewAsset(null)
+    }, [])
+
+    const handleDeleteRequest = useCallback((assetId: number, assetName: string) => {
         const referenceCount = countAssetReferences(state, assetId)
 
         if (referenceCount > 0) {
@@ -100,28 +252,31 @@ export const AssetsPanel: FC = () => {
 
     return (
         <>
-            <div className={styles.assetsPanel}>
+            <div
+                className={`${styles.assetsPanel} ${isDragActive ? styles.assetsPanelDragActive : ''}`}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+            >
+                {isDragActive && (
+                    <div className={styles.dropOverlay}>
+                        Отпустите изображения или шрифты для добавления
+                    </div>
+                )}
+
                 <div className={styles.header}>
                     <div className={styles.title}>Assets</div>
                     <div className={styles.uploadButtons}>
                         <label className={styles.uploadLabel}>
-                            images
+                            add
                             <input
-                                ref={imageInputRef}
+                                ref={fileInputRef}
                                 className={styles.uploadInput}
                                 type="file"
-                                accept={IMAGE_UPLOAD_ACCEPT}
-                                multiple
-                                onChange={handleUpload}
-                            />
-                        </label>
-                        <label className={styles.uploadLabel}>
-                            fonts
-                            <input
-                                ref={fontInputRef}
-                                className={styles.uploadInput}
-                                type="file"
-                                accept={FONT_UPLOAD_ACCEPT}
+                                accept={ASSET_UPLOAD_ACCEPT}
                                 multiple
                                 onChange={handleUpload}
                             />
@@ -129,37 +284,33 @@ export const AssetsPanel: FC = () => {
                     </div>
                 </div>
 
-                {isLoading ? (
-                    <div className={styles.empty}>Loading...</div>
-                ) : assets.length === 0 ? (
-                    <div className={styles.empty}>No assets yet. Upload images or fonts.</div>
-                ) : (
-                    <div className={styles.list}>
-                        {[...assets].reverse().map(asset => (
-                            <div className={styles.item} key={asset.id}>
-                                <AssetThumbnail
+                <div className={styles.body}>
+                    {isLoading ? (
+                        <div className={styles.empty}>Loading...</div>
+                    ) : assets.length === 0 ? (
+                        <div className={styles.empty}>
+                            No assets yet. Upload, drag & drop, or paste while hovering here.
+                        </div>
+                    ) : (
+                        <div className={styles.list}>
+                            {[...assets].reverse().map(asset => (
+                                <AssetCard
+                                    key={asset.id}
                                     asset={asset}
-                                    isFontAsset={isFontAsset(asset)}
+                                    isFont={isFontAsset(asset)}
+                                    onDeleteRequest={handleDeleteRequest}
+                                    onPreview={handlePreview}
                                 />
-                                <div className={styles.meta}>
-                                    <div className={styles.name}>{asset.name}</div>
-                                    <div className={styles.details}>
-                                        {asset.mimeType} · {formatBytes(asset.size)}
-                                        {isFontAsset(asset) ? ` · ${getFontFamilyName(asset.id)}` : ''}
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    className={styles.deleteButton}
-                                    onClick={() => handleDeleteClick(asset.id, asset.name)}
-                                >
-                                    delete
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
+
+            <AssetPreviewModal
+                asset={previewAsset}
+                onClose={handleClosePreview}
+            />
 
             <ConfirmModal
                 open={pendingDelete !== null}

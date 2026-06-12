@@ -1,4 +1,5 @@
 import React, { CSSProperties, FC, useMemo } from 'react'
+import { resolveColorValue } from '../resolveColorValue'
 import { useGameContext } from '../context'
 import { CellParameters, CellShape } from '../types/cells'
 import { ConnectionParams } from '../types/connections'
@@ -59,7 +60,7 @@ export const ConnectionSVGGroup: FC<ConnectionSVGGroupProps> = (props) => {
 
     const connectionStyle = useMemo(() => ({
         strokeWidth,
-        stroke: strokeColor,
+        stroke: resolveColorValue(strokeColor),
         strokeDasharray,
         strokeLinecap,
         pointerEvents: 'none',

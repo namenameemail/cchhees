@@ -12,3 +12,38 @@ div.boardParametersForm {
     width: 50%;
     box-sizing: border-box;
 }
+
+.boardParametersForm > .fullWidth,
+.boardParametersForm > select.fullWidth {
+    width: 100%;
+}
+
+.backgroundAssetField {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.backgroundAssetField > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.clearBackgroundImage {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 1px solid #999;
+    background: white;
+    color: #666;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.clearBackgroundImage:hover {
+    background: #f5d0d0;
+    border-color: #c44;
+    color: #900;
+}

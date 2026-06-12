@@ -18,7 +18,7 @@ import {
     resolveFigureDefinition,
     resolveFigureViewParams,
 } from '../../figureView'
-import { BlurEnterTextInput } from '../../../components/inputs/BlurEnterTextInput/BlurEnterTextInput'
+import { ColorAutocompleteInput } from '../../../components/colors/ColorAutocompleteInput'
 import styles from './styles.module.css'
 
 const FontAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
@@ -58,7 +58,7 @@ const FigureColorField: FC<ParameterInputComponentProps> = ({ name, value, onCha
                 value={pickerValue}
                 onChange={(event) => onChange(name, event.target.value)}
             />
-            <BlurEnterTextInput
+            <ColorAutocompleteInput
                 value={textValue}
                 changeOnEnter
                 changeOnBlur

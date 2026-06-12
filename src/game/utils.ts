@@ -1,6 +1,7 @@
 import { historyInit } from './context/history'
 import { GameContextValue } from './context/types'
 import { Cell, CellShape } from './types/cells'
+import { BoardBackgroundImageFit } from './types/boardParameters'
 import { getDefaultSvgCellParams } from './cellSvgSize'
 import { createDefaultFigureCatalog } from './figureView'
 import { GameState } from './types/gameState'
@@ -41,6 +42,12 @@ export const initialGameState: GameState = {
         cellXDistance: 50,
         cellYDistance: 50,
         swapOnEat: false,
+        background: 'white',
+        backgroundAssetId: null,
+        backgroundImageFit: BoardBackgroundImageFit.tile,
+        borderRadius: 0,
+        borderWidth: 0,
+        borderColor: 'black',
     },
 
     styleRules: [],

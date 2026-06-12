@@ -5,6 +5,8 @@ import { useAssetsContext } from '../../projects/assets/AssetsContext'
 import { getFontFamilyName } from '../../projects/assets/useFontAssetFamily'
 import { useProjectContext } from '../../projects/ProjectContext'
 import { createBoardImageFilename, exportBoardAsPng } from '../exportBoardImage'
+import { resolveBoardAppearance } from '../boardAppearance'
+import { useGameContext } from '../context'
 import styles from '../styles.module.css'
 
 export interface BoardExportButtonProps {
@@ -13,6 +15,7 @@ export interface BoardExportButtonProps {
 
 export const BoardExportButton: FC<BoardExportButtonProps> = ({ boardRef }) => {
     const { currentProject } = useProjectContext()
+    const { state } = useGameContext()
     const { getAssetById, getAssetUrl } = useAssetsContext()
     const [isExporting, setIsExporting] = useState(false)
     const [exportError, setExportError] = useState<string | null>(null)
@@ -28,6 +31,8 @@ export const BoardExportButton: FC<BoardExportButtonProps> = ({ boardRef }) => {
         try {
             await exportBoardAsPng(svg, {
                 filename: createBoardImageFilename(currentProject?.name ?? 'board'),
+                background: resolveBoardAppearance(state.boardParameters).background,
+                borderRadius: resolveBoardAppearance(state.boardParameters).borderRadius,
                 getFontFaceForAsset: (assetId) => {
                     const asset = getAssetById(assetId)
                     const url = getAssetUrl(assetId)
@@ -49,7 +54,7 @@ export const BoardExportButton: FC<BoardExportButtonProps> = ({ boardRef }) => {
         } finally {
             setIsExporting(false)
         }
-    }, [boardRef, currentProject?.name, getAssetById, getAssetUrl])
+    }, [boardRef, currentProject?.name, getAssetById, getAssetUrl, state.boardParameters])
 
     return (
         <>

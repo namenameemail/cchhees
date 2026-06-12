@@ -204,7 +204,7 @@ export const Game: React.FC<GameProps> = () => {
                             </div>
                         )}
                         {tab === 2 && (
-                            <div className={styles.settingsBody}>
+                            <div className={cn(styles.settingsBody, styles.assetsSettingsBody)}>
                                 <AssetsPanel />
                             </div>
                         )}

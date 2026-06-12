@@ -5,6 +5,7 @@ import { FigureId } from '../types/figures'
 import { useFigureAssetHref } from '../../projects/assets/useFigureAssetHref'
 import { useFontAssetFamily } from '../../projects/assets/useFontAssetFamily'
 import { useAssetAspectRatio } from '../../projects/assets/useAssetAspectRatio'
+import { resolveColorValueOrDefault } from '../resolveColorValue'
 import { resolveSvgCellPixelSize } from '../cellSvgSize'
 
 export interface FigureSVGGroupProps {
@@ -37,7 +38,7 @@ export const FigureSVGGroup: FC<FigureSVGGroupProps> = ({ figureId, x, y }) => {
     const textStyle = useMemo(() => ({
         pointerEvents: 'none' as const,
         fontSize: viewParams.fontSize,
-        fill: viewParams.color || '#000',
+        fill: resolveColorValueOrDefault(viewParams.color, '#000'),
         fontFamily: fontFamily || undefined,
         textAnchor: 'middle' as const,
         dominantBaseline: 'middle' as const,

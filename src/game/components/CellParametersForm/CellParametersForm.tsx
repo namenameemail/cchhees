@@ -77,7 +77,7 @@ const paramsConfigByShapeType = {
     [CellShape.rect]: [
         {
             name: 'colour',
-            type: ParameterTypes.TextInput,
+            type: ParameterTypes.ColorInput,
             props: { placeholder: 'colour' },
         },
         {
@@ -97,7 +97,7 @@ const paramsConfigByShapeType = {
         },
         {
             name: 'strokeColor',
-            type: ParameterTypes.TextInput,
+            type: ParameterTypes.ColorInput,
             props: { placeholder: 'strokeColor' },
         },
         {
@@ -109,7 +109,7 @@ const paramsConfigByShapeType = {
     [CellShape.circle]: [
         {
             name: 'colour',
-            type: ParameterTypes.TextInput,
+            type: ParameterTypes.ColorInput,
             props: { placeholder: 'colour' },
         },
         {
@@ -129,7 +129,7 @@ const paramsConfigByShapeType = {
         },
         {
             name: 'strokeColor',
-            type: ParameterTypes.TextInput,
+            type: ParameterTypes.ColorInput,
             props: { placeholder: 'strokeColor' },
         },
         {

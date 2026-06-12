@@ -38,7 +38,6 @@ div {
 
 .board>svg {
     flex-shrink: 0;
-    background: white;
     user-select: none;
 }
 
@@ -104,6 +103,12 @@ div {
     height: 100%;
     overflow-y: auto;
     overflow-x: auto;
+}
+
+.assetsSettingsBody {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 .settingTabs {

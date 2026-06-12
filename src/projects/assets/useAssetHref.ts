@@ -1,31 +1,38 @@
-import { useMemo } from 'react'
-import { CellParameters, CellShape } from '../../game/types/cells'
-import { getCellImageShapeParams, isCellImageShape } from '../../game/cellImageShape'
+import { useEffect, useMemo, useState } from 'react'
+import { getAssetRecord } from '../db'
 import { useAssetsContext } from './AssetsContext'
 
-export function useAssetHref(cellParams?: CellParameters): string | undefined {
+export function useAssetHref(assetId: number | null | undefined): string | undefined {
     const { getAssetUrl } = useAssetsContext()
+    const contextUrl = assetId != null ? getAssetUrl(assetId) : undefined
+    const [fallbackUrl, setFallbackUrl] = useState<string | undefined>()
 
-    return useMemo(() => {
-        if (!isCellImageShape(cellParams?.shape)) {
-            return undefined
+    useEffect(() => {
+        if (assetId == null || contextUrl) {
+            setFallbackUrl(undefined)
+            return
         }
 
-        const imageParams = getCellImageShapeParams(cellParams)
+        let cancelled = false
+        let objectUrl: string | undefined
 
-        if (!imageParams) {
-            return undefined
+        void getAssetRecord(assetId).then(record => {
+            if (cancelled || !record) {
+                return
+            }
+
+            objectUrl = URL.createObjectURL(record.blob)
+            setFallbackUrl(objectUrl)
+        })
+
+        return () => {
+            cancelled = true
+
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl)
+            }
         }
+    }, [assetId, contextUrl])
 
-        if (imageParams.assetId != null) {
-            return getAssetUrl(imageParams.assetId)
-        }
-
-        const legacyFile = (imageParams as { file?: string }).file
-        if (typeof legacyFile === 'string' && legacyFile.length > 0) {
-            return legacyFile
-        }
-
-        return undefined
-    }, [cellParams, getAssetUrl])
+    return useMemo(() => contextUrl ?? fallbackUrl, [contextUrl, fallbackUrl])
 }

@@ -1,7 +1,8 @@
 import React, { CSSProperties, FC, useMemo } from 'react'
 import { useGameContext } from '../context'
+import { resolveColorValue } from '../resolveColorValue'
 import { CellParameters, CellShape } from '../types/cells'
-import { isCellImageShape } from '../cellImageShape'
+import { isCellImageShape, getCellImageShapeParams } from '../cellImageShape'
 import { useAssetHref } from '../../projects/assets/useAssetHref'
 import { useAssetAspectRatio } from '../../projects/assets/useAssetAspectRatio'
 import { resolveSvgCellPixelSize } from '../cellSvgSize'
@@ -41,7 +42,8 @@ export const CellSVGGroup: FC<CellSVGGroupProps> = (props) => {
         ...shapeParams
     } = paramsByShape?.[shape as string] || {}
 
-    const imageHref = useAssetHref(cellParams)
+    const imageAssetId = getCellImageShapeParams(cellParams)?.assetId ?? null
+    const imageHref = useAssetHref(imageAssetId)
     const aspectRatio = useAssetAspectRatio(isCellImageShape(shape) ? imageHref : undefined)
 
     const imagePixelSize = isCellImageShape(shape)
@@ -58,9 +60,9 @@ export const CellSVGGroup: FC<CellSVGGroupProps> = (props) => {
 
 
     const cellStyle = useMemo(() => ({
-        fill: colour,
+        fill: resolveColorValue(colour),
         strokeWidth,
-        stroke: strokeColor,
+        stroke: resolveColorValue(strokeColor),
         strokeDasharray,
         pointerEvents: 'none',
     }), [colour, strokeWidth, strokeColor, strokeDasharray])

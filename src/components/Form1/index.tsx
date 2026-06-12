@@ -6,6 +6,7 @@ import { Form1FieldConfig, ParameterTypes } from './types'
 import { BlurEnterNumberInput, BlurEnterTextInput, DragHandler } from 'bbuutoonnss'
 import { FormArray } from '../FormArray'
 import { svgToDataURL } from './utils'
+import { ColorAutocompleteInput } from '../colors/ColorAutocompleteInput'
 
 export interface Form1Props<StateType> {
     name?: any
@@ -157,6 +158,24 @@ export const inputComponentsByParameterType: {
                 onChange={handleChange}
                 title={props.placeholder}
                 {...props}
+            />
+        )
+    },
+    [ParameterTypes.ColorInput]: ({ name, value, onChange, props }) => {
+        const handleChange = React.useCallback((nextValue) => {
+            onChange(name, nextValue)
+        }, [onChange, name])
+
+        return (
+            <ColorAutocompleteInput
+                value={typeof value === 'string' ? value : ''}
+                onChange={handleChange}
+                placeholder={props?.placeholder}
+                title={props?.title || props?.placeholder}
+                changeOnEnter
+                changeOnBlur
+                resetOnBlur
+                className={props?.className}
             />
         )
     },

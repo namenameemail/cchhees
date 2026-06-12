@@ -141,8 +141,45 @@ function getSvgExportSize(svg: SVGSVGElement): { width: number; height: number }
     return { width, height }
 }
 
+function getBoardBorderRadiusFromSvg(svg: SVGSVGElement): number {
+    const clipRect = svg.querySelector('defs clipPath rect[rx]')
+    const rx = clipRect?.getAttribute('rx')
+
+    if (!rx) {
+        return 0
+    }
+
+    const value = Number(rx)
+    return Number.isFinite(value) && value > 0 ? value : 0
+}
+
+function shouldFillCanvasBackground(
+    borderRadius: number,
+    mimeType: 'image/png' | 'image/jpeg',
+    background: string,
+): boolean {
+    if (borderRadius > 0) {
+        return mimeType === 'image/jpeg'
+    }
+
+    return background !== 'transparent'
+}
+
+function resolveCanvasBackground(
+    borderRadius: number,
+    mimeType: 'image/png' | 'image/jpeg',
+    background: string,
+): string {
+    if (borderRadius > 0 && mimeType === 'image/jpeg') {
+        return '#ffffff'
+    }
+
+    return background
+}
+
 export interface ExportBoardImageOptions {
     background?: string
+    borderRadius?: number
     scale?: number
     maxWidth?: number
     mimeType?: 'image/png' | 'image/jpeg'
@@ -173,6 +210,38 @@ function resolveCanvasSize(
     }
 }
 
+function clipCanvasToRoundedRect(
+    context: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    radius: number,
+): void {
+    const r = Math.max(0, Math.min(radius, width / 2, height / 2))
+
+    if (r === 0) {
+        return
+    }
+
+    context.beginPath()
+
+    if (typeof context.roundRect === 'function') {
+        context.roundRect(0, 0, width, height, r)
+    } else {
+        context.moveTo(r, 0)
+        context.lineTo(width - r, 0)
+        context.quadraticCurveTo(width, 0, width, r)
+        context.lineTo(width, height - r)
+        context.quadraticCurveTo(width, height, width - r, height)
+        context.lineTo(r, height)
+        context.quadraticCurveTo(0, height, 0, height - r)
+        context.lineTo(0, r)
+        context.quadraticCurveTo(0, 0, r, 0)
+        context.closePath()
+    }
+
+    context.clip()
+}
+
 export async function renderBoardImageDataUrl(
     svg: SVGSVGElement,
     options: ExportBoardImageOptions = {},
@@ -191,6 +260,8 @@ export async function renderBoardImageDataUrl(
 
     clone.querySelectorAll('[data-board-handler]').forEach(element => element.remove())
     clone.querySelectorAll('radialGradient').forEach(element => element.remove())
+
+    const borderRadius = options.borderRadius ?? getBoardBorderRadiusFromSvg(clone)
 
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
     clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
@@ -216,7 +287,7 @@ export async function renderBoardImageDataUrl(
             await image.decode()
         }
 
-        const { canvasWidth, canvasHeight } = resolveCanvasSize(width, height, scale, maxWidth)
+        const { canvasWidth, canvasHeight, drawScale } = resolveCanvasSize(width, height, scale, maxWidth)
 
         const canvas = document.createElement('canvas')
         canvas.width = canvasWidth
@@ -227,8 +298,22 @@ export async function renderBoardImageDataUrl(
             throw new Error('Canvas is not available')
         }
 
-        context.fillStyle = background
-        context.fillRect(0, 0, canvas.width, canvas.height)
+        context.clearRect(0, 0, canvas.width, canvas.height)
+
+        if (shouldFillCanvasBackground(borderRadius, mimeType, background)) {
+            context.fillStyle = resolveCanvasBackground(borderRadius, mimeType, background)
+            context.fillRect(0, 0, canvas.width, canvas.height)
+        }
+
+        if (borderRadius > 0) {
+            clipCanvasToRoundedRect(
+                context,
+                canvas.width,
+                canvas.height,
+                borderRadius * drawScale,
+            )
+        }
+
         context.drawImage(image, 0, 0, canvas.width, canvas.height)
 
         return mimeType === 'image/jpeg'
