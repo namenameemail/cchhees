@@ -1,5 +1,5 @@
 
-import { FigureId, FigureViewParams, FigureCatalog } from '../types/figures'
+import { FigureId, FigureMoveRule, FigureViewParams, FigureCatalog } from '../types/figures'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
 import { SliceHistory } from '../types/history'
@@ -48,6 +48,7 @@ export interface GameContextValue {
     setTray: (value: FigureId[]) => void
     setCells: (value) => void
     setFigureDefinition: (figureId: FigureId, params: FigureViewParams) => void
+    setFigureMoveRules: (figureId: FigureId, moveRules: FigureMoveRule[], jumpOverPieces?: boolean) => void
     addFigure: () => void
     removeFigure: (figureId: FigureId) => void
     clearAssetReferences: (assetId: number) => void

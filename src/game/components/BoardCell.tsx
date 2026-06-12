@@ -4,13 +4,15 @@ import { useGameContext } from '../context'
 import { Cell } from '../types/cells'
 import { Mode } from '../types'
 import { FigureSVGGroup } from './FigureSVGGroup'
-import { CellCoord, coordsEqual } from '../types/coords'
+import { CellCoord, coordsEqual, coordToIndex } from '../types/coords'
 import { selectionDebugLog } from '../selectionDebugLog'
 
 export interface CellProps {
     cell: Cell
     coord: CellCoord
     selectionGradientId: string
+    legalMoveGradientId: string
+    isLegalMove: boolean
 }
 
 
@@ -40,6 +42,8 @@ export const BoardCell: FC<CellProps> = (props) => {
         cell,
         coord,
         selectionGradientId,
+        legalMoveGradientId,
+        isLegalMove,
     } = props
 
     const { i, j } = coord
@@ -50,11 +54,15 @@ export const BoardCell: FC<CellProps> = (props) => {
 
     const handlerStyle = useMemo(() => ({
         strokeDasharray: '4 1',
-        fill: isActive ? `url(#${selectionGradientId})` : 'transparent',
+        fill: isActive
+            ? `url(#${selectionGradientId})`
+            : isLegalMove
+                ? `url(#${legalMoveGradientId})`
+                : 'transparent',
         cursor: 'pointer',
         rx: cellWidth,
         ry: cellHeight,
-    }), [cellWidth, cellHeight, isActive, selectionGradientId])
+    }), [cellWidth, cellHeight, isActive, isLegalMove, selectionGradientId, legalMoveGradientId])
 
 
     const handleCellClick = useCallback(() => {
@@ -66,17 +74,24 @@ export const BoardCell: FC<CellProps> = (props) => {
             activeFigure && setCellFigure(coord, activeFigure)
 
         } else if (mode === Mode.Game) {
+            const { n } = state.boardParameters
+            const activeCellFigure = activeCell !== undefined
+                ? state.cells[coordToIndex(activeCell, n)]?.figure
+                : undefined
+
             if (activeCell === undefined) {
                 setActiveCell(coord, 'cell click · select')
             } else if (coordsEqual(activeCell, coord)) {
-                // Keep selection — repeat click used to deselect immediately (double-click felt like a bug).
+                setActiveCell(undefined, 'cell click · deselect')
+            } else if (!activeCellFigure) {
+                setActiveCell(coord, 'cell click · select after empty')
             } else {
                 moveActiveCellFigureTo(coord)
             }
         } else if (mode === Mode.PaintTheBoard) {
             setCellParameters(coord)
         }
-    }, [mode, coord, cell.figure, activeFigure, activeCell, setActiveCell, moveActiveCellFigureTo, setCellParameters, setCellFigure])
+    }, [mode, coord, cell.figure, activeFigure, activeCell, state.boardParameters, state.cells, setActiveCell, moveActiveCellFigureTo, setCellParameters, setCellFigure])
     return (
         <g>
             {!isDisabled && (<>

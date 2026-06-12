@@ -1,10 +1,11 @@
 import { BoardParameters } from '../game/types/boardParameters'
 import { CellParameters } from '../game/types/cells'
-import { FigureCatalog, FigureDefinition, FigureId, FigureViewParams } from '../game/types/figures'
+import { FigureCatalog, FigureDefinition, FigureId, FigureMoveRule, FigureViewParams } from '../game/types/figures'
 import { BoardStyleRule } from '../game/types/styleRules'
 import { BoardSlice, FiguresSlice, composeGameState, cloneFigureCatalog } from '../game/state/slices'
 import { cloneBoardSlice, cloneFiguresSlice } from '../game/state/reconcile'
 import { removeFigureFromBoard } from '../game/state/figureReferences'
+import { normalizeFigureMoveRules } from '../game/figureView'
 import { GameState } from '../game/types/gameState'
 
 /** Minimal collaborative edit operation — only what changed. */
@@ -14,6 +15,7 @@ export type CollabOp =
     | { kind: 'style-rules'; boardId: string; styleRules: BoardStyleRule[] }
     | { kind: 'cell-parameters'; boardId: string; coordKey: string; parameters: CellParameters | null }
     | { kind: 'figure-view-params'; figureId: FigureId; viewParams: FigureViewParams }
+    | { kind: 'figure-move-rules'; figureId: FigureId; moveRules: FigureMoveRule[]; jumpOverPieces?: boolean }
     | { kind: 'figure-add'; figure: FigureDefinition }
     | { kind: 'figure-remove'; figureId: FigureId }
     | { kind: 'board-sync'; boardId: string; board: BoardSlice }
@@ -21,6 +23,7 @@ export type CollabOp =
 
 export function isBoardScopedCollabOp(op: CollabOp): boolean {
     return op.kind !== 'figure-view-params'
+        && op.kind !== 'figure-move-rules'
         && op.kind !== 'figure-add'
         && op.kind !== 'figure-remove'
         && op.kind !== 'catalog-sync'
@@ -106,6 +109,22 @@ export function applyCollabOp(
                 catalog: catalog.map(entry => (
                     entry.id === op.figureId
                         ? { ...entry, viewParams: op.viewParams }
+                        : entry
+                )),
+            }
+        case 'figure-move-rules':
+            return {
+                figures: figuresSlice,
+                board: boardSlice,
+                catalog: catalog.map(entry => (
+                    entry.id === op.figureId
+                        ? {
+                            ...entry,
+                            moveRules: normalizeFigureMoveRules(op.moveRules),
+                            jumpOverPieces: op.jumpOverPieces !== undefined
+                                ? op.jumpOverPieces === true
+                                : entry.jumpOverPieces === true,
+                        }
                         : entry
                 )),
             }

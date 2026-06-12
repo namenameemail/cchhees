@@ -4,12 +4,16 @@ import { BoardCell } from './BoardCell'
 import { getConnections } from '../context/connections'
 import { ConnectionSVGGroup } from './ConnectionSVGGroup'
 import { CellSVGGroup } from './CellSVGGroup'
-import { coordKey, iterGridCoords } from '../types/coords'
+import { coordKey, iterGridCoords, coordToIndex, indexToCoord } from '../types/coords'
+import { FigureId } from '../types/figures'
 import {
     buildStyleRuleDrawPlan,
     findConnectionDataByKey,
 } from '../styleRules/evaluate'
 import { isCellStyleRule, isConnectionStyleRule } from '../types/styleRules'
+import { Mode } from '../types'
+import { resolveFigureDefinition } from '../figureView'
+import { getLegalMoveDestinations } from '../moveRules'
 
 export interface BoardProps {
     className?: string
@@ -17,8 +21,9 @@ export interface BoardProps {
 
 export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ className }, ref) {
 
-    const { state } = useGameContext()
+    const { state, mode, activeCell, figureCatalog } = useGameContext()
     const selectionGradientId = useId().replace(/:/g, '')
+    const legalMoveGradientId = useId().replace(/:/g, '')
 
     const {
         boardParameters: {
@@ -50,12 +55,47 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
         return buildStyleRuleDrawPlan(styleRules, n, m)
     }, [styleRules, n, m])
 
+    const legalMoveKeys = useMemo(() => {
+        if (mode !== Mode.Game || activeCell === undefined) {
+            return new Set<string>()
+        }
+
+        const cellIndex = coordToIndex(activeCell, n)
+        const figureId = state.cells[cellIndex]?.figure
+
+        if (!figureId) {
+            return new Set<string>()
+        }
+
+        const definition = resolveFigureDefinition(figureId, figureCatalog ?? state.figureCatalog)
+
+        const figuresByCoord: Record<string, FigureId> = {}
+        for (const [index, cell] of state.cells.entries()) {
+            if (cell.figure) {
+                figuresByCoord[coordKey(indexToCoord(index, n))] = cell.figure
+            }
+        }
+
+        return new Set(
+            getLegalMoveDestinations(
+                activeCell,
+                definition,
+                figuresByCoord,
+                state.boardParameters,
+            ).map(coordKey),
+        )
+    }, [mode, activeCell, state.cells, state.tray, state.boardParameters, n, figureCatalog, state.figureCatalog])
+
     return (
         <svg ref={ref} style={boardStyle} className={className}>
             <defs>
                 <radialGradient id={selectionGradientId}>
                     <stop offset="5%" stopColor="#ff00FF99" />
                     <stop offset="95%" stopColor="#ff000000" />
+                </radialGradient>
+                <radialGradient id={legalMoveGradientId}>
+                    <stop offset="5%" stopColor="#00aa4455" />
+                    <stop offset="95%" stopColor="#00aa4400" />
                 </radialGradient>
             </defs>
             {styleRules.map((rule, ruleIndex) => (
@@ -101,6 +141,8 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                         cell={cells[index]}
                         coord={coord}
                         selectionGradientId={selectionGradientId}
+                        legalMoveGradientId={legalMoveGradientId}
+                        isLegalMove={legalMoveKeys.has(coordKey(coord))}
                     />
                 )
             })}

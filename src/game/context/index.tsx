@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { defaultGameContextValue } from '../utils'
 import { historyPush, historyRedo, historyUndo } from './history'
 import { GameContextValue } from './types'
-import { FigureId, FigureViewParams, FigureCatalog } from '../types/figures'
-import { createNewFigureDefinition } from '../figureView'
+import { FigureId, FigureMoveRule, FigureViewParams, FigureCatalog } from '../types/figures'
+import { createNewFigureDefinition, resolveFigureDefinition } from '../figureView'
+import { isFigureMoveAllowed } from '../moveRules'
 import { removeFigureFromBoard } from '../state/figureReferences'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
@@ -472,14 +473,20 @@ export function GameProvider({
         }
 
         const from = activeCell
-        setActiveCell(undefined, 'figure move start')
-
         const fromKey = coordKey(from)
         const toKey = coordKey(to)
         const fromFigure = figuresSlice.figuresByCoord[fromKey]
         if (!fromFigure) {
             return
         }
+
+        const figureDefinition = resolveFigureDefinition(fromFigure, figureCatalog)
+
+        if (!isFigureMoveAllowed(from, to, figureDefinition, figuresSlice.figuresByCoord, state.boardParameters)) {
+            return
+        }
+
+        setActiveCell(undefined, 'figure move start')
 
         const toFigure = figuresSlice.figuresByCoord[toKey]
         const figuresByCoord = { ...figuresSlice.figuresByCoord }
@@ -504,7 +511,7 @@ export function GameProvider({
             figuresByCoord,
             tray: newTray,
         })
-    }, [activeCell, figuresSlice, state.boardParameters.swapOnEat, pushFiguresChange, setActiveCell])
+    }, [activeCell, figuresSlice, figureCatalog, state.boardParameters, pushFiguresChange, setActiveCell])
 
     const setCellParameters = useCallback((coord: CellCoord) => {
         const key = coordKey(coord)
@@ -538,6 +545,33 @@ export function GameProvider({
             )),
             true,
             { kind: 'figure-view-params', figureId, viewParams: params },
+        )
+    }, [figureCatalog, applyCatalogChange])
+
+    const setFigureMoveRules = useCallback((
+        figureId: FigureId,
+        moveRules: FigureMoveRule[],
+        jumpOverPieces?: boolean,
+    ) => {
+        const current = figureCatalog.find(entry => entry.id === figureId)
+
+        applyCatalogChange(
+            figureCatalog.map(entry => (
+                entry.id === figureId
+                    ? {
+                        ...entry,
+                        moveRules,
+                        jumpOverPieces: jumpOverPieces ?? entry.jumpOverPieces === true,
+                    }
+                    : entry
+            )),
+            true,
+            {
+                kind: 'figure-move-rules',
+                figureId,
+                moveRules,
+                jumpOverPieces: jumpOverPieces ?? current?.jumpOverPieces === true,
+            },
         )
     }, [figureCatalog, applyCatalogChange])
 
@@ -697,6 +731,7 @@ export function GameProvider({
             setTray,
             setCells,
             setFigureDefinition,
+            setFigureMoveRules,
             addFigure,
             removeFigure,
             clearAssetReferences,
@@ -727,6 +762,7 @@ export function GameProvider({
             setTray,
             setCells,
             setFigureDefinition,
+            setFigureMoveRules,
             addFigure,
             removeFigure,
             clearAssetReferences,

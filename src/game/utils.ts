@@ -81,6 +81,7 @@ export const defaultGameContextValue: GameContextValue = {
     setTray: mockFn,
     setCells: mockFn,
     setFigureDefinition: mockFn,
+    setFigureMoveRules: mockFn,
     addFigure: mockFn,
     removeFigure: mockFn,
     clearAssetReferences: mockFn,

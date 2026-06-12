@@ -16,9 +16,17 @@ export interface FigureViewParams extends SvgCellSizeParams {
     assetId?: number | null
 }
 
+export interface FigureMoveRule {
+    x: number
+    y: number
+    n?: number
+}
+
 export interface FigureDefinition {
     id: FigureId
     viewParams: FigureViewParams
+    moveRules?: FigureMoveRule[]
+    jumpOverPieces?: boolean
 }
 
 export type FigureCatalog = FigureDefinition[]

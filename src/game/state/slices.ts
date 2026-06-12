@@ -65,6 +65,8 @@ export function composeGameState(
         figureCatalog: catalog.map(entry => ({
             id: entry.id,
             viewParams: { ...entry.viewParams },
+            moveRules: entry.moveRules ? [...entry.moveRules] : [],
+            jumpOverPieces: entry.jumpOverPieces === true,
         })),
         cells,
         tray: [...figures.tray],
@@ -99,5 +101,7 @@ export function cloneFigureCatalog(catalog: FigureCatalog): FigureCatalog {
     return catalog.map(entry => ({
         id: entry.id,
         viewParams: { ...entry.viewParams },
+        moveRules: entry.moveRules ? entry.moveRules.map(rule => ({ ...rule })) : [],
+        jumpOverPieces: entry.jumpOverPieces === true,
     }))
 }

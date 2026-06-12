@@ -6,6 +6,7 @@ import {
     FigureDefinitions,
     FigureDisplayType,
     FigureId,
+    FigureMoveRule,
     FigureTypes,
     FigureViewParams,
 } from './types/figures'
@@ -41,7 +42,36 @@ export function createNewFigureDefinition(): FigureDefinition {
     return {
         id: crypto.randomUUID(),
         viewParams: createPawnFigureViewParams(),
+        moveRules: [],
+        jumpOverPieces: false,
     }
+}
+
+export function normalizeFigureMoveRule(rule: FigureMoveRule): FigureMoveRule | null {
+    const x = Math.trunc(rule.x)
+    const y = Math.trunc(rule.y)
+
+    if (x === 0 && y === 0) {
+        return null
+    }
+
+    const n = rule.n === undefined ? 1 : Math.trunc(rule.n)
+
+    return { x, y, n }
+}
+
+export function normalizeFigureMoveRules(rules?: FigureMoveRule[]): FigureMoveRule[] {
+    if (!rules?.length) {
+        return []
+    }
+
+    return rules
+        .map(normalizeFigureMoveRule)
+        .filter((rule): rule is FigureMoveRule => rule !== null)
+}
+
+export function hasFigureMoveRules(definition: Pick<FigureDefinition, 'moveRules'>): boolean {
+    return normalizeFigureMoveRules(definition.moveRules).length > 0
 }
 
 export function createDefaultFigureCatalog(): FigureCatalog {
@@ -62,6 +92,8 @@ export function normalizeFigureDefinition(entry: FigureDefinition): FigureDefini
             symbol: entry.viewParams.symbol?.trim() || defaults.symbol,
             displayType: entry.viewParams.displayType ?? FigureDisplayType.symbol,
         },
+        moveRules: normalizeFigureMoveRules(entry.moveRules),
+        jumpOverPieces: entry.jumpOverPieces === true,
     }
 }
 
@@ -111,13 +143,25 @@ export function resolveFigureViewParams(
     figureId: FigureId,
     catalog?: FigureCatalog,
 ): FigureViewParams {
+    return resolveFigureDefinition(figureId, catalog).viewParams
+}
+
+export function resolveFigureDefinition(
+    figureId: FigureId,
+    catalog?: FigureCatalog,
+): FigureDefinition {
     const entry = catalog?.find(item => item.id === figureId)
 
     if (!entry) {
-        return getDefaultFigureViewParams(figureId)
+        return {
+            id: figureId,
+            viewParams: getDefaultFigureViewParams(figureId),
+            moveRules: [],
+            jumpOverPieces: false,
+        }
     }
 
-    return normalizeFigureDefinition(entry).viewParams
+    return normalizeFigureDefinition(entry)
 }
 
 export function getFigureSymbol(figureId: FigureId, viewParams: FigureViewParams): string {

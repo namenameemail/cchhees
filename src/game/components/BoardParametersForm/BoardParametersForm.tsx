@@ -39,11 +39,6 @@ const parametersConfig = [
         type: ParameterTypes.NumberInput,
         props: {placeholder: 'cellYDistance'},
     },
-    // {
-    //     name: 'swapOnEat',
-    //     type: ParameterTypes.Checkbox,
-    //     props: {text: 'swapOnEat'},
-    // },
 ];
 
 export const BoardParametersForm: React.FC<BoardParametersFormProps> = () => {

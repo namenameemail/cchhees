@@ -2,8 +2,9 @@ import React, { FC, useCallback, useMemo } from 'react'
 import { useGameContext } from '../../context'
 import { Form1, ParameterInputComponentProps } from '../../../components/Form1'
 import { ParameterTypes } from '../../../components/Form1/types'
-import { FigureDisplayType, FigureId, FigureViewParams } from '../../types/figures'
+import { FigureDisplayType, FigureId, FigureMoveRule, FigureViewParams } from '../../types/figures'
 import { FigureSVG } from '../FigureSVG'
+import { FormArray } from '../../../components/FormArray'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
 import { ProjectFontSelect } from '../../../projects/components/ProjectFontSelect'
 import {
@@ -14,6 +15,7 @@ import {
 } from '../../cellSvgSize'
 import {
     getDefaultFigureViewParams,
+    resolveFigureDefinition,
     resolveFigureViewParams,
 } from '../../figureView'
 import { BlurEnterTextInput } from '../../../components/inputs/BlurEnterTextInput/BlurEnterTextInput'
@@ -139,6 +141,24 @@ const paramsConfigByDisplayType = {
     ],
 }
 
+const moveRuleItemConfig = [
+    {
+        name: 'x',
+        type: ParameterTypes.NumberInput,
+        props: { placeholder: 'x' },
+    },
+    {
+        name: 'y',
+        type: ParameterTypes.NumberInput,
+        props: { placeholder: 'y' },
+    },
+    {
+        name: 'n',
+        type: ParameterTypes.NumberInput,
+        props: { placeholder: 'n (0 = ∞)' },
+    },
+]
+
 const parametersConfig = (value: FigureViewParams) => {
     const displayType = value.displayType ?? FigureDisplayType.symbol
     const typeConfig = paramsConfigByDisplayType[displayType]
@@ -234,7 +254,7 @@ export const FigureParametersFormBase: FC<FigureParametersFormBaseProps> = ({
 }
 
 export const FigureParametersForm: FC = () => {
-    const { activeFigure, state, setFigureDefinition } = useGameContext()
+    const { activeFigure, state, setFigureDefinition, setFigureMoveRules } = useGameContext()
 
     const viewParams = useMemo(() => {
         if (!activeFigure) {
@@ -243,12 +263,48 @@ export const FigureParametersForm: FC = () => {
         return resolveFigureViewParams(activeFigure, state.figureCatalog)
     }, [activeFigure, state.figureCatalog])
 
+    const figureDefinition = useMemo(() => {
+        if (!activeFigure) {
+            return null
+        }
+
+        return resolveFigureDefinition(activeFigure, state.figureCatalog)
+    }, [activeFigure, state.figureCatalog])
+
+    const moveRules = useMemo(() => {
+        return figureDefinition?.moveRules ?? []
+    }, [figureDefinition])
+
+    const jumpOverPieces = figureDefinition?.jumpOverPieces === true
+
     const handleChange = useCallback((nextValue: FigureViewParams) => {
         if (!activeFigure) {
             return
         }
         setFigureDefinition(activeFigure, nextValue)
     }, [activeFigure, setFigureDefinition])
+
+    const handleMoveRulesChange = useCallback((nextRules: FigureMoveRule[]) => {
+        if (!activeFigure) {
+            return
+        }
+
+        setFigureMoveRules(activeFigure, nextRules, jumpOverPieces)
+    }, [activeFigure, jumpOverPieces, setFigureMoveRules])
+
+    const handleJumpOverPiecesChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!activeFigure) {
+            return
+        }
+
+        setFigureMoveRules(activeFigure, moveRules, event.target.checked)
+    }, [activeFigure, moveRules, setFigureMoveRules])
+
+    const getMoveRuleInitialValue = useCallback((): FigureMoveRule => ({
+        x: 1,
+        y: 0,
+        n: 1,
+    }), [])
 
     if (!activeFigure) {
         return (
@@ -271,6 +327,29 @@ export const FigureParametersForm: FC = () => {
                     onChange={handleChange}
                 />
                 <FigureSVG figureId={activeFigure} highlighted />
+            </div>
+            <div className={styles.moveRulesSection}>
+                <div className={styles.moveRulesTitle}>Возможные ходы</div>
+                <div className={styles.moveRulesHint}>
+                    Пустой список — свободное перемещение. n по умолчанию 1; 0 — бесконечно по лучу.
+                </div>
+                <label className={styles.jumpOverPiecesField}>
+                    <input
+                        type="checkbox"
+                        checked={jumpOverPieces}
+                        onChange={handleJumpOverPiecesChange}
+                    />
+                    <span>Перепрыгивать через фигуры</span>
+                </label>
+                <FormArray<FigureMoveRule>
+                    className={styles.moveRulesArray}
+                    itemFormClassName={styles.moveRuleItemForm}
+                    value={moveRules}
+                    itemConfig={moveRuleItemConfig}
+                    onChange={handleMoveRulesChange}
+                    getItemInitialValue={getMoveRuleInitialValue}
+                    addText="ход"
+                />
             </div>
         </div>
     )
