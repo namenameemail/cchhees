@@ -33,7 +33,7 @@ interface CchheesDB extends DBSchema {
 }
 
 const DB_NAME = 'cchhees'
-const DB_VERSION = 4
+const DB_VERSION = 5
 
 let dbPromise: Promise<IDBPDatabase<CchheesDB>> | undefined
 

@@ -6,6 +6,7 @@ import { Project, normalizeLoadedProject, projectToPersistData } from './types'
 
 export const PROJECT_FILE_KIND = 'cchhees-project'
 export const PROJECT_FILE_VERSION = 2
+export const PROJECT_FILE_EXTENSION = '.cchhees'
 
 export interface ProjectFileAsset {
     id: number
@@ -143,7 +144,7 @@ export async function buildProjectExportFile(project: Project): Promise<ProjectF
 
 export async function exportProjectToFile(project: Project): Promise<void> {
     const file = await buildProjectExportFile(project)
-    downloadJson(`${createSafeFilename(project.name)}.cchhees.json`, file)
+    downloadJson(`${createSafeFilename(project.name)}${PROJECT_FILE_EXTENSION}`, file)
 }
 
 function normalizeImportProject(file: ProjectFile): Project {
@@ -227,7 +228,8 @@ export async function importProjectFromFile(
 export function isProjectImportFile(file: File): boolean {
     const lowerName = file.name.toLowerCase()
 
-    return lowerName.endsWith('.json')
+    return lowerName.endsWith(PROJECT_FILE_EXTENSION)
         || lowerName.endsWith('.cchhees.json')
+        || lowerName.endsWith('.json')
         || file.type === 'application/json'
 }

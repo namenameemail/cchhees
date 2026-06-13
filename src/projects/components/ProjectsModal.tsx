@@ -6,14 +6,13 @@ import React, {
     useRef,
     useState,
 } from 'react'
+import cn from 'classnames'
 import { useProjectContext } from '../ProjectContext'
 import { formatMegabytes } from '../formatBytes'
-import { isProjectImportFile } from '../projectFile'
+import { isProjectImportFile, PROJECT_FILE_EXTENSION } from '../projectFile'
 import { getProjectByteSize, readStorageEstimate, StorageEstimate } from '../storageEstimate'
-import { ConfirmModal } from '../../components/ConfirmModal'
-import { getBoardPreviewBoxStyle } from '../boardPreviewSize'
-import { getActiveBoardGameState } from '../types'
-import { visitedRoomToProject } from '../visitedRooms/types'
+import { Project } from '../types'
+import { ProjectBoardsPreview, PREVIEW_SIZE_DEFAULT, PREVIEW_SIZE_MAX, PREVIEW_SIZE_MIN } from './ProjectBoardsPreview'
 import styles from './ProjectsModal.module.css'
 
 export interface ProjectsModalProps {
@@ -27,6 +26,95 @@ function formatUpdatedAt(timestamp: number): string {
 
 function formatFreePercent(estimate: StorageEstimate): string {
     return `${estimate.freePercent.toFixed(1)}%`
+}
+
+function formatBoardCount(count: number): string {
+    const mod10 = count % 10
+    const mod100 = count % 100
+
+    if (mod10 === 1 && mod100 !== 11) {
+        return `${count} доска`
+    }
+
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+        return `${count} доски`
+    }
+
+    return `${count} досок`
+}
+
+const DELETE_HOLD_MS = 1000
+
+interface HoldDeleteButtonProps {
+    projectId: string
+    label: string
+    ariaLabel: string
+    className?: string
+    onHoldingChange: (projectId: string | null) => void
+    onDelete: (projectId: string) => void
+}
+
+function HoldDeleteButton({
+    projectId,
+    label,
+    ariaLabel,
+    className,
+    onHoldingChange,
+    onDelete,
+}: HoldDeleteButtonProps) {
+    const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const onHoldingChangeRef = useRef(onHoldingChange)
+    const onDeleteRef = useRef(onDelete)
+
+    onHoldingChangeRef.current = onHoldingChange
+    onDeleteRef.current = onDelete
+
+    const clearHold = useCallback(() => {
+        if (holdTimerRef.current) {
+            clearTimeout(holdTimerRef.current)
+            holdTimerRef.current = null
+        }
+
+        onHoldingChangeRef.current(null)
+    }, [])
+
+    const handleDeletePointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+        event.preventDefault()
+        event.stopPropagation()
+        event.currentTarget.setPointerCapture(event.pointerId)
+        onHoldingChangeRef.current(projectId)
+        holdTimerRef.current = setTimeout(() => {
+            holdTimerRef.current = null
+            onHoldingChangeRef.current(null)
+            onDeleteRef.current(projectId)
+        }, DELETE_HOLD_MS)
+    }, [projectId])
+
+    const handleDeletePointerEnd = useCallback(() => {
+        clearHold()
+    }, [clearHold])
+
+    useEffect(() => () => {
+        if (holdTimerRef.current) {
+            clearTimeout(holdTimerRef.current)
+            holdTimerRef.current = null
+        }
+    }, [])
+
+    return (
+        <button
+            type="button"
+            className={className}
+            aria-label={ariaLabel}
+            title="Удерживайте для удаления"
+            onPointerDown={handleDeletePointerDown}
+            onPointerUp={handleDeletePointerEnd}
+            onPointerCancel={handleDeletePointerEnd}
+            onLostPointerCapture={handleDeletePointerEnd}
+        >
+            {label}
+        </button>
+    )
 }
 
 export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
@@ -52,7 +140,9 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
     const [isImporting, setIsImporting] = useState(false)
     const [isDragActive, setIsDragActive] = useState(false)
     const [statusMessage, setStatusMessage] = useState<string | null>(null)
-    const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
+    const [holdingDeleteId, setHoldingDeleteId] = useState<string | null>(null)
+    const [showVisitedRooms, setShowVisitedRooms] = useState(false)
+    const [previewSize, setPreviewSize] = useState(PREVIEW_SIZE_DEFAULT)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const dragDepthRef = useRef(0)
 
@@ -76,6 +166,12 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
 
         void refreshStorageInfo()
     }, [open, refreshStorageInfo])
+
+    useEffect(() => {
+        if (visitedRooms.length === 0 && showVisitedRooms) {
+            setShowVisitedRooms(false)
+        }
+    }, [visitedRooms.length, showVisitedRooms])
 
     const handleOverlayClick = useCallback((e: React.MouseEvent) => {
         if (e.target === e.currentTarget) {
@@ -120,23 +216,13 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
         await refreshStorageInfo()
     }, [renameProject, renameValue, handleCancelRename, refreshStorageInfo])
 
-    const handleDeleteClick = useCallback((id: string, name: string) => {
-        setPendingDelete({ id, name })
-    }, [])
-
-    const handleConfirmDelete = useCallback(async () => {
-        if (!pendingDelete) {
-            return
-        }
-
-        const { id } = pendingDelete
-        setPendingDelete(null)
+    const handleDelete = useCallback(async (id: string) => {
         await deleteProject(id)
         await refreshStorageInfo()
-    }, [pendingDelete, deleteProject, refreshStorageInfo])
+    }, [deleteProject, refreshStorageInfo])
 
-    const handleCancelDelete = useCallback(() => {
-        setPendingDelete(null)
+    const handleHoldingDeleteChange = useCallback((projectId: string | null) => {
+        setHoldingDeleteId(projectId)
     }, [])
 
     const handleExport = useCallback(async (id: string) => {
@@ -153,7 +239,7 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
         const importable = Array.from(files).filter(isProjectImportFile)
 
         if (importable.length === 0) {
-            setStatusMessage('Перетащите файл проекта (.cchhees.json или .json)')
+            setStatusMessage(`Перетащите файл проекта (*${PROJECT_FILE_EXTENSION})`)
             return
         }
 
@@ -221,6 +307,128 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
         }
     }, [importFiles])
 
+    const renderLocalProject = useCallback((project: Project) => {
+        const isCurrent = currentProjectKind === 'local' && project.id === currentProjectId
+        const isRenaming = renamingId === project.id
+        const projectSize = projectSizes[project.id]
+
+        return (
+            <article
+                key={project.id}
+                className={cn(
+                    styles.item,
+                    isCurrent && styles.itemCurrent,
+                    holdingDeleteId === project.id && styles.itemHoldDeleting,
+                    isRenaming && styles.itemRenaming,
+                )}
+            >
+                <ProjectBoardsPreview
+                    boards={project.boards}
+                    figureCatalog={project.figureCatalog}
+                    projectPreviewDataUrl={project.previewDataUrl}
+                    maxSize={previewSize}
+                />
+
+                <div className={styles.itemBody}>
+                    <div className={styles.itemMain}>
+                        {isRenaming ? (
+                            <input
+                                className={styles.renameInput}
+                                value={renameValue}
+                                autoFocus
+                                onChange={e => setRenameValue(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                        void handleConfirmRename(project.id)
+                                    }
+                                    if (e.key === 'Escape') {
+                                        handleCancelRename()
+                                    }
+                                }}
+                            />
+                        ) : (
+                            <button
+                                type="button"
+                                className={styles.nameButton}
+                                onClick={() => void handleSwitch(project.id)}
+                            >
+                                {project.name}
+                                {isCurrent ? ' · текущий' : ''}
+                            </button>
+                        )}
+                        <div className={styles.metaRow}>
+                            <span className={styles.updatedAt}>
+                                {formatUpdatedAt(project.updatedAt)}
+                            </span>
+                            <span className={styles.projectSize}>
+                                {formatBoardCount(project.boards.length)}
+                            </span>
+                            {projectSize != null && (
+                                <span className={styles.projectSize}>
+                                    {formatMegabytes(projectSize)}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className={styles.actions}>
+                        {isRenaming ? (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleConfirmRename(project.id)}
+                                >
+                                    OK
+                                </button>
+                                <button type="button" onClick={handleCancelRename}>
+                                    Отмена
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => void handleExport(project.id)}
+                                >
+                                    Экспорт
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleStartRename(project.id, project.name)}
+                                >
+                                    Имя
+                                </button>
+                                <HoldDeleteButton
+                                    projectId={project.id}
+                                    label="Удалить"
+                                    ariaLabel={`Удалить проект ${project.name}`}
+                                    className={styles.deleteButton}
+                                    onHoldingChange={handleHoldingDeleteChange}
+                                    onDelete={id => void handleDelete(id)}
+                                />
+                            </>
+                        )}
+                    </div>
+                </div>
+            </article>
+        )
+    }, [
+        currentProjectId,
+        currentProjectKind,
+        handleConfirmRename,
+        handleCancelRename,
+        handleDelete,
+        handleExport,
+        handleStartRename,
+        handleSwitch,
+        handleHoldingDeleteChange,
+        holdingDeleteId,
+        projectSizes,
+        renameValue,
+        renamingId,
+        previewSize,
+    ])
+
     if (!open) {
         return null
     }
@@ -236,268 +444,144 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
             >
                 {isDragActive && (
                     <div className={styles.dropOverlay}>
-                        Отпустите файл проекта для импорта
+                        Отпустите файл {PROJECT_FILE_EXTENSION} для импорта
                     </div>
                 )}
 
                 <div className={styles.header}>
-                    <div className={styles.headerMain}>
-                        <h2 className={styles.title}>Проекты</h2>
-                        {storageEstimate && (
-                            <div className={styles.storageInfo}>
-                                <span>
-                                    Хранилище: {formatMegabytes(storageEstimate.usage)}
-                                    {' / '}
-                                    {formatMegabytes(storageEstimate.quota)}
-                                </span>
-                                <span className={styles.storageFree}>
-                                    Свободно {formatFreePercent(storageEstimate)}
-                                </span>
-                            </div>
+                    <div className={styles.headerActions}>
+                        <button
+                            type="button"
+                            className={styles.headerButton}
+                            onClick={handleImportClick}
+                            disabled={isImporting}
+                        >
+                            {isImporting ? 'Импорт...' : 'Импорт'}
+                        </button>
+                        <button
+                            type="button"
+                            className={styles.headerButton}
+                            onClick={() => void handleCreate()}
+                        >
+                            Новый проект
+                        </button>
+                        {visitedRooms.length > 0 && (
+                            <button
+                                type="button"
+                                className={cn(
+                                    styles.headerButton,
+                                    showVisitedRooms && styles.headerButtonActive,
+                                )}
+                                onClick={() => setShowVisitedRooms(value => !value)}
+                            >
+                                Удалённые ({visitedRooms.length})
+                            </button>
                         )}
                     </div>
+                    {storageEstimate && (
+                        <span className={styles.storageFree}>
+                            {formatFreePercent(storageEstimate)} свободно
+                        </span>
+                    )}
+                    <label className={styles.previewSizeControl} title="Размер миниатюр">
+                        <input
+                            type="range"
+                            className={styles.previewSizeSlider}
+                            min={PREVIEW_SIZE_MIN}
+                            max={PREVIEW_SIZE_MAX}
+                            value={previewSize}
+                            onChange={event => setPreviewSize(Number(event.target.value))}
+                        />
+                    </label>
                     <button type="button" className={styles.closeButton} onClick={onClose}>
                         ×
                     </button>
                 </div>
 
+                <div className={styles.modalBody}>
                 <div className={styles.scrollBody}>
-                    {visitedRooms.length > 0 && (
-                        <section className={styles.section}>
-                            <h3 className={styles.sectionTitle}>
-                                Collab-проекты
-                                <span className={styles.sectionHint}>до 10, по UUID хоста</span>
-                            </h3>
-                            <div className={styles.grid}>
-                                {visitedRooms.map(room => {
-                                    const isCurrent = currentProjectKind === 'visited'
-                                        && room.localProjectId === currentProjectId
-                                    const previewBox = getBoardPreviewBoxStyle(
-                                        getActiveBoardGameState(visitedRoomToProject(room)).boardParameters,
-                                        56,
-                                    )
+                    <div
+                        className={styles.grid}
+                        style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.max(200, previewSize + 168)}px, 1fr))` }}
+                    >
+                        {showVisitedRooms
+                            ? visitedRooms.map(room => {
+                            const isCurrent = currentProjectKind === 'visited'
+                                && room.localProjectId === currentProjectId
 
-                                    return (
-                                        <article
-                                            key={room.hostProjectId}
-                                            className={`${styles.item} ${styles.itemVisited} ${isCurrent ? styles.itemCurrent : ''}`}
-                                        >
-                                            <div
-                                                className={styles.preview}
-                                                style={{
-                                                    width: previewBox.width,
-                                                    height: previewBox.height,
-                                                }}
-                                                aria-hidden
-                                            >
-                                                {room.previewDataUrl ? (
-                                                    <img
-                                                        className={styles.previewImage}
-                                                        src={room.previewDataUrl}
-                                                        alt=""
-                                                    />
-                                                ) : (
-                                                    <span className={styles.previewPlaceholder}>?</span>
-                                                )}
-                                            </div>
-
-                                            <div className={styles.itemBody}>
-                                                <div className={styles.itemMain}>
-                                                    <button
-                                                        type="button"
-                                                        className={styles.nameButton}
-                                                        onClick={() => void handleOpenVisitedRoom(room.hostProjectId)}
-                                                    >
-                                                        {room.name}
-                                                        {isCurrent ? ' · текущий' : ''}
-                                                    </button>
-                                                    <div className={styles.metaRow}>
-                                                        <span className={styles.roomId}>{room.lastRoomId}</span>
-                                                        <span className={styles.updatedAt}>
-                                                            {formatUpdatedAt(room.lastVisitedAt)}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <div className={styles.actions}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => void handleOpenVisitedRoom(room.hostProjectId)}
-                                                    >
-                                                        Открыть
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className={styles.promoteButton}
-                                                        onClick={() => void handlePromoteVisitedRoom(room.hostProjectId)}
-                                                    >
-                                                        В локальные
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </article>
-                                    )
-                                })}
-                            </div>
-                        </section>
-                    )}
-
-                    <section className={styles.section}>
-                        <h3 className={styles.sectionTitle}>Локальные проекты</h3>
-                        <div className={styles.grid}>
-                    {projects.map(project => {
-                        const isCurrent = currentProjectKind === 'local' && project.id === currentProjectId
-                        const isRenaming = renamingId === project.id
-                        const projectSize = projectSizes[project.id]
-                        const previewBox = getBoardPreviewBoxStyle(getActiveBoardGameState(project).boardParameters, 56)
-
-                        return (
-                            <article
-                                key={project.id}
-                                className={`${styles.item} ${isCurrent ? styles.itemCurrent : ''}`}
-                            >
-                                <div
-                                    className={styles.preview}
-                                    style={{
-                                        width: previewBox.width,
-                                        height: previewBox.height,
-                                    }}
-                                    aria-hidden
-                                >
-                                    {project.previewDataUrl ? (
-                                        <img
-                                            className={styles.previewImage}
-                                            src={project.previewDataUrl}
-                                            alt=""
-                                        />
-                                    ) : (
-                                        <span className={styles.previewPlaceholder}>?</span>
+                            return (
+                                <article
+                                    key={room.hostProjectId}
+                                    className={cn(
+                                        styles.item,
+                                        styles.itemVisited,
+                                        isCurrent && styles.itemCurrent,
                                     )}
-                                </div>
+                                >
+                                    <ProjectBoardsPreview
+                                        boards={room.boards}
+                                        figureCatalog={room.figureCatalog}
+                                        projectPreviewDataUrl={room.previewDataUrl}
+                                        maxSize={previewSize}
+                                    />
 
-                                <div className={styles.itemBody}>
-                                    <div className={styles.itemMain}>
-                                        {isRenaming ? (
-                                            <input
-                                                className={styles.renameInput}
-                                                value={renameValue}
-                                                autoFocus
-                                                onChange={e => setRenameValue(e.target.value)}
-                                                onKeyDown={e => {
-                                                    if (e.key === 'Enter') {
-                                                        void handleConfirmRename(project.id)
-                                                    }
-                                                    if (e.key === 'Escape') {
-                                                        handleCancelRename()
-                                                    }
-                                                }}
-                                            />
-                                        ) : (
+                                    <div className={styles.itemBody}>
+                                        <div className={styles.itemMain}>
                                             <button
                                                 type="button"
                                                 className={styles.nameButton}
-                                                onClick={() => void handleSwitch(project.id)}
+                                                onClick={() => void handleOpenVisitedRoom(room.hostProjectId)}
                                             >
-                                                {project.name}
+                                                {room.name}
                                                 {isCurrent ? ' · текущий' : ''}
                                             </button>
-                                        )}
-                                        <div className={styles.metaRow}>
-                                            <span className={styles.updatedAt}>
-                                                {formatUpdatedAt(project.updatedAt)}
-                                            </span>
-                                            {projectSize != null && (
-                                                <span className={styles.projectSize}>
-                                                    {formatMegabytes(projectSize)}
+                                            <div className={styles.metaRow}>
+                                                <span className={styles.roomId}>{room.lastRoomId}</span>
+                                                <span className={styles.updatedAt}>
+                                                    {formatUpdatedAt(room.lastVisitedAt)}
                                                 </span>
-                                            )}
+                                                <span className={styles.projectSize}>
+                                                    {formatBoardCount(room.boards.length)}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className={styles.actions}>
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleOpenVisitedRoom(room.hostProjectId)}
+                                            >
+                                                Открыть
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={styles.promoteButton}
+                                                onClick={() => void handlePromoteVisitedRoom(room.hostProjectId)}
+                                            >
+                                                В локальные
+                                            </button>
                                         </div>
                                     </div>
-
-                                    <div className={styles.actions}>
-                                        {isRenaming ? (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleConfirmRename(project.id)}
-                                                >
-                                                    OK
-                                                </button>
-                                                <button type="button" onClick={handleCancelRename}>
-                                                    Отмена
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleExport(project.id)}
-                                                >
-                                                    Экспорт
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleStartRename(project.id, project.name)}
-                                                >
-                                                    Имя
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className={styles.deleteButton}
-                                                    onClick={() => handleDeleteClick(project.id, project.name)}
-                                                >
-                                                    Удалить
-                                                </button>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            </article>
-                        )
-                    })}
-                        </div>
-                    </section>
+                                </article>
+                            )
+                        })
+                            : projects.map(project => renderLocalProject(project))}
+                    </div>
                 </div>
 
                 {statusMessage && (
                     <div className={styles.statusMessage}>{statusMessage}</div>
                 )}
-
-                <div className={styles.footer}>
-                    <button
-                        type="button"
-                        className={styles.importButton}
-                        onClick={handleImportClick}
-                        disabled={isImporting}
-                    >
-                        {isImporting ? 'Импорт...' : 'Импорт из файла'}
-                    </button>
-                    <button type="button" className={styles.createButton} onClick={() => void handleCreate()}>
-                        Новый проект
-                    </button>
-                    <p className={styles.dropHint}>
-                        Или перетащите файл проекта (.cchhees.json) в это окно
-                    </p>
                 </div>
 
                 <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".json,.cchhees.json,application/json"
+                    accept={PROJECT_FILE_EXTENSION}
                     className={styles.hiddenInput}
                     onChange={handleFileInputChange}
                 />
             </div>
-
-            <ConfirmModal
-                open={pendingDelete !== null}
-                title="Удалить проект"
-                message={pendingDelete ? `Удалить проект «${pendingDelete.name}»? Это действие нельзя отменить.` : ''}
-                confirmLabel="Удалить"
-                destructive
-                onConfirm={() => void handleConfirmDelete()}
-                onCancel={handleCancelDelete}
-            />
         </div>
     )
 }
