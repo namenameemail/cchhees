@@ -1,10 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import cn from 'classnames'
 import { filterCssNamedColors } from './cssNamedColors'
 import styles from './ColorAutocompleteInput.module.css'
-import '../inputs/BlurEnterTextInput/BlurEnterTextInput.css'
 
 const SUGGESTION_LIMIT = 5
+const PICKER_HINT = 'Двойной клик — палитра цвета'
+
+function toPickerHex(value: string): string {
+    const trimmed = value.trim()
+
+    return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed : '#000000'
+}
 
 export interface ColorAutocompleteInputProps {
     className?: string
@@ -12,6 +18,8 @@ export interface ColorAutocompleteInputProps {
     onChange: (value: string) => void
     placeholder?: string
     title?: string
+    label?: string
+    disabled?: boolean
     changeOnBlur?: boolean
     resetOnBlur?: boolean
     changeOnEnter?: boolean
@@ -23,10 +31,13 @@ export function ColorAutocompleteInput({
     onChange,
     placeholder,
     title,
+    label,
+    disabled = false,
     changeOnBlur = true,
     resetOnBlur = true,
     changeOnEnter = true,
 }: ColorAutocompleteInputProps) {
+    const pickerRef = useRef<HTMLInputElement>(null)
     const [draft, setDraft] = useState(value)
     const [isFocused, setIsFocused] = useState(false)
     const [isListHovered, setIsListHovered] = useState(false)
@@ -44,7 +55,8 @@ export function ColorAutocompleteInput({
         return filterCssNamedColors(draft, SUGGESTION_LIMIT)
     }, [draft])
 
-    const showList = (isFocused || isListHovered)
+    const showList = !disabled
+        && (isFocused || isListHovered)
         && draft.trim() !== ''
         && suggestions.length > 0
 
@@ -67,6 +79,24 @@ export function ColorAutocompleteInput({
     const handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         setDraft(event.target.value)
     }, [])
+
+    const openPicker = useCallback(() => {
+        if (disabled) {
+            return
+        }
+
+        pickerRef.current?.click()
+    }, [disabled])
+
+    const handleDoubleClick = useCallback(() => {
+        openPicker()
+    }, [openPicker])
+
+    const handlePickerChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+        const next = event.target.value
+        setDraft(next)
+        commit(next)
+    }, [commit])
 
     const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
         if (showList) {
@@ -158,18 +188,32 @@ export function ColorAutocompleteInput({
         handleSelect(colorName)
     }, [handleSelect])
 
-    return (
+    const inputTitle = [title, PICKER_HINT].filter(Boolean).join('. ')
+
+    const field = (
         <div className={cn(styles.colorAutocomplete, className)}>
             <input
                 className="blur-text-input"
                 type="text"
                 value={draft}
+                disabled={disabled}
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
                 onFocus={handleFocus}
                 onBlur={handleBlur}
+                onDoubleClick={handleDoubleClick}
                 placeholder={placeholder}
-                title={title}
+                title={inputTitle}
+            />
+            <input
+                ref={pickerRef}
+                type="color"
+                className={styles.hiddenPicker}
+                value={toPickerHex(draft)}
+                disabled={disabled}
+                tabIndex={-1}
+                aria-hidden
+                onChange={handlePickerChange}
             />
             {showList && (
                 <div
@@ -197,5 +241,16 @@ export function ColorAutocompleteInput({
                 </div>
             )}
         </div>
+    )
+
+    if (!label) {
+        return field
+    }
+
+    return (
+        <label className={styles.colorField}>
+            <span className={styles.colorFieldLabel}>{label}</span>
+            {field}
+        </label>
     )
 }

@@ -3,6 +3,7 @@ import { useGameContext } from '../../context'
 import { Form1 } from '../../../components/Form1'
 import { Mode } from '../../types'
 import { ParameterTypes } from '../../../components/Form1/types'
+import { nonNegative } from '../../../components/Form1/numberInputConstraints'
 import { ConnectionParams } from '../../types/connections'
 import { ConnectionSVG } from '../ConnectionSVG'
 
@@ -21,7 +22,7 @@ const parametersConfig = [
     {
         name: 'strokeWidth',
         type: ParameterTypes.NumberInput,
-        props: { placeholder: 'strokeWidth' },
+        props: { placeholder: 'strokeWidth', ...nonNegative },
     },
     {
         name: 'strokeDasharray',

@@ -1,5 +1,6 @@
 import { Cell, CellParameters } from '../types/cells'
 import { FigureCatalog, FigureId } from '../types/figures'
+import { cloneFigureState } from '../figureView'
 import { GameState } from '../types/gameState'
 import { BoardParameters } from '../types/boardParameters'
 import { BoardStyleRule } from '../types/styleRules'
@@ -64,9 +65,7 @@ export function composeGameState(
         styleRules: board.styleRules,
         figureCatalog: catalog.map(entry => ({
             id: entry.id,
-            viewParams: { ...entry.viewParams },
-            moveRules: entry.moveRules ? [...entry.moveRules] : [],
-            jumpOverPieces: entry.jumpOverPieces === true,
+            states: entry.states.map(state => cloneFigureState(state)),
         })),
         cells,
         tray: [...figures.tray],
@@ -100,8 +99,6 @@ export function createInitialBoardSlice(): BoardSlice {
 export function cloneFigureCatalog(catalog: FigureCatalog): FigureCatalog {
     return catalog.map(entry => ({
         id: entry.id,
-        viewParams: { ...entry.viewParams },
-        moveRules: entry.moveRules ? entry.moveRules.map(rule => ({ ...rule })) : [],
-        jumpOverPieces: entry.jumpOverPieces === true,
+        states: entry.states.map(state => cloneFigureState(state)),
     }))
 }

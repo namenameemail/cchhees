@@ -156,6 +156,11 @@
     padding: 4px;
 }
 
+.cellParamsForm > * {
+    width: 100%;
+    box-sizing: border-box;
+}
+
 .connectionParamsForm {
     display: flex;
     flex-direction: row;

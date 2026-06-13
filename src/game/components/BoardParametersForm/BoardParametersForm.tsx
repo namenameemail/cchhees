@@ -7,6 +7,7 @@ import {
     BoardParameters,
 } from '../../types/boardParameters'
 import { ParameterTypes } from '../../../components/Form1/types'
+import { atLeastOne, nonNegative } from '../../../components/Form1/numberInputConstraints'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
 
 export interface BoardParametersFormProps {
@@ -49,27 +50,27 @@ const parametersConfig = (value: BoardParameters) => {
         {
             name: 'n',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'n' },
+            props: { placeholder: 'n', ...atLeastOne },
         },
         {
             name: 'm',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'm' },
+            props: { placeholder: 'm', ...atLeastOne },
         },
         {
             name: 'cellXDistance',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'cellXDistance' },
+            props: { placeholder: 'cellXDistance', ...atLeastOne },
         },
         {
             name: 'cellYDistance',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'cellYDistance' },
+            props: { placeholder: 'cellYDistance', ...atLeastOne },
         },
         {
             name: 'background',
             type: ParameterTypes.ColorInput,
-            props: { placeholder: 'background' },
+            props: { placeholder: 'background', className: styles.fullWidth },
         },
         {
             name: 'backgroundAssetId',
@@ -89,13 +90,13 @@ const parametersConfig = (value: BoardParameters) => {
             name: 'backgroundRepeatWidth',
             type: ParameterTypes.NumberInput,
             visibility: () => hasBackgroundImage && imageFit === BoardBackgroundImageFit.repeat,
-            props: { placeholder: 'repeat width' },
+            props: { placeholder: 'repeat width', ...atLeastOne },
         },
         {
             name: 'backgroundRepeatHeight',
             type: ParameterTypes.NumberInput,
             visibility: () => hasBackgroundImage && imageFit === BoardBackgroundImageFit.repeat,
-            props: { placeholder: 'repeat height' },
+            props: { placeholder: 'repeat height', ...atLeastOne },
         },
         {
             name: 'backgroundRepeatOffsetX',
@@ -112,17 +113,17 @@ const parametersConfig = (value: BoardParameters) => {
         {
             name: 'borderRadius',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'borderRadius' },
+            props: { placeholder: 'borderRadius', ...nonNegative },
         },
         {
             name: 'borderWidth',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'borderWidth' },
+            props: { placeholder: 'borderWidth', ...nonNegative },
         },
         {
             name: 'borderColor',
             type: ParameterTypes.ColorInput,
-            props: { placeholder: 'borderColor' },
+            props: { placeholder: 'borderColor', className: styles.fullWidth },
         },
         {
             name: 'borderDasharray',

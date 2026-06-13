@@ -26,14 +26,28 @@
     padding: 4px;
 }
 
+.colorInputFullWidth {
+    width: 100%;
+    flex: 0 0 100%;
+    max-width: 100%;
+}
+
 .cellParametersFormByShape {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
+    width: 100%;
 }
+
 .cellParametersFormByShape > * {
     width: 50%;
     box-sizing: border-box;
+}
+
+.cellParametersFormByShape > .colorInputFullWidth {
+    width: 100%;
+    flex: 0 0 100%;
+    max-width: 100%;
 }
 .cellParametersFormLayout svg {
     background: white;

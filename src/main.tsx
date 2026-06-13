@@ -5,6 +5,7 @@ import 'vite-dev-profiler/react/style.css'
 import App from './App'
 import { profiler } from './profiler'
 import './index.css'
+import 'bbuutoonnss/dist/bbuutoonnss.css'
 
 if (import.meta.env.DEV) {
     mountIsolatedDebugPanel({ profiler })

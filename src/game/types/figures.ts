@@ -2,18 +2,21 @@ import { SvgCellSizeParams } from '../cellSvgSize'
 
 export type FigureId = string
 
-export enum FigureDisplayType {
-    symbol = 'symbol',
-    image = 'image',
-}
-
 export interface FigureViewParams extends SvgCellSizeParams {
-    displayType?: FigureDisplayType
     symbol?: string
     fontSize?: number
     color?: string
     fontAssetId?: number | null
     assetId?: number | null
+    textShadowEnabled?: boolean
+    textShadowColor?: string
+    textShadowOffsetX?: number
+    textShadowOffsetY?: number
+    textShadowBlur?: number
+    borderRadius?: number
+    strokeWidth?: number
+    strokeColor?: string
+    strokeDasharray?: string
 }
 
 export interface FigureMoveRule {
@@ -22,7 +25,19 @@ export interface FigureMoveRule {
     n?: number
 }
 
+export interface FigureState {
+    viewParams: FigureViewParams
+    moveRules?: FigureMoveRule[]
+    jumpOverPieces?: boolean
+}
+
 export interface FigureDefinition {
+    id: FigureId
+    states: FigureState[]
+}
+
+/** @deprecated Migrated to FigureDefinition.states */
+export interface LegacyFigureDefinition {
     id: FigureId
     viewParams: FigureViewParams
     moveRules?: FigureMoveRule[]

@@ -6,6 +6,7 @@ import { CellParameters, CellShape } from '../../types/cells'
 import { isCellImageShape, ensureCellShapeParams } from '../../cellImageShape'
 import { Mode } from '../../types'
 import { ParameterTypes } from '../../../components/Form1/types'
+import { atLeastOne, nonNegative } from '../../../components/Form1/numberInputConstraints'
 import { CellSVG } from '../CellSVG'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
 import { isSvgManualHeight, isSvgManualWidth, normalizeSvgCellParams } from '../../cellSvgSize'
@@ -53,7 +54,7 @@ const createImageShapeConfig = (
     {
         name: 'width',
         type: ParameterTypes.NumberInput,
-        props: { placeholder: 'width %' },
+        props: { placeholder: 'width %', ...nonNegative },
         propsByState: (state: Record<string, unknown>) => ({
             disabled: !isSvgManualWidth(state),
         }),
@@ -66,7 +67,7 @@ const createImageShapeConfig = (
     {
         name: 'height',
         type: ParameterTypes.NumberInput,
-        props: { placeholder: 'height %' },
+        props: { placeholder: 'height %', ...nonNegative },
         propsByState: (state: Record<string, unknown>) => ({
             disabled: !isSvgManualHeight(state),
         }),
@@ -78,27 +79,27 @@ const paramsConfigByShapeType = {
         {
             name: 'colour',
             type: ParameterTypes.ColorInput,
-            props: { placeholder: 'colour' },
+            props: { placeholder: 'colour', className: styles.colorInputFullWidth },
         },
         {
             name: 'width',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'width' },
+            props: { placeholder: 'width', ...nonNegative },
         },
         {
             name: 'height',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'height' },
+            props: { placeholder: 'height', ...nonNegative },
         },
         {
             name: 'strokeWidth',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'strokeWidth' },
+            props: { placeholder: 'strokeWidth', ...nonNegative },
         },
         {
             name: 'strokeColor',
             type: ParameterTypes.ColorInput,
-            props: { placeholder: 'strokeColor' },
+            props: { placeholder: 'strokeColor', className: styles.colorInputFullWidth },
         },
         {
             name: 'strokeDasharray',
@@ -110,27 +111,27 @@ const paramsConfigByShapeType = {
         {
             name: 'colour',
             type: ParameterTypes.ColorInput,
-            props: { placeholder: 'colour' },
+            props: { placeholder: 'colour', className: styles.colorInputFullWidth },
         },
         {
             name: 'width',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'width' },
+            props: { placeholder: 'width', ...nonNegative },
         },
         {
             name: 'height',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'height' },
+            props: { placeholder: 'height', ...nonNegative },
         },
         {
             name: 'strokeWidth',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'strokeWidth' },
+            props: { placeholder: 'strokeWidth', ...nonNegative },
         },
         {
             name: 'strokeColor',
             type: ParameterTypes.ColorInput,
-            props: { placeholder: 'strokeColor' },
+            props: { placeholder: 'strokeColor', className: styles.colorInputFullWidth },
         },
         {
             name: 'strokeDasharray',

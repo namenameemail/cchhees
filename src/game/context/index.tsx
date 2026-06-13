@@ -3,7 +3,7 @@ import { defaultGameContextValue } from '../utils'
 import { historyPush, historyRedo, historyUndo } from './history'
 import { GameContextValue } from './types'
 import { FigureId, FigureMoveRule, FigureViewParams, FigureCatalog } from '../types/figures'
-import { createNewFigureDefinition, resolveFigureDefinition } from '../figureView'
+import { createNewFigureDefinition, cloneFigureState, resolveFigureDefinition, updateFigureCatalogStateAtIndex } from '../figureView'
 import { isFigureMoveAllowed } from '../moveRules'
 import { removeFigureFromBoard } from '../state/figureReferences'
 import { CellParameters } from '../types/cells'
@@ -537,42 +537,91 @@ export function GameProvider({
         })
     }, [figuresSlice, pushFiguresChange])
 
-    const setFigureDefinition = useCallback((figureId: FigureId, params: FigureViewParams) => {
+    const setFigureStateViewParams = useCallback((
+        figureId: FigureId,
+        stateIndex: number,
+        params: FigureViewParams,
+    ) => {
         applyCatalogChange(
-            figureCatalog.map(entry => (
-                entry.id === figureId
-                    ? { ...entry, viewParams: params }
-                    : entry
-            )),
+            updateFigureCatalogStateAtIndex(figureCatalog, figureId, stateIndex, state => ({
+                ...state,
+                viewParams: params,
+            })),
             true,
-            { kind: 'figure-view-params', figureId, viewParams: params },
+            { kind: 'figure-view-params', figureId, stateIndex, viewParams: params },
         )
     }, [figureCatalog, applyCatalogChange])
 
-    const setFigureMoveRules = useCallback((
+    const setFigureStateMoveRules = useCallback((
         figureId: FigureId,
+        stateIndex: number,
         moveRules: FigureMoveRule[],
         jumpOverPieces?: boolean,
     ) => {
-        const current = figureCatalog.find(entry => entry.id === figureId)
+        const entry = figureCatalog.find(item => item.id === figureId)
+        const currentState = entry?.states[Math.min(Math.max(0, stateIndex), (entry?.states.length ?? 1) - 1)]
 
         applyCatalogChange(
-            figureCatalog.map(entry => (
-                entry.id === figureId
-                    ? {
-                        ...entry,
-                        moveRules,
-                        jumpOverPieces: jumpOverPieces ?? entry.jumpOverPieces === true,
-                    }
-                    : entry
-            )),
+            updateFigureCatalogStateAtIndex(figureCatalog, figureId, stateIndex, state => ({
+                ...state,
+                moveRules,
+                jumpOverPieces: jumpOverPieces ?? state.jumpOverPieces === true,
+            })),
             true,
             {
                 kind: 'figure-move-rules',
                 figureId,
+                stateIndex,
                 moveRules,
-                jumpOverPieces: jumpOverPieces ?? current?.jumpOverPieces === true,
+                jumpOverPieces: jumpOverPieces ?? currentState?.jumpOverPieces === true,
             },
+        )
+    }, [figureCatalog, applyCatalogChange])
+
+    const addFigureState = useCallback((figureId: FigureId) => {
+        const entry = figureCatalog.find(item => item.id === figureId)
+
+        if (!entry?.states.length) {
+            return
+        }
+
+        const nextStates = [
+            ...entry.states,
+            cloneFigureState(entry.states[0]),
+        ]
+
+        applyCatalogChange(
+            figureCatalog.map(item => (
+                item.id === figureId
+                    ? { ...item, states: nextStates }
+                    : item
+            )),
+            true,
+            { kind: 'figure-states', figureId, states: nextStates },
+        )
+    }, [figureCatalog, applyCatalogChange])
+
+    const removeFigureState = useCallback((figureId: FigureId, stateIndex: number) => {
+        if (stateIndex <= 0) {
+            return
+        }
+
+        const entry = figureCatalog.find(item => item.id === figureId)
+
+        if (!entry || entry.states.length <= 1 || stateIndex >= entry.states.length) {
+            return
+        }
+
+        const nextStates = entry.states.filter((_, index) => index !== stateIndex)
+
+        applyCatalogChange(
+            figureCatalog.map(item => (
+                item.id === figureId
+                    ? { ...item, states: nextStates }
+                    : item
+            )),
+            true,
+            { kind: 'figure-states', figureId, states: nextStates },
         )
     }, [figureCatalog, applyCatalogChange])
 
@@ -665,15 +714,25 @@ export function GameProvider({
 
         let figureDefsChanged = false
         const nextFigureCatalog = figureCatalog.map(entry => {
-            const nextParams = clearAssetIdFromFigureViewParams(entry.viewParams, assetId)
-            if (nextParams === entry.viewParams) {
+            let entryChanged = false
+            const nextStates = entry.states.map(state => {
+                const nextParams = clearAssetIdFromFigureViewParams(state.viewParams, assetId)
+                if (nextParams === state.viewParams) {
+                    return state
+                }
+                entryChanged = true
+                return {
+                    ...state,
+                    viewParams: nextParams ?? state.viewParams,
+                }
+            })
+
+            if (!entryChanged) {
                 return entry
             }
+
             figureDefsChanged = true
-            return {
-                ...entry,
-                viewParams: nextParams ?? entry.viewParams,
-            }
+            return { ...entry, states: nextStates }
         })
 
         const nextBoardParameters = clearAssetIdFromBoardParameters(boardSlice.boardParameters, assetId)
@@ -735,8 +794,10 @@ export function GameProvider({
             setStyleRules,
             setTray,
             setCells,
-            setFigureDefinition,
-            setFigureMoveRules,
+            setFigureStateViewParams,
+            setFigureStateMoveRules,
+            addFigureState,
+            removeFigureState,
             addFigure,
             removeFigure,
             clearAssetReferences,
@@ -766,8 +827,10 @@ export function GameProvider({
             setStyleRules,
             setTray,
             setCells,
-            setFigureDefinition,
-            setFigureMoveRules,
+            setFigureStateViewParams,
+            setFigureStateMoveRules,
+            addFigureState,
+            removeFigureState,
             addFigure,
             removeFigure,
             clearAssetReferences,

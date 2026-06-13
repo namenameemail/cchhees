@@ -3,7 +3,11 @@ import { useMemo, useRef, useState } from 'react'
 import styles from './styles.module.css'
 import cn from 'classnames'
 import { Form1FieldConfig, ParameterTypes } from './types'
-import { BlurEnterNumberInput, BlurEnterTextInput, DragHandler } from 'bbuutoonnss'
+import {
+    BlurEnterTextInput,
+    DragHandler,
+    NumberDragPointerLockInput,
+} from 'bbuutoonnss'
 import { FormArray } from '../FormArray'
 import { svgToDataURL } from './utils'
 import { ColorAutocompleteInput } from '../colors/ColorAutocompleteInput'
@@ -162,7 +166,7 @@ export const inputComponentsByParameterType: {
         )
     },
     [ParameterTypes.ColorInput]: ({ name, value, onChange, props }) => {
-        const handleChange = React.useCallback((nextValue) => {
+        const handleChange = React.useCallback((nextValue: string) => {
             onChange(name, nextValue)
         }, [onChange, name])
 
@@ -172,6 +176,8 @@ export const inputComponentsByParameterType: {
                 onChange={handleChange}
                 placeholder={props?.placeholder}
                 title={props?.title || props?.placeholder}
+                label={props?.label}
+                disabled={props?.disabled}
                 changeOnEnter
                 changeOnBlur
                 resetOnBlur
@@ -180,17 +186,24 @@ export const inputComponentsByParameterType: {
         )
     },
     [ParameterTypes.NumberInput]: ({ name, value, onChange, props }) => {
-        const handleChange = React.useCallback((value) => {
-            onChange(name, +value)
+        const handleChange = React.useCallback((nextValue: number) => {
+            onChange(name, nextValue)
         }, [onChange, name])
+
+        const numericValue = typeof value === 'number' && Number.isFinite(value) ? value : 0
+
         return (
-            <BlurEnterNumberInput
-                changeOnEnter
-                resetOnBlur
-                value={value}
+            <NumberDragPointerLockInput
+                value={numericValue}
                 onChange={handleChange}
-                title={props.placeholder}
-                {...props}
+                min={props?.min}
+                max={props?.max}
+                direction={props?.direction}
+                pointerLock={props?.pointerLock ?? true}
+                placeholder={props?.placeholder}
+                title={props?.title || props?.placeholder}
+                disabled={props?.disabled}
+                dragClassName={cn(styles.form1field, styles.cursorPointer)}
             />
         )
     },
@@ -282,21 +295,20 @@ export const inputComponentsByParameterType: {
         )
     },
     [ParameterTypes.SelectArray]: ({ value, onChange, name, props }) => {
-
-        const handleChange = React.useCallback((e) => {
+        const handleChange = React.useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
             onChange(name, e.target.value)
         }, [onChange, name])
 
         return (
             <select
-                className={props.className}
+                className={props?.className}
                 value={value}
                 onChange={handleChange}
-                title={props.title}
+                title={props?.title}
             >
-                {props.options.map(option => {
-                    return <option key={option} value={option}>{option}</option>
-                })}
+                {props?.options?.map((option: string) => (
+                    <option key={option} value={option}>{option}</option>
+                ))}
             </select>
         )
     },

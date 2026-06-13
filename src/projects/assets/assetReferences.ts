@@ -2,7 +2,7 @@ import { CellParameters, CellShape, CellImageShapeParams } from '../../game/type
 import { getCellImageShapeParams } from '../../game/cellImageShape'
 import { GameState } from '../../game/types/gameState'
 import { isCellStyleRule } from '../../game/types/styleRules'
-import { FigureDisplayType, FigureViewParams } from '../../game/types/figures'
+import { FigureViewParams } from '../../game/types/figures'
 import { FigureCatalog } from '../../game/types/figures'
 import { BoardSlice } from '../../game/state/slices'
 import { ProjectPersistData } from '../types'
@@ -23,10 +23,7 @@ function collectFromFigureViewParams(ids: Set<number>, params?: FigureViewParams
         return
     }
 
-    if (params.displayType === FigureDisplayType.image) {
-        addAssetId(ids, params.assetId)
-    }
-
+    addAssetId(ids, params.assetId)
     addAssetId(ids, params.fontAssetId)
 }
 
@@ -48,7 +45,9 @@ function collectFromGameState(ids: Set<number>, gameState: GameState) {
 
     if (gameState.figureCatalog) {
         for (const entry of gameState.figureCatalog) {
-            collectFromFigureViewParams(ids, entry.viewParams)
+            for (const state of entry.states) {
+                collectFromFigureViewParams(ids, state.viewParams)
+            }
         }
     } else if (gameState.figureDefinitions) {
         for (const params of Object.values(gameState.figureDefinitions)) {
@@ -79,7 +78,9 @@ export function collectReferencedAssetIdsFromBoardSlice(board: BoardSlice): Set<
 
 function collectFromFigureCatalog(ids: Set<number>, catalog: FigureCatalog) {
     for (const entry of catalog) {
-        collectFromFigureViewParams(ids, entry.viewParams)
+        for (const state of entry.states) {
+            collectFromFigureViewParams(ids, state.viewParams)
+        }
     }
 }
 
@@ -199,14 +200,24 @@ function pruneMissingAssetReferencesInFigureCatalog(
     let changed = false
 
     const nextCatalog = catalog.map(entry => {
-        const viewParams = clearMissingAssetIdsFromFigureViewParams(entry.viewParams, availableIds)
+        let entryChanged = false
+        const nextStates = entry.states.map(state => {
+            const viewParams = clearMissingAssetIdsFromFigureViewParams(state.viewParams, availableIds)
 
-        if (viewParams === entry.viewParams) {
+            if (viewParams === state.viewParams) {
+                return state
+            }
+
+            entryChanged = true
+            return { ...state, viewParams: viewParams ?? state.viewParams }
+        })
+
+        if (!entryChanged) {
             return entry
         }
 
         changed = true
-        return { ...entry, viewParams: viewParams ?? entry.viewParams }
+        return { ...entry, states: nextStates }
     })
 
     return changed ? nextCatalog : catalog
@@ -284,14 +295,24 @@ export function pruneMissingAssetReferences(
 
     if (figureCatalog) {
         const nextCatalog = figureCatalog.map(entry => {
-            const viewParams = clearMissingAssetIdsFromFigureViewParams(entry.viewParams, availableIds)
+            let entryChanged = false
+            const nextStates = entry.states.map(state => {
+                const viewParams = clearMissingAssetIdsFromFigureViewParams(state.viewParams, availableIds)
 
-            if (viewParams === entry.viewParams) {
+                if (viewParams === state.viewParams) {
+                    return state
+                }
+
+                entryChanged = true
+                return { ...state, viewParams: viewParams ?? state.viewParams }
+            })
+
+            if (!entryChanged) {
                 return entry
             }
 
             changed = true
-            return { ...entry, viewParams: viewParams ?? entry.viewParams }
+            return { ...entry, states: nextStates }
         })
         figureCatalog = nextCatalog
     }
@@ -342,7 +363,7 @@ function clearMissingAssetIdsFromFigureViewParams(
 
     let next = params
 
-    if (params.displayType === FigureDisplayType.image && params.assetId != null && !availableIds.has(params.assetId)) {
+    if (params.assetId != null && !availableIds.has(params.assetId)) {
         next = clearAssetIdFromFigureViewParams(next, params.assetId) ?? next
     }
 
@@ -358,10 +379,7 @@ function getCellImageAssetId(params?: CellParameters): number | null | undefined
 }
 
 function getFigureImageAssetId(params?: FigureViewParams): number | null | undefined {
-    if (params?.displayType !== FigureDisplayType.image) {
-        return undefined
-    }
-    return params.assetId
+    return params?.assetId
 }
 
 function getFigureFontAssetId(params?: FigureViewParams): number | null | undefined {
@@ -407,7 +425,9 @@ export function countAssetReferences(gameState: GameState, assetId: number): num
 
     if (gameState.figureCatalog) {
         for (const entry of gameState.figureCatalog) {
-            count += countFigureAssetReferences(entry.viewParams, assetId)
+            for (const state of entry.states) {
+                count += countFigureAssetReferences(state.viewParams, assetId)
+            }
         }
     } else if (gameState.figureDefinitions) {
         for (const params of Object.values(gameState.figureDefinitions)) {
@@ -478,7 +498,7 @@ export function clearAssetIdFromFigureViewParams(
     let changed = false
     const nextParams = { ...params }
 
-    if (params.displayType === FigureDisplayType.image && params.assetId === assetId) {
+    if (params.assetId === assetId) {
         nextParams.assetId = null
         changed = true
     }

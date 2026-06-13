@@ -1,6 +1,6 @@
 import styles from './ImageSelect.module.css'
 import cn from 'classnames'
-import { BlurEnterTextInput } from '../inputs/BlurEnterTextInput/BlurEnterTextInput'
+import { BlurEnterTextInput } from 'bbuutoonnss'
 import { useCallback, useMemo, useState, type MouseEvent } from 'react'
 import { ProjectAssetView } from '../../projects/assets/types'
 

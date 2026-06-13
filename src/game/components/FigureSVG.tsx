@@ -8,9 +8,16 @@ export interface FigureSVGProps {
     figureId: FigureId
     size?: number
     highlighted?: boolean
+    stateIndex?: number
 }
 
-export const FigureSVG: FC<FigureSVGProps> = ({ className, figureId, size, highlighted }) => {
+export const FigureSVG: FC<FigureSVGProps> = ({
+    className,
+    figureId,
+    size,
+    highlighted,
+    stateIndex = 0,
+}) => {
     const gradientId = useId().replace(/:/g, '')
     const {
         state: {
@@ -53,6 +60,7 @@ export const FigureSVG: FC<FigureSVGProps> = ({ className, figureId, size, highl
                 figureId={figureId}
                 x={centerX}
                 y={centerY}
+                stateIndex={stateIndex}
             />
         </svg>
     )

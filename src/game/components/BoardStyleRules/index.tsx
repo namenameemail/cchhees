@@ -3,6 +3,7 @@ import conditionStyles from '../BoardConditions/styles.module.css'
 import ruleStyles from './styles.module.css'
 import { useGameContext } from '../../context'
 import { ParameterTypes } from '../../../components/Form1/types'
+import { anbOffset, atLeastOne, nonNegative } from '../../../components/Form1/numberInputConstraints'
 import { FormItem } from '../../../components/FormArray/FormItem'
 import { FormArray } from '../../../components/FormArray'
 import { ParameterInputComponentProps } from '../../../components/Form1'
@@ -25,65 +26,65 @@ export interface BoardStyleRulesProps {
 
 const paramsConfigByCellConditionItemType = {
     [CellConditionItemType.anbX]: [
-        { name: 'a', type: ParameterTypes.NumberInput, props: { placeholder: 'a' } },
-        { name: 'b', type: ParameterTypes.NumberInput, props: { placeholder: 'b' } },
+        { name: 'a', type: ParameterTypes.NumberInput, props: { placeholder: 'a', ...nonNegative } },
+        { name: 'b', type: ParameterTypes.NumberInput, props: { placeholder: 'b', ...anbOffset } },
     ],
     [CellConditionItemType.anbY]: [
-        { name: 'a', type: ParameterTypes.NumberInput, props: { placeholder: 'a' } },
-        { name: 'b', type: ParameterTypes.NumberInput, props: { placeholder: 'b' } },
+        { name: 'a', type: ParameterTypes.NumberInput, props: { placeholder: 'a', ...nonNegative } },
+        { name: 'b', type: ParameterTypes.NumberInput, props: { placeholder: 'b', ...anbOffset } },
     ],
     [CellConditionItemType.coordinates]: [
-        { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x' } },
-        { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y' } },
+        { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne } },
+        { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne } },
     ],
     [CellConditionItemType.coordinateX]: [
-        { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x' } },
+        { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne } },
     ],
     [CellConditionItemType.coordinateY]: [
-        { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y' } },
+        { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne } },
     ],
     [CellConditionItemType.xFrom]: [
-        { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x' } },
+        { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne } },
     ],
     [CellConditionItemType.xTo]: [
-        { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x' } },
+        { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne } },
     ],
     [CellConditionItemType.yFrom]: [
-        { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y' } },
+        { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne } },
     ],
     [CellConditionItemType.yTo]: [
-        { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y' } },
+        { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne } },
     ],
 }
 
 const paramsConfigByConnectionConditionItemType = {
     [ConnectionConditionItemType.anbDiagonalUp]: [
-        { name: 'a', type: ParameterTypes.NumberInput, props: { placeholder: 'a' } },
-        { name: 'b', type: ParameterTypes.NumberInput, props: { placeholder: 'b' } },
+        { name: 'a', type: ParameterTypes.NumberInput, props: { placeholder: 'a', ...nonNegative } },
+        { name: 'b', type: ParameterTypes.NumberInput, props: { placeholder: 'b', ...anbOffset } },
     ],
     [ConnectionConditionItemType.anbDiagonalDown]: [
-        { name: 'a', type: ParameterTypes.NumberInput, props: { placeholder: 'a' } },
-        { name: 'b', type: ParameterTypes.NumberInput, props: { placeholder: 'b' } },
+        { name: 'a', type: ParameterTypes.NumberInput, props: { placeholder: 'a', ...nonNegative } },
+        { name: 'b', type: ParameterTypes.NumberInput, props: { placeholder: 'b', ...anbOffset } },
     ],
     [ConnectionConditionItemType.anbHorizontal]: [
-        { name: 'a', type: ParameterTypes.NumberInput, props: { placeholder: 'a' } },
-        { name: 'b', type: ParameterTypes.NumberInput, props: { placeholder: 'b' } },
+        { name: 'a', type: ParameterTypes.NumberInput, props: { placeholder: 'a', ...nonNegative } },
+        { name: 'b', type: ParameterTypes.NumberInput, props: { placeholder: 'b', ...anbOffset } },
     ],
     [ConnectionConditionItemType.anbVertical]: [
-        { name: 'a', type: ParameterTypes.NumberInput, props: { placeholder: 'a' } },
-        { name: 'b', type: ParameterTypes.NumberInput, props: { placeholder: 'b' } },
+        { name: 'a', type: ParameterTypes.NumberInput, props: { placeholder: 'a', ...nonNegative } },
+        { name: 'b', type: ParameterTypes.NumberInput, props: { placeholder: 'b', ...anbOffset } },
     ],
     [ConnectionConditionItemType.xFrom]: [
-        { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x' } },
+        { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne } },
     ],
     [ConnectionConditionItemType.xTo]: [
-        { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x' } },
+        { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne } },
     ],
     [ConnectionConditionItemType.yFrom]: [
-        { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y' } },
+        { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne } },
     ],
     [ConnectionConditionItemType.yTo]: [
-        { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y' } },
+        { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne } },
     ],
 }
 

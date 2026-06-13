@@ -47,8 +47,15 @@ export interface GameContextValue {
     setMode: (value) => void
     setTray: (value: FigureId[]) => void
     setCells: (value) => void
-    setFigureDefinition: (figureId: FigureId, params: FigureViewParams) => void
-    setFigureMoveRules: (figureId: FigureId, moveRules: FigureMoveRule[], jumpOverPieces?: boolean) => void
+    setFigureStateViewParams: (figureId: FigureId, stateIndex: number, params: FigureViewParams) => void
+    setFigureStateMoveRules: (
+        figureId: FigureId,
+        stateIndex: number,
+        moveRules: FigureMoveRule[],
+        jumpOverPieces?: boolean,
+    ) => void
+    addFigureState: (figureId: FigureId) => void
+    removeFigureState: (figureId: FigureId, stateIndex: number) => void
     addFigure: () => void
     removeFigure: (figureId: FigureId) => void
     clearAssetReferences: (assetId: number) => void

@@ -56,7 +56,10 @@ function remapOp(op: CollabOp, map: ReturnType<typeof toAssetIdMap>): CollabOp {
                 ...op,
                 figure: {
                     ...op.figure,
-                    viewParams: remapFigureViewParamsWithFallback(op.figure.viewParams, map),
+                    states: op.figure.states.map(state => ({
+                        ...state,
+                        viewParams: remapFigureViewParamsWithFallback(state.viewParams, map),
+                    })),
                 },
             }
         case 'board-sync':

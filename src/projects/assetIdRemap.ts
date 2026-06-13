@@ -2,7 +2,7 @@ import { BoardSlice } from '../game/state/slices'
 import { isCellStyleRule } from '../game/types/styleRules'
 import { CellParameters, CellShape, CellImageShapeParams } from '../game/types/cells'
 import { GameState } from '../game/types/gameState'
-import { FigureCatalog, FigureDisplayType, FigureViewParams } from '../game/types/figures'
+import { FigureCatalog, FigureViewParams } from '../game/types/figures'
 import { SliceHistory } from '../game/types/history'
 import { ProjectPersistData } from './types'
 
@@ -99,7 +99,7 @@ function remapCellParametersStrict(
 function remapFigureViewParamsStrict(params: FigureViewParams, map: IdMap): FigureViewParams {
     const nextParams = { ...params }
 
-    if (params.displayType === FigureDisplayType.image && params.assetId != null) {
+    if (params.assetId != null) {
         nextParams.assetId = remapIdStrict(map, params.assetId)
     }
 
@@ -157,7 +157,7 @@ export function remapFigureViewParamsWithFallback(
 ): FigureViewParams {
     const nextParams = { ...params }
 
-    if (params.displayType === FigureDisplayType.image && params.assetId != null) {
+    if (params.assetId != null) {
         nextParams.assetId = remapAssetIdWithFallback(map, params.assetId) as number
     }
 
@@ -171,7 +171,10 @@ export function remapFigureViewParamsWithFallback(
 function remapFigureCatalogStrict(catalog: FigureCatalog, map: IdMap): FigureCatalog {
     return catalog.map(entry => ({
         ...entry,
-        viewParams: remapFigureViewParamsStrict(entry.viewParams, map),
+        states: entry.states.map(state => ({
+            ...state,
+            viewParams: remapFigureViewParamsStrict(state.viewParams, map),
+        })),
     }))
 }
 

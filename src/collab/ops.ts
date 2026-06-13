@@ -1,11 +1,23 @@
 import { BoardParameters } from '../game/types/boardParameters'
 import { CellParameters } from '../game/types/cells'
-import { FigureCatalog, FigureDefinition, FigureId, FigureMoveRule, FigureViewParams } from '../game/types/figures'
+import {
+    FigureCatalog,
+    FigureDefinition,
+    FigureId,
+    FigureMoveRule,
+    FigureState,
+    FigureViewParams,
+} from '../game/types/figures'
 import { BoardStyleRule } from '../game/types/styleRules'
 import { BoardSlice, FiguresSlice, composeGameState, cloneFigureCatalog } from '../game/state/slices'
 import { cloneBoardSlice, cloneFiguresSlice } from '../game/state/reconcile'
 import { removeFigureFromBoard } from '../game/state/figureReferences'
-import { normalizeFigureMoveRules } from '../game/figureView'
+import {
+    normalizeFigureCatalog,
+    normalizeFigureMoveRules,
+    resolveCollabStateIndex,
+    updateFigureCatalogStateAtIndex,
+} from '../game/figureView'
 import { GameState } from '../game/types/gameState'
 
 /** Minimal collaborative edit operation — only what changed. */
@@ -14,8 +26,9 @@ export type CollabOp =
     | { kind: 'board-parameters'; boardId: string; boardParameters: BoardParameters }
     | { kind: 'style-rules'; boardId: string; styleRules: BoardStyleRule[] }
     | { kind: 'cell-parameters'; boardId: string; coordKey: string; parameters: CellParameters | null }
-    | { kind: 'figure-view-params'; figureId: FigureId; viewParams: FigureViewParams }
-    | { kind: 'figure-move-rules'; figureId: FigureId; moveRules: FigureMoveRule[]; jumpOverPieces?: boolean }
+    | { kind: 'figure-view-params'; figureId: FigureId; viewParams: FigureViewParams; stateIndex?: number }
+    | { kind: 'figure-move-rules'; figureId: FigureId; moveRules: FigureMoveRule[]; jumpOverPieces?: boolean; stateIndex?: number }
+    | { kind: 'figure-states'; figureId: FigureId; states: FigureState[] }
     | { kind: 'figure-add'; figure: FigureDefinition }
     | { kind: 'figure-remove'; figureId: FigureId }
     | { kind: 'board-sync'; boardId: string; board: BoardSlice }
@@ -24,6 +37,7 @@ export type CollabOp =
 export function isBoardScopedCollabOp(op: CollabOp): boolean {
     return op.kind !== 'figure-view-params'
         && op.kind !== 'figure-move-rules'
+        && op.kind !== 'figure-states'
         && op.kind !== 'figure-add'
         && op.kind !== 'figure-remove'
         && op.kind !== 'catalog-sync'
@@ -102,29 +116,40 @@ export function applyCollabOp(
                 catalog,
             }
         }
-        case 'figure-view-params':
+        case 'figure-view-params': {
+            const stateIndex = resolveCollabStateIndex(op.stateIndex)
+
             return {
                 figures: figuresSlice,
                 board: boardSlice,
-                catalog: catalog.map(entry => (
-                    entry.id === op.figureId
-                        ? { ...entry, viewParams: op.viewParams }
-                        : entry
-                )),
+                catalog: updateFigureCatalogStateAtIndex(catalog, op.figureId, stateIndex, state => ({
+                    ...state,
+                    viewParams: op.viewParams,
+                })),
             }
-        case 'figure-move-rules':
+        }
+        case 'figure-move-rules': {
+            const stateIndex = resolveCollabStateIndex(op.stateIndex)
+
+            return {
+                figures: figuresSlice,
+                board: boardSlice,
+                catalog: updateFigureCatalogStateAtIndex(catalog, op.figureId, stateIndex, state => ({
+                    ...state,
+                    moveRules: normalizeFigureMoveRules(op.moveRules),
+                    jumpOverPieces: op.jumpOverPieces !== undefined
+                        ? op.jumpOverPieces === true
+                        : state.jumpOverPieces === true,
+                })),
+            }
+        }
+        case 'figure-states':
             return {
                 figures: figuresSlice,
                 board: boardSlice,
                 catalog: catalog.map(entry => (
                     entry.id === op.figureId
-                        ? {
-                            ...entry,
-                            moveRules: normalizeFigureMoveRules(op.moveRules),
-                            jumpOverPieces: op.jumpOverPieces !== undefined
-                                ? op.jumpOverPieces === true
-                                : entry.jumpOverPieces === true,
-                        }
+                        ? { ...entry, states: normalizeFigureCatalog([{ id: entry.id, states: op.states }])[0].states }
                         : entry
                 )),
             }

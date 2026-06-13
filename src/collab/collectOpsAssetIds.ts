@@ -1,4 +1,3 @@
-import { FigureDisplayType } from '../game/types/figures'
 import { collectReferencedAssetIdsFromBoardSlice, collectReferencedAssetIdsFromGameState } from '../projects/assets/assetReferences'
 import { CollabOp } from './ops'
 
@@ -18,12 +17,23 @@ export function collectAssetIdsFromOps(ops: CollabOp[]): number[] {
     for (const op of ops) {
         switch (op.kind) {
             case 'figure-view-params':
-                if (op.viewParams.displayType === FigureDisplayType.image && op.viewParams.assetId != null) {
+                if (op.viewParams.assetId != null) {
                     ids.add(op.viewParams.assetId)
                 }
 
                 if (op.viewParams.fontAssetId != null) {
                     ids.add(op.viewParams.fontAssetId)
+                }
+                break
+            case 'figure-states':
+                for (const state of op.states) {
+                    if (state.viewParams.assetId != null) {
+                        ids.add(state.viewParams.assetId)
+                    }
+
+                    if (state.viewParams.fontAssetId != null) {
+                        ids.add(state.viewParams.fontAssetId)
+                    }
                 }
                 break
             case 'style-rules':
@@ -48,12 +58,14 @@ export function collectAssetIdsFromOps(ops: CollabOp[]): number[] {
                 }
                 break
             case 'figure-add':
-                if (op.figure.viewParams.displayType === FigureDisplayType.image && op.figure.viewParams.assetId != null) {
-                    ids.add(op.figure.viewParams.assetId)
-                }
+                for (const state of op.figure.states) {
+                    if (state.viewParams.assetId != null) {
+                        ids.add(state.viewParams.assetId)
+                    }
 
-                if (op.figure.viewParams.fontAssetId != null) {
-                    ids.add(op.figure.viewParams.fontAssetId)
+                    if (state.viewParams.fontAssetId != null) {
+                        ids.add(state.viewParams.fontAssetId)
+                    }
                 }
                 break
             default:

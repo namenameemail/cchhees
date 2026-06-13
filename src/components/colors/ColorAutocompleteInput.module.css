@@ -2,7 +2,41 @@
     position: relative;
     display: flex;
     flex-direction: column;
+    flex: 1;
     min-width: 0;
+}
+
+.colorAutocomplete :global(.blur-text-input) {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    border: 1px solid #999;
+    background: #fff;
+    min-height: 20px;
+    padding: 1px 3px;
+    font-size: 12px;
+}
+
+.colorField {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.colorFieldLabel {
+    flex: 0 0 auto;
+    font-size: 12px;
+}
+
+.hiddenPicker {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
 }
 
 .list {

@@ -1,8 +1,8 @@
 import { BoardParameters } from './types/boardParameters'
 import { CellCoord, coordKey, coordsEqual, isCoordInGrid } from './types/coords'
-import { FigureDefinition, FigureId } from './types/figures'
+import { FigureDefinition, FigureId, FigureState } from './types/figures'
 import { FiguresSlice } from './state/slices'
-import { hasFigureMoveRules, normalizeFigureMoveRules } from './figureView'
+import { hasFigureMoveRules, normalizeFigureMoveRules, resolveFigurePlayState } from './figureView'
 
 export interface MoveDelta {
     di: number
@@ -120,8 +120,8 @@ export function isIntermediatePathClear(
     return true
 }
 
-export function resolveJumpOverPieces(definition: Pick<FigureDefinition, 'jumpOverPieces'>): boolean {
-    return definition.jumpOverPieces === true
+export function resolveJumpOverPieces(state: Pick<FigureState, 'jumpOverPieces'>): boolean {
+    return state.jumpOverPieces === true
 }
 
 export function isFigureMoveAllowed(
@@ -141,14 +141,15 @@ export function isFigureMoveAllowed(
         return false
     }
 
-    const moveRules = normalizeFigureMoveRules(definition.moveRules)
+    const playState = resolveFigurePlayState(definition)
+    const moveRules = normalizeFigureMoveRules(playState.moveRules)
 
     if (moveRules.length === 0) {
         return true
     }
 
     const delta = getMoveDelta(from, to)
-    const jumpOverPieces = resolveJumpOverPieces(definition)
+    const jumpOverPieces = resolveJumpOverPieces(playState)
 
     for (const rule of moveRules) {
         const k = matchMoveRule(delta, rule)
@@ -174,7 +175,8 @@ export function getLegalMoveDestinations(
     boardParameters: BoardParameters,
 ): CellCoord[] {
     const { n, m } = boardParameters
-    const moveRules = normalizeFigureMoveRules(definition.moveRules)
+    const playState = resolveFigurePlayState(definition)
+    const moveRules = normalizeFigureMoveRules(playState.moveRules)
     const destinations: CellCoord[] = []
     const seen = new Set<string>()
 
@@ -207,7 +209,7 @@ export function getLegalMoveDestinations(
         return destinations
     }
 
-    const jumpOverPieces = resolveJumpOverPieces(definition)
+    const jumpOverPieces = resolveJumpOverPieces(playState)
 
     for (const rule of moveRules) {
         const resolvedN = rule.n === undefined ? 1 : rule.n
@@ -266,5 +268,5 @@ export function getLegalMoveDestinationKeys(
 }
 
 export function isUnrestrictedFigureMovement(definition: FigureDefinition): boolean {
-    return !hasFigureMoveRules(definition)
+    return !hasFigureMoveRules(resolveFigurePlayState(definition))
 }
