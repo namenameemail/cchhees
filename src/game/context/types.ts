@@ -36,6 +36,9 @@ export interface GameContextValue {
 
     activeCell?: CellCoord
     setActiveCell: (value: CellCoord | undefined, reason?: string) => void
+
+    previewCellStyleRuleIndex?: number
+    setPreviewCellStyleRuleIndex: (index: number | undefined) => void
     moveActiveCellFigureTo: (to: CellCoord) => void
     setCellFigure: (coord: CellCoord, figure: FigureId) => void
     setCellParameters: (coord: CellCoord) => void

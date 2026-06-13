@@ -133,6 +133,7 @@ export function GameProvider({
     const [mode, setMode] = useState<Mode>(Mode.Game)
     const [activeCell, setActiveCellState] = useState<CellCoord | undefined>(undefined)
     const [activeFigure, setActiveFigure] = useState<FigureId | undefined>(undefined)
+    const [previewCellStyleRuleIndex, setPreviewCellStyleRuleIndex] = useState<number | undefined>(undefined)
 
     const setActiveCell = useCallback((value: CellCoord | undefined, reason = 'unknown') => {
         setActiveCellState(previous => {
@@ -786,6 +787,8 @@ export function GameProvider({
             setActiveFigure,
             activeCell,
             setActiveCell,
+            previewCellStyleRuleIndex,
+            setPreviewCellStyleRuleIndex,
             moveActiveCellFigureTo,
             setCellFigure,
             setCellParameters,
@@ -819,6 +822,7 @@ export function GameProvider({
             connectionParamsBrushState,
             activeFigure,
             activeCell,
+            previewCellStyleRuleIndex,
             moveActiveCellFigureTo,
             setCellFigure,
             setCellParameters,

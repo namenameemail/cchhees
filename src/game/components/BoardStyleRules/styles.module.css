@@ -48,6 +48,12 @@
     margin-left: -3px;
 }
 
+.array .itemPreviewActive {
+    background: #0088ff33;
+    outline: 1px solid #ffffffaa;
+    outline-offset: -1px;
+}
+
 .itemForm {
     display: flex;
     flex-direction: row;

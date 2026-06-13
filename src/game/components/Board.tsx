@@ -26,7 +26,7 @@ export interface BoardProps {
 
 export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ className }, ref) {
 
-    const { state, mode, activeCell, figureCatalog } = useGameContext()
+    const { state, mode, activeCell, figureCatalog, previewCellStyleRuleIndex } = useGameContext()
     const selectionGradientId = useId().replace(/:/g, '')
     const legalMoveGradientId = useId().replace(/:/g, '')
     const boardClipId = useId().replace(/:/g, '')
@@ -77,6 +77,20 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
 
         return buildStyleRuleDrawPlan(styleRules, n, m)
     }, [styleRules, n, m])
+
+    const previewCellCoords = useMemo(() => {
+        if (previewCellStyleRuleIndex === undefined) {
+            return []
+        }
+
+        const rule = styleRules[previewCellStyleRuleIndex]
+
+        if (!rule || !isCellStyleRule(rule)) {
+            return []
+        }
+
+        return drawPlan.cellLayers.get(previewCellStyleRuleIndex) ?? []
+    }, [previewCellStyleRuleIndex, styleRules, drawPlan])
 
     const legalMoveKeys = useMemo(() => {
         if (mode !== Mode.Game || activeCell === undefined) {
@@ -177,6 +191,22 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                     })}
                 </g>
             ))}
+            {previewCellCoords.length > 0 && (
+                <g pointerEvents="none">
+                    {previewCellCoords.map((coord) => (
+                        <rect
+                            key={coordKey(coord)}
+                            x={coord.i * cellXDistance}
+                            y={coord.j * cellYDistance}
+                            width={cellXDistance}
+                            height={cellYDistance}
+                            fill="#0088ff44"
+                            stroke="#ffffffaa"
+                            strokeWidth={1}
+                        />
+                    ))}
+                </g>
+            )}
             {iterGridCoords(n, m).map((coord) => {
                 const index = coord.j * n + coord.i
                 return (

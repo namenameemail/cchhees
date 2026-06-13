@@ -14,13 +14,15 @@ export interface FormItemProps<ItemState> {
     onUp: (index: number) => void
     onDown: (index: number) => void
     isUpDownEnabled?: boolean
+    onMouseEnter?: React.MouseEventHandler<HTMLDivElement>
+    onMouseLeave?: React.MouseEventHandler<HTMLDivElement>
 }
 
 export function FormItem<ItemState>(props: FormItemProps<ItemState>) {
 
     const {
         index, arrayName, value, onChange, onRemove, className, itemFormClassName, onUp,
-        onDown, isUpDownEnabled,
+        onDown, isUpDownEnabled, onMouseEnter, onMouseLeave,
     } = props
 
     const handleChange = useCallback((value: ItemState) => {
@@ -58,7 +60,11 @@ export function FormItem<ItemState>(props: FormItemProps<ItemState>) {
 
 
     return (
-        <div className={className}>
+        <div
+            className={className}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
+        >
             <Form1<ItemState>
                 name={`${arrayName}-${index}`}
                 value={value}

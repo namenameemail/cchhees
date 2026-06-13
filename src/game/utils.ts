@@ -81,6 +81,7 @@ export const defaultGameContextValue: GameContextValue = {
     setMode: mockFn,
     setActiveFigure: mockFn,
     setActiveCell: mockFn,
+    setPreviewCellStyleRuleIndex: mockFn,
     moveActiveCellFigureTo: mockFn,
     setCellFigure: mockFn,
     setCellParameters: mockFn,

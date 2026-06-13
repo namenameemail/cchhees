@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import conditionStyles from '../BoardConditions/styles.module.css'
 import ruleStyles from './styles.module.css'
 import { useGameContext } from '../../context'
@@ -320,7 +320,51 @@ export const BoardStyleRules: React.FC<BoardStyleRulesProps> = () => {
         setStyleRules,
         cellParametersBrushState,
         connectionParamsBrushState,
+        previewCellStyleRuleIndex,
+        setPreviewCellStyleRuleIndex,
     } = useGameContext()
+
+    const [hoveredRuleIndex, setHoveredRuleIndex] = useState<number | undefined>(undefined)
+
+    const updatePreview = useCallback((index: number | undefined, shiftKey: boolean) => {
+        if (index !== undefined && shiftKey && isCellStyleRule(state.styleRules[index])) {
+            setPreviewCellStyleRuleIndex(index)
+        } else {
+            setPreviewCellStyleRuleIndex(undefined)
+        }
+    }, [state.styleRules, setPreviewCellStyleRuleIndex])
+
+    const handleRuleMouseEnter = useCallback((index: number, event: React.MouseEvent) => {
+        setHoveredRuleIndex(index)
+        updatePreview(index, event.shiftKey)
+    }, [updatePreview])
+
+    const handleRuleMouseLeave = useCallback(() => {
+        setHoveredRuleIndex(undefined)
+        setPreviewCellStyleRuleIndex(undefined)
+    }, [setPreviewCellStyleRuleIndex])
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Shift') {
+                updatePreview(hoveredRuleIndex, true)
+            }
+        }
+
+        const handleKeyUp = (event: KeyboardEvent) => {
+            if (event.key === 'Shift') {
+                setPreviewCellStyleRuleIndex(undefined)
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        window.addEventListener('keyup', handleKeyUp)
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown)
+            window.removeEventListener('keyup', handleKeyUp)
+        }
+    }, [hoveredRuleIndex, updatePreview, setPreviewCellStyleRuleIndex])
 
     const handleChange = useCallback((value: BoardStyleRule[]) => {
         setStyleRules(value)
@@ -391,7 +435,10 @@ export const BoardStyleRules: React.FC<BoardStyleRulesProps> = () => {
                     <FormItem<BoardStyleRule>
                         key={index}
                         itemFormClassName={ruleStyles.itemForm}
-                        className={ruleStyles.item}
+                        className={cn(
+                            ruleStyles.item,
+                            previewCellStyleRuleIndex === index && ruleStyles.itemPreviewActive,
+                        )}
                         index={index}
                         value={item}
                         config={getItemConfig}
@@ -400,6 +447,8 @@ export const BoardStyleRules: React.FC<BoardStyleRulesProps> = () => {
                         onUp={handleItemUp}
                         onDown={handleItemDown}
                         isUpDownEnabled
+                        onMouseEnter={(event) => handleRuleMouseEnter(index, event)}
+                        onMouseLeave={handleRuleMouseLeave}
                     />
                 ))}
             </div>
