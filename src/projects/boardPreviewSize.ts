@@ -1,11 +1,5 @@
 import { BoardParameters } from '../game/types/boardParameters'
-
-export function getBoardPixelSize(parameters: BoardParameters): { width: number; height: number } {
-    return {
-        width: parameters.n * parameters.cellXDistance,
-        height: parameters.m * parameters.cellYDistance,
-    }
-}
+import { getBoardPixelSize } from '../game/boardAxisLabels'
 
 export function getBoardPreviewBoxStyle(
     parameters: BoardParameters,

@@ -19,7 +19,13 @@ import {
     getBoardBackgroundRect,
     resolveBoardAppearance,
 } from '../boardAppearance'
+import {
+    getBoardContentSize,
+    getBoardPixelSize,
+    getAxisLabelGutters,
+} from '../boardAxisLabels'
 import { BoardBackgroundLayer, BoardBackgroundPattern } from './BoardBackground'
+import { BoardAxisLabels } from './BoardAxisLabels'
 
 export interface BoardProps {
     className?: string
@@ -42,11 +48,24 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
     const {
         n,
         m,
-        cellHeight,
-        cellWidth,
         cellXDistance,
         cellYDistance,
     } = boardParameters
+
+    const axisGutters = useMemo(
+        () => getAxisLabelGutters(boardParameters),
+        [boardParameters],
+    )
+
+    const boardContentSize = useMemo(
+        () => getBoardContentSize(boardParameters),
+        [boardParameters],
+    )
+
+    const boardStyle = useMemo(
+        () => getBoardPixelSize(boardParameters),
+        [boardParameters],
+    )
 
     const appearance = useMemo(
         () => resolveBoardAppearance(boardParameters),
@@ -57,15 +76,14 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
         return (n && m) ? getConnections(n, m) : {}
     }, [n, m])
 
-    const boardStyle = useMemo(() => ({
-        width: n * cellXDistance,
-        height: m * cellYDistance,
-    }), [n, m, cellXDistance, cellYDistance])
-
     const backgroundRect = useMemo(
-        () => getBoardBackgroundRect(boardStyle.width, boardStyle.height, appearance),
-        [boardStyle.width, boardStyle.height, appearance],
+        () => getBoardBackgroundRect(boardContentSize.width, boardContentSize.height, appearance),
+        [boardContentSize.width, boardContentSize.height, appearance],
     )
+
+    const boardTransform = axisGutters.left > 0 || axisGutters.top > 0
+        ? `translate(${axisGutters.left}, ${axisGutters.top})`
+        : undefined
 
     const boardClipPath = appearance.borderRadius > 0
         ? `url(#${boardClipId})`
@@ -131,8 +149,8 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                 {appearance.borderRadius > 0 && (
                     <clipPath id={boardClipId}>
                         <rect
-                            width={boardStyle.width}
-                            height={boardStyle.height}
+                            width={boardContentSize.width}
+                            height={boardContentSize.height}
                             rx={appearance.borderRadius}
                             ry={appearance.borderRadius}
                         />
@@ -152,7 +170,8 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                     patternId={backgroundPatternId}
                 />
             </defs>
-            <g clipPath={boardClipPath}>
+            <BoardAxisLabels boardParameters={boardParameters} />
+            <g clipPath={boardClipPath} transform={boardTransform}>
             <BoardBackgroundLayer
                 boardParameters={boardParameters}
                 backgroundRect={backgroundRect}

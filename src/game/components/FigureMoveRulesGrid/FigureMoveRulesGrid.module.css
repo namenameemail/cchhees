@@ -1,0 +1,131 @@
+.moveRulesGrid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+}
+
+.gridControls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    font-size: 12px;
+}
+
+.gridNLabel {
+    white-space: nowrap;
+}
+
+.gridNInput {
+    width: 3rem;
+}
+
+.gridNInput :global(.blur-text-input) {
+    width: 3rem;
+    padding: 2px 5px;
+    font-size: 12px;
+    border: 1px solid #999;
+    box-sizing: border-box;
+}
+
+.gridArea {
+    --grid-size: 3;
+    display: grid;
+    grid-template-columns: repeat(var(--grid-size), 1fr);
+    grid-template-rows: repeat(var(--grid-size), 1fr);
+    gap: 2px;
+    width: 200px;
+    height: 200px;
+    padding: 4px;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    background: #fafafa;
+    overscroll-behavior: contain;
+}
+
+.cell {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    border: 1px solid #ddd;
+    background: white;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+.cellEmpty:hover {
+    background: #f0f8ff;
+    border-color: #99b;
+}
+
+.cellCenter {
+    cursor: default;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+    border-color: #bbb;
+    overflow: hidden;
+}
+
+.cellCenter:hover {
+    background: #f5f5f5;
+}
+
+.cellRule {
+    background: #e8f0ff;
+    border-color: #88a;
+}
+
+.cellSelected {
+    background: antiquewhite;
+    border-color: #666;
+    box-shadow: inset 0 0 0 1px #666;
+}
+
+.figurePreview {
+    pointer-events: none;
+    flex: 0 0 auto;
+}
+
+.nInputWrap {
+    position: absolute;
+    inset: 0;
+}
+
+.nInputWrap :global(.number-drag-pointer-lock-input) {
+    width: 100%;
+    height: 100%;
+}
+
+.nInput :global(.blur-text-input) {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    text-align: center;
+    font-weight: 600;
+    color: #333;
+    outline: none;
+    cursor: text;
+    box-sizing: border-box;
+}
+
+.nInput :global(.blur-text-input:focus) {
+    background: rgba(255, 255, 255, 0.85);
+}
+
+.ruleMarker {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: #446;
+    pointer-events: none;
+}

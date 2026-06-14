@@ -3,7 +3,7 @@ import { useGameContext } from '../../context'
 import { Form1, ParameterInputComponentProps } from '../../../components/Form1'
 import { Form1FieldConfig } from '../../../components/Form1/types'
 import { ParameterTypes } from '../../../components/Form1/types'
-import { atLeastOne, integerStep, moveRuleRepeat, nonNegative } from '../../../components/Form1/numberInputConstraints'
+import { atLeastOne, integerStep, nonNegative } from '../../../components/Form1/numberInputConstraints'
 import { FigureId, FigureMoveRule, FigureViewParams, FigureCatalog } from '../../types/figures'
 import {
     FigureEventRule,
@@ -14,6 +14,7 @@ import {
     StepCause,
 } from '../../types/events'
 import { FigureSVG } from '../FigureSVG'
+import { FigureMoveRulesGrid } from '../FigureMoveRulesGrid/FigureMoveRulesGrid'
 import { FormArray } from '../../../components/FormArray'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
 import { ProjectFontSelect } from '../../../projects/components/ProjectFontSelect'
@@ -199,24 +200,6 @@ const figureParametersConfig: Form1FieldConfig<FigureViewParams>[] = [
         propsByState: (state: FigureViewParams) => ({
             disabled: !isFigureTextShadowEnabled(state),
         }),
-    },
-]
-
-const moveRuleItemConfig = [
-    {
-        name: 'x',
-        type: ParameterTypes.NumberInput,
-        props: { placeholder: 'x' },
-    },
-    {
-        name: 'y',
-        type: ParameterTypes.NumberInput,
-        props: { placeholder: 'y' },
-    },
-    {
-        name: 'n',
-        type: ParameterTypes.NumberInput,
-        props: { placeholder: 'n', title: '0 = ∞', ...moveRuleRepeat },
     },
 ]
 
@@ -801,12 +784,6 @@ export const FigureParametersForm: FC = () => {
         setActiveStateIndex(index => Math.max(0, index - 1))
     }, [activeFigure, activeStateIndex, stateCount, removeFigureState])
 
-    const getMoveRuleInitialValue = useCallback((): FigureMoveRule => ({
-        x: 1,
-        y: 0,
-        n: 1,
-    }), [])
-
     if (!activeFigure) {
         return (
             <div className={styles.hint}>
@@ -900,16 +877,11 @@ export const FigureParametersForm: FC = () => {
                                 <span>через фигуры</span>
                             </label>
                         </div>
-                        <FormArray<FigureMoveRule>
-                            className={styles.moveRulesArray}
-                            itemClassName={styles.moveRuleItem}
-                            itemFormClassName={styles.moveRuleItemForm}
-                            addButtonClassName={styles.moveRulesAddRow}
-                            value={moveRules}
-                            itemConfig={moveRuleItemConfig}
+                        <FigureMoveRulesGrid
+                            figureId={activeFigure}
+                            stateIndex={activeStateIndex}
+                            moveRules={moveRules}
                             onChange={handleMoveRulesChange}
-                            getItemInitialValue={getMoveRuleInitialValue}
-                            addText="+"
                         />
                     </div>
                 </div>

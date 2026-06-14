@@ -1,5 +1,6 @@
 import { CellParameters, CellShape, CellImageShapeParams } from '../../game/types/cells'
 import { getCellImageShapeParams } from '../../game/cellImageShape'
+import { getAxisSideAssetIds, resolveAxisLabelsSettings } from '../../game/boardAxisLabels'
 import { GameState } from '../../game/types/gameState'
 import { isCellStyleRule } from '../../game/types/styleRules'
 import { FigureViewParams } from '../../game/types/figures'
@@ -42,6 +43,9 @@ function collectFromGameState(ids: Set<number>, gameState: GameState) {
 
     const { boardParameters } = gameState
     addAssetId(ids, boardParameters.backgroundAssetId)
+    for (const assetId of getAxisSideAssetIds(resolveAxisLabelsSettings(boardParameters))) {
+        addAssetId(ids, assetId)
+    }
 
     if (gameState.figureCatalog) {
         for (const entry of gameState.figureCatalog) {
@@ -72,6 +76,9 @@ export function collectReferencedAssetIdsFromBoardSlice(board: BoardSlice): Set<
     }
 
     addAssetId(ids, board.boardParameters.backgroundAssetId)
+    for (const assetId of getAxisSideAssetIds(resolveAxisLabelsSettings(board.boardParameters))) {
+        addAssetId(ids, assetId)
+    }
 
     return ids
 }
@@ -180,16 +187,57 @@ function clearMissingBoardBackgroundAsset(
     boardParameters: BoardSlice['boardParameters'],
     availableIds: ReadonlySet<number>,
 ): BoardSlice['boardParameters'] {
+    let next = boardParameters
+    let changed = false
+
     if (
-        boardParameters.backgroundAssetId == null
-        || availableIds.has(boardParameters.backgroundAssetId)
+        next.backgroundAssetId != null
+        && !availableIds.has(next.backgroundAssetId)
     ) {
+        next = {
+            ...next,
+            backgroundAssetId: null,
+        }
+        changed = true
+    }
+
+    const axisLabels = resolveAxisLabelsSettings(next)
+
+    let axisChanged = false
+    const nextAxisLabels = { ...axisLabels }
+
+    for (const side of ['top', 'bottom', 'left', 'right'] as const) {
+        const sideSettings = nextAxisLabels[side]
+        let nextSide = sideSettings
+
+        if (
+            sideSettings.fontAssetId != null
+            && !availableIds.has(sideSettings.fontAssetId)
+        ) {
+            nextSide = { ...nextSide, fontAssetId: null }
+            axisChanged = true
+        }
+
+        if (
+            sideSettings.backgroundAssetId != null
+            && !availableIds.has(sideSettings.backgroundAssetId)
+        ) {
+            nextSide = { ...nextSide, backgroundAssetId: null }
+            axisChanged = true
+        }
+
+        if (nextSide !== sideSettings) {
+            nextAxisLabels[side] = nextSide
+        }
+    }
+
+    if (!changed && !axisChanged) {
         return boardParameters
     }
 
     return {
-        ...boardParameters,
-        backgroundAssetId: null,
+        ...next,
+        axisLabels: axisChanged ? nextAxisLabels : next.axisLabels,
     }
 }
 
@@ -423,6 +471,17 @@ export function countAssetReferences(gameState: GameState, assetId: number): num
         count++
     }
 
+    const axisLabels = resolveAxisLabelsSettings(gameState.boardParameters)
+    for (const sideKey of ['top', 'bottom', 'left', 'right'] as const) {
+        const sideSettings = axisLabels[sideKey]
+        if (sideSettings.fontAssetId === assetId) {
+            count++
+        }
+        if (sideSettings.backgroundAssetId === assetId) {
+            count++
+        }
+    }
+
     if (gameState.figureCatalog) {
         for (const entry of gameState.figureCatalog) {
             for (const state of entry.states) {
@@ -442,13 +501,47 @@ export function clearAssetIdFromBoardParameters(
     parameters: GameState['boardParameters'],
     assetId: number,
 ): GameState['boardParameters'] {
-    if (parameters.backgroundAssetId !== assetId) {
+    let next = parameters
+    let changed = false
+
+    if (parameters.backgroundAssetId === assetId) {
+        next = {
+            ...next,
+            backgroundAssetId: null,
+        }
+        changed = true
+    }
+
+    const axisLabels = resolveAxisLabelsSettings(next)
+    let axisChanged = false
+    const nextAxisLabels = { ...axisLabels }
+
+    for (const side of ['top', 'bottom', 'left', 'right'] as const) {
+        const sideSettings = nextAxisLabels[side]
+        let nextSide = sideSettings
+
+        if (sideSettings.fontAssetId === assetId) {
+            nextSide = { ...nextSide, fontAssetId: null }
+            axisChanged = true
+        }
+
+        if (sideSettings.backgroundAssetId === assetId) {
+            nextSide = { ...nextSide, backgroundAssetId: null }
+            axisChanged = true
+        }
+
+        if (nextSide !== sideSettings) {
+            nextAxisLabels[side] = nextSide
+        }
+    }
+
+    if (!changed && !axisChanged) {
         return parameters
     }
 
     return {
-        ...parameters,
-        backgroundAssetId: null,
+        ...next,
+        axisLabels: axisChanged ? nextAxisLabels : next.axisLabels,
     }
 }
 

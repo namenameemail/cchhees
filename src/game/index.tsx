@@ -9,7 +9,7 @@ import { useCollab } from '../collab/CollabProvider'
 import { CollabGameBridge } from '../collab/components/CollabGameBridge'
 import { ProjectPreviewBridge } from '../projects/components/ProjectPreviewBridge'
 import { getActiveBoard, getActiveBoardGameState } from '../projects/types'
-import { BoardParametersForm } from './components/BoardParametersForm/BoardParametersForm'
+import { BoardSettingsPanel } from './components/BoardSettingsPanel/BoardSettingsPanel'
 import { BoardHistory } from './components/BoardHistory'
 import { Figures } from './components/Figures'
 import { Board } from './components/Board'
@@ -17,7 +17,6 @@ import { Tray } from './components/Tray'
 import { History } from './components/History'
 import { CellParametersForm } from './components/CellParametersForm/CellParametersForm'
 // import { AutomaticConnectionsParametersForm } from './components/AutomaticConnectionsParametersForm'
-import { BoardStyleRules } from './components/BoardStyleRules'
 import { AssetsPanel } from '../projects/components/AssetsPanel'
 import { selectionDebugLog } from './selectionDebugLog'
 
@@ -192,10 +191,7 @@ export const Game: React.FC<GameProps> = () => {
                         {tab === 0 && (
                             <div className={styles.settingsBody}>
                                 <BoardHistory boardRef={boardRef} />
-                                <BoardParametersForm />
-                                <div className={styles.arrays}>
-                                    <BoardStyleRules />
-                                </div>
+                                <BoardSettingsPanel />
                             </div>
                         )}
                         {tab === 1 && (
