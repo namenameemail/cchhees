@@ -2,9 +2,18 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { defaultGameContextValue } from '../utils'
 import { historyPush, historyRedo, historyUndo } from './history'
 import { GameContextValue } from './types'
-import { FigureId, FigureMoveRule, FigureViewParams, FigureCatalog } from '../types/figures'
-import { createNewFigureDefinition, cloneFigureState, resolveFigureDefinition, updateFigureCatalogStateAtIndex } from '../figureView'
+import { FigureId, FigureMoveRule, FigurePlacement, FigureViewParams, FigureCatalog } from '../types/figures'
+import { FigureEventRule } from '../types/events'
+import {
+    createNewFigureDefinition,
+    cloneFigureState,
+    createFigurePlacement,
+    normalizeFigurePlacement,
+    resolveFigureDefinition,
+    updateFigureCatalogStateAtIndex,
+} from '../figureView'
 import { isFigureMoveAllowed } from '../moveRules'
+import { applyFigureMove } from '../events/applyFigureMove'
 import { removeFigureFromBoard } from '../state/figureReferences'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
@@ -434,7 +443,7 @@ export function GameProvider({
         pushFiguresChange({
             figuresByCoord: {
                 ...figuresSlice.figuresByCoord,
-                [key]: figure,
+                [key]: createFigurePlacement(figure),
             },
             tray: [oldFigure, ...figuresSlice.tray],
         })
@@ -449,7 +458,7 @@ export function GameProvider({
         pushFiguresChange({
             figuresByCoord: {
                 ...figuresSlice.figuresByCoord,
-                [key]: figure,
+                [key]: createFigurePlacement(figure),
             },
             tray: figuresSlice.tray,
         })
@@ -477,42 +486,37 @@ export function GameProvider({
         const from = activeCell
         const fromKey = coordKey(from)
         const toKey = coordKey(to)
-        const fromFigure = figuresSlice.figuresByCoord[fromKey]
-        if (!fromFigure) {
+        const fromPlacement = figuresSlice.figuresByCoord[fromKey]
+        if (!fromPlacement) {
             return
         }
 
-        const figureDefinition = resolveFigureDefinition(fromFigure, figureCatalog)
+        const figureDefinition = resolveFigureDefinition(fromPlacement.figureId, figureCatalog)
 
-        if (!isFigureMoveAllowed(from, to, figureDefinition, figuresSlice.figuresByCoord, state.boardParameters)) {
+        if (!isFigureMoveAllowed(
+            from,
+            to,
+            figureDefinition,
+            figuresSlice.figuresByCoord,
+            state.boardParameters,
+            fromPlacement,
+        )) {
             return
         }
 
         setActiveCell(undefined, 'figure move start')
 
-        const toFigure = figuresSlice.figuresByCoord[toKey]
-        const figuresByCoord = { ...figuresSlice.figuresByCoord }
-        let newTray = figuresSlice.tray
+        const targetAtTo = figuresSlice.figuresByCoord[toKey]
 
-        figuresByCoord[toKey] = fromFigure
-
-        if (state.boardParameters.swapOnEat) {
-            if (toFigure) {
-                figuresByCoord[fromKey] = toFigure
-            } else {
-                delete figuresByCoord[fromKey]
-            }
-        } else {
-            delete figuresByCoord[fromKey]
-            if (toFigure) {
-                newTray = [toFigure, ...newTray]
-            }
-        }
-
-        pushFiguresChange({
-            figuresByCoord,
-            tray: newTray,
-        })
+        pushFiguresChange(applyFigureMove(figuresSlice, {
+            from,
+            to,
+            actorPlacement: fromPlacement,
+            targetAtTo,
+            swapOnEat: state.boardParameters.swapOnEat,
+            boardParameters: state.boardParameters,
+            catalog: figureCatalog,
+        }))
     }, [activeCell, figuresSlice, figureCatalog, state.boardParameters, pushFiguresChange, setActiveCell])
 
     const setCellParameters = useCallback((coord: CellCoord) => {
@@ -531,7 +535,7 @@ export function GameProvider({
         })
     }, [boardSlice, cellParametersBrushState, applyBoardChange])
 
-    const setTray = useCallback((value: FigureId[]) => {
+    const setTray = useCallback((value: FigurePlacement[]) => {
         pushFiguresChange({
             ...figuresSlice,
             tray: value,
@@ -626,18 +630,29 @@ export function GameProvider({
         )
     }, [figureCatalog, applyCatalogChange])
 
+    const setFigureEventRules = useCallback((figureId: FigureId, eventRules: FigureEventRule[]) => {
+        applyCatalogChange(
+            figureCatalog.map(entry => (
+                entry.id === figureId
+                    ? { ...entry, eventRules }
+                    : entry
+            )),
+            true,
+            { kind: 'figure-event-rules', figureId, eventRules },
+        )
+    }, [figureCatalog, applyCatalogChange])
+
     const addFigure = useCallback(() => {
         const newFigure = createNewFigureDefinition()
 
         applyCatalogChange(
-            [...figureCatalog, newFigure],
+            [newFigure, ...figureCatalog],
             true,
             { kind: 'figure-add', figure: newFigure },
         )
 
-        setMode(Mode.FiguresArrange)
         setActiveFigure(newFigure.id)
-    }, [figureCatalog, applyCatalogChange])
+    }, [figureCatalog, applyCatalogChange, setActiveFigure])
 
     const removeFigure = useCallback((figureId: FigureId) => {
         const nextCatalog = figureCatalog.filter(entry => entry.id !== figureId)
@@ -659,16 +674,15 @@ export function GameProvider({
 
         if (activeFigure === figureId) {
             setActiveFigure(undefined)
-            setMode(Mode.Game)
         }
     }, [figureCatalog, catalogHistory, boardSlice, figuresSlice, figuresHistory, activeFigure, emitCollabOp])
 
     const setCells = useCallback((value: GameState['cells']) => {
         const { n } = state.boardParameters
-        const figuresByCoord: Record<string, FigureId> = {}
+        const figuresByCoord: Record<string, FigurePlacement> = {}
         value.forEach((cell, index) => {
             if (cell.figure) {
-                figuresByCoord[coordKey(indexToCoord(index, n))] = cell.figure
+                figuresByCoord[coordKey(indexToCoord(index, n))] = normalizeFigurePlacement(cell.figure)
             }
         })
         pushFiguresChange({
@@ -801,6 +815,7 @@ export function GameProvider({
             setFigureStateMoveRules,
             addFigureState,
             removeFigureState,
+            setFigureEventRules,
             addFigure,
             removeFigure,
             clearAssetReferences,
@@ -835,6 +850,7 @@ export function GameProvider({
             setFigureStateMoveRules,
             addFigureState,
             removeFigureState,
+            setFigureEventRules,
             addFigure,
             removeFigure,
             clearAssetReferences,

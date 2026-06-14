@@ -8,12 +8,14 @@ import {
     FigureState,
     FigureViewParams,
 } from '../game/types/figures'
+import { FigureEventRule } from '../game/types/events'
 import { BoardStyleRule } from '../game/types/styleRules'
 import { BoardSlice, FiguresSlice, composeGameState, cloneFigureCatalog } from '../game/state/slices'
 import { cloneBoardSlice, cloneFiguresSlice } from '../game/state/reconcile'
 import { removeFigureFromBoard } from '../game/state/figureReferences'
 import {
     normalizeFigureCatalog,
+    normalizeFigureEventRules,
     normalizeFigureMoveRules,
     resolveCollabStateIndex,
     updateFigureCatalogStateAtIndex,
@@ -29,6 +31,7 @@ export type CollabOp =
     | { kind: 'figure-view-params'; figureId: FigureId; viewParams: FigureViewParams; stateIndex?: number }
     | { kind: 'figure-move-rules'; figureId: FigureId; moveRules: FigureMoveRule[]; jumpOverPieces?: boolean; stateIndex?: number }
     | { kind: 'figure-states'; figureId: FigureId; states: FigureState[] }
+    | { kind: 'figure-event-rules'; figureId: FigureId; eventRules: FigureEventRule[] }
     | { kind: 'figure-add'; figure: FigureDefinition }
     | { kind: 'figure-remove'; figureId: FigureId }
     | { kind: 'board-sync'; boardId: string; board: BoardSlice }
@@ -38,6 +41,7 @@ export function isBoardScopedCollabOp(op: CollabOp): boolean {
     return op.kind !== 'figure-view-params'
         && op.kind !== 'figure-move-rules'
         && op.kind !== 'figure-states'
+        && op.kind !== 'figure-event-rules'
         && op.kind !== 'figure-add'
         && op.kind !== 'figure-remove'
         && op.kind !== 'catalog-sync'
@@ -150,6 +154,16 @@ export function applyCollabOp(
                 catalog: catalog.map(entry => (
                     entry.id === op.figureId
                         ? { ...entry, states: normalizeFigureCatalog([{ id: entry.id, states: op.states }])[0].states }
+                        : entry
+                )),
+            }
+        case 'figure-event-rules':
+            return {
+                figures: figuresSlice,
+                board: boardSlice,
+                catalog: catalog.map(entry => (
+                    entry.id === op.figureId
+                        ? { ...entry, eventRules: normalizeFigureEventRules(op.eventRules) }
                         : entry
                 )),
             }

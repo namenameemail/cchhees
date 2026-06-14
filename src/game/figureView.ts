@@ -8,11 +8,28 @@ import {
     FigureDefinitions,
     FigureId,
     FigureMoveRule,
+    FigurePlacement,
+    FigurePlacementInput,
     FigureState,
     FigureTypes,
     FigureViewParams,
     LegacyFigureDefinition,
 } from './types/figures'
+import { CellCoord, coordKey } from './types/coords'
+import {
+    DisplaceFigureActionParams,
+    FigureEventParamsStepOnFigure,
+    FigureEventParamsSteppedOnBy,
+    FigureEventRule,
+    FigureEventType,
+    GameAction,
+    GameActionType,
+    GameActionTarget,
+    SetOtherStateActionParams,
+    SetSelfStateActionParams,
+    SpawnFigureActionParams,
+    StepCause,
+} from './types/events'
 
 export const DEFAULT_FIGURE_FONT_SIZE = 26
 export const DEFAULT_PAWN_SYMBOL = '♙'
@@ -63,6 +80,7 @@ export function createNewFigureDefinition(): FigureDefinition {
     return {
         id: crypto.randomUUID(),
         states: [createDefaultFigureState()],
+        eventRules: [],
     }
 }
 
@@ -145,6 +163,181 @@ function extractStatesFromEntry(
     return [createDefaultFigureState(entry.id)]
 }
 
+const VALID_ACTION_TARGETS = new Set<GameActionTarget>(['steppedOn', 'steppedBy', 'areaAnchor'])
+const VALID_STEP_CAUSES = new Set<StepCause>(['any', 'manual', 'displacement'])
+
+export function normalizeFigureEventParamsStepOnFigure(
+    params?: FigureEventParamsStepOnFigure,
+): FigureEventParamsStepOnFigure {
+    const normalized: FigureEventParamsStepOnFigure = {}
+    const cause = params?.cause
+
+    if (typeof params?.targetFigureId === 'string' && params.targetFigureId.trim()) {
+        normalized.targetFigureId = params.targetFigureId.trim()
+    }
+
+    if (params?.targetStateIndex !== undefined && Number.isFinite(params.targetStateIndex)) {
+        normalized.targetStateIndex = Math.max(0, Math.trunc(params.targetStateIndex))
+    }
+
+    if (cause && VALID_STEP_CAUSES.has(cause)) {
+        normalized.cause = cause
+    }
+
+    return normalized
+}
+
+export function normalizeFigureEventParamsSteppedOnBy(
+    params?: FigureEventParamsSteppedOnBy,
+): FigureEventParamsSteppedOnBy {
+    const normalized: FigureEventParamsSteppedOnBy = {}
+
+    if (typeof params?.stepperFigureId === 'string' && params.stepperFigureId.trim()) {
+        normalized.stepperFigureId = params.stepperFigureId.trim()
+    }
+
+    if (params?.stepperStateIndex !== undefined && Number.isFinite(params.stepperStateIndex)) {
+        normalized.stepperStateIndex = Math.max(0, Math.trunc(params.stepperStateIndex))
+    }
+
+    const cause = params?.cause
+    if (cause && VALID_STEP_CAUSES.has(cause)) {
+        normalized.cause = cause
+    }
+
+    return normalized
+}
+
+export function normalizeGameAction(action: GameAction): GameAction | null {
+    if (!action?.type) {
+        return null
+    }
+
+    switch (action.type) {
+        case GameActionType.spawnFigure: {
+            const params = action.params as SpawnFigureActionParams
+            if (typeof params.figureId !== 'string' || !params.figureId.trim()) {
+                return null
+            }
+
+            const x = Math.trunc(params.x)
+            const y = Math.trunc(params.y)
+
+            if (!Number.isFinite(x) || !Number.isFinite(y) || x < 1 || y < 1) {
+                return null
+            }
+
+            return {
+                type: GameActionType.spawnFigure,
+                params: {
+                    figureId: params.figureId.trim(),
+                    x,
+                    y,
+                    stateIndex: params.stateIndex === undefined
+                        ? undefined
+                        : Math.max(0, Math.trunc(params.stateIndex)),
+                },
+            }
+        }
+        case GameActionType.setSelfState: {
+            const params = action.params as SetSelfStateActionParams
+            return {
+                type: GameActionType.setSelfState,
+                params: {
+                    stateIndex: Math.max(0, Math.trunc(params.stateIndex)),
+                },
+            }
+        }
+        case GameActionType.setOtherState: {
+            const params = action.params as SetOtherStateActionParams
+            const target = params?.target
+
+            if (!params || !VALID_ACTION_TARGETS.has(target)) {
+                return null
+            }
+
+            return {
+                type: GameActionType.setOtherState,
+                params: {
+                    stateIndex: Math.max(0, Math.trunc(params.stateIndex)),
+                    target,
+                },
+            }
+        }
+        case GameActionType.moveToTray:
+            return {
+                type: GameActionType.moveToTray,
+                params: {},
+            }
+        case GameActionType.displaceFigure: {
+            const params = action.params as DisplaceFigureActionParams
+            if (!params) {
+                return null
+            }
+
+            const dx = Number.isFinite(params.dx) ? Math.trunc(params.dx) : 0
+            const dy = Number.isFinite(params.dy) ? Math.trunc(params.dy) : 0
+
+            if (dx === 0 && dy === 0) {
+                return null
+            }
+
+            return {
+                type: GameActionType.displaceFigure,
+                params: { dx, dy },
+            }
+        }
+        default:
+            return null
+    }
+}
+
+function normalizeFigureEventParams(
+    type: FigureEventType,
+    params?: FigureEventRule['params'],
+): FigureEventRule['params'] {
+    if (type === FigureEventType.steppedOnBy) {
+        return normalizeFigureEventParamsSteppedOnBy(params as FigureEventParamsSteppedOnBy | undefined)
+    }
+
+    if (type === FigureEventType.stepOnFigure) {
+        return normalizeFigureEventParamsStepOnFigure(params as FigureEventParamsStepOnFigure | undefined)
+    }
+
+    return params
+}
+
+export function normalizeFigureEventRule(rule: FigureEventRule): FigureEventRule | null {
+    if (!rule?.id || !rule.type || !Object.values(FigureEventType).includes(rule.type)) {
+        return null
+    }
+
+    const actions = (rule.actions ?? [])
+        .map(normalizeGameAction)
+        .filter((action): action is GameAction => action !== null)
+
+    if (actions.length === 0) {
+        return null
+    }
+
+    return {
+        id: rule.id,
+        type: rule.type,
+        params: normalizeFigureEventParams(rule.type, rule.params),
+        actions,
+    }
+}
+
+export function normalizeFigureEventRules(rules?: FigureEventRule[]): FigureEventRule[] {
+    if (!rules?.length) {
+        return []
+    }
+
+    return rules
+        .map(normalizeFigureEventRule)
+        .filter((rule): rule is FigureEventRule => rule !== null)
+}
+
 export function normalizeFigureDefinition(
     entry: FigureDefinition | LegacyFigureDefinition,
 ): FigureDefinition {
@@ -154,6 +347,9 @@ export function normalizeFigureDefinition(
     return {
         id: entry.id,
         states: states.length > 0 ? states : [createDefaultFigureState(entry.id)],
+        eventRules: normalizeFigureEventRules(
+            'eventRules' in entry ? entry.eventRules : undefined,
+        ),
     }
 }
 
@@ -266,6 +462,73 @@ export function resolveFigureBorderRadius(viewParams: FigureViewParams): number 
 
 export function resolveCollabStateIndex(stateIndex?: number): number {
     return Number.isFinite(stateIndex) ? Math.max(0, Math.trunc(stateIndex!)) : 0
+}
+
+export function createPlacementInstanceId(): string {
+    return crypto.randomUUID()
+}
+
+export function placementsMatch(a: FigurePlacement, b: FigurePlacement): boolean {
+    return a.instanceId === b.instanceId
+}
+
+export function ensurePlacementInstanceId(
+    placement: Omit<FigurePlacement, 'instanceId'> & { instanceId?: string },
+): FigurePlacement {
+    return {
+        instanceId: placement.instanceId?.trim() || createPlacementInstanceId(),
+        figureId: placement.figureId,
+        ...(placement.stateIndex !== undefined ? { stateIndex: placement.stateIndex } : {}),
+    }
+}
+
+export function placementMatchesAt(
+    figuresByCoord: Record<string, FigurePlacement>,
+    coord: CellCoord,
+    placement: FigurePlacement,
+): boolean {
+    const occupant = figuresByCoord[coordKey(coord)]
+
+    return occupant != null && placementsMatch(occupant, placement)
+}
+
+export function normalizeFigurePlacement(raw: FigureId | FigurePlacementInput): FigurePlacement {
+    if (typeof raw === 'string') {
+        return createFigurePlacement(raw)
+    }
+
+    return ensurePlacementInstanceId({
+        instanceId: raw.instanceId,
+        figureId: raw.figureId,
+        stateIndex: raw.stateIndex,
+    })
+}
+
+export function resolvePlacementStateIndex(placement: FigurePlacement): number {
+    const value = placement.stateIndex
+
+    return typeof value === 'number' && Number.isFinite(value)
+        ? Math.max(0, Math.trunc(value))
+        : 0
+}
+
+export function cloneFigurePlacement(placement: FigurePlacement): FigurePlacement {
+    return {
+        instanceId: placement.instanceId,
+        figureId: placement.figureId,
+        stateIndex: placement.stateIndex,
+    }
+}
+
+export function createFigurePlacement(figureId: FigureId, stateIndex?: number): FigurePlacement {
+    const base: FigurePlacement = {
+        instanceId: createPlacementInstanceId(),
+        figureId,
+    }
+
+    return stateIndex === undefined
+        ? base
+        : { ...base, stateIndex: resolveCollabStateIndex(stateIndex) }
 }
 
 export function updateFigureCatalogStateAtIndex(

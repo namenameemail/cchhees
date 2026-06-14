@@ -1,4 +1,3 @@
-import { profiler } from '../profiler'
 import { CollabSessionStatus } from './types'
 import { JoinProgress } from './joinProgress'
 import { collabXferLog } from './collabXferLog'
@@ -61,71 +60,8 @@ function shortPeerId(peerId: string | null | undefined): string {
     return peerId.length > 8 ? peerId.slice(0, 8) : peerId
 }
 
-function formatEventTime(iso: string): string {
-    return new Date(iso).toLocaleTimeString(undefined, {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-    })
-}
-
-function refreshPanel(): void {
-    if (!enabled()) {
-        return
-    }
-
-    const lines: string[] = [
-        '── collab ──',
-        `room ${state.roomId ?? '—'}  role ${state.role ?? '—'}  ${state.status}`,
-        `self ${shortPeerId(state.selfPeerId)}  peers ${state.peerCount + 1}  rev ${state.revision}`,
-    ]
-
-    if (state.projectName) {
-        lines.push(`project ${state.projectName}`)
-    }
-
-    if (state.joinPhase) {
-        lines.push(`join ${state.joinPhase}`)
-    }
-
-    if (state.error) {
-        lines.push(`error ${state.error}`)
-    }
-
-    const { snapshot } = state
-    const rulesLabel = snapshot.styleRulesCount == null ? '—' : String(snapshot.styleRulesCount)
-
-    lines.push(
-        `downloaded assets ${snapshot.assetsReceived}/${snapshot.assetsExpected}`
-        + `  style rules ${rulesLabel}`,
-    )
-
-    if (snapshot.stateChunksExpected > 0) {
-        lines.push(
-            `state chunks ${snapshot.stateChunksReceived}/${snapshot.stateChunksExpected}`,
-        )
-    }
-
-    if (state.opsAppliedTotal > 0) {
-        lines.push(`remote ops applied ${state.opsAppliedTotal}`)
-    }
-
-    lines.push('xfer log → Console row (save Panel)')
-
-    if (state.events.length > 0) {
-        lines.push('── recent ──')
-
-        for (const event of state.events) {
-            lines.push(`${formatEventTime(event.at)}  ${event.text}`)
-        }
-    }
-
-    profiler.setPanelText('profile', lines.join('\n'))
-}
-
 function patchState(partial: Partial<CollabProfilerState>): void {
     state = { ...state, ...partial }
-    refreshPanel()
 }
 
 function logEvent(text: string): void {
@@ -163,7 +99,6 @@ export const collabProfiler = {
         }
 
         collabXferLog.reset()
-        refreshPanel()
     },
 
     syncSession(partial: {

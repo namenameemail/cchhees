@@ -1,4 +1,4 @@
-import React, { FC, useCallback } from 'react'
+import React, { FC, useCallback, useMemo } from 'react'
 import { useGameContext } from '../context'
 import styles from '../styles.module.css'
 import { FigureSVG } from './FigureSVG'
@@ -15,20 +15,39 @@ export const Tray: FC = () => {
 
     const {
         boardParameters: { cellXDistance, cellYDistance },
+        tray,
     } = state
 
-    const previewSize = Math.max(24, Math.min(cellXDistance, cellYDistance) * 0.5)
+    const figureSize = useMemo(
+        () => Math.round(Math.min(cellXDistance, cellYDistance) * 1.15),
+        [cellXDistance, cellYDistance],
+    )
 
     return (
-        <div className={styles.eaten} onClick={handleTrayClick}>
-            {state.tray.map((item, index) => (
-                <span
-                    key={`${item}-${index}`}
-                    className={styles.trayFigure}
-                >
-                    <FigureSVG figureId={item} size={previewSize} />
-                </span>
-            ))}
+        <div className={styles.trayRoot}>
+            <div className={styles.trayHint}>
+                {tray.length === 0
+                    ? 'Кликните с выбранной клеткой, чтобы убрать фигуру в лоток'
+                    : `${tray.length} фиг. — клик по лотку убирает выбранную с доски`}
+            </div>
+            <div className={styles.eaten} onClick={handleTrayClick}>
+                {tray.map((item, index) => (
+                    <span
+                        key={`tray-item-${index}`}
+                        className={styles.trayFigure}
+                        style={{
+                            width: figureSize + 8,
+                            height: figureSize + 8,
+                        }}
+                    >
+                        <FigureSVG
+                            figureId={item.figureId}
+                            stateIndex={item.stateIndex}
+                            size={figureSize}
+                        />
+                    </span>
+                ))}
+            </div>
         </div>
     )
 }

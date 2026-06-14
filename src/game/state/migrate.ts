@@ -2,17 +2,17 @@ import { coordKey, indexToCoord } from '../types/coords'
 import { CellParameters } from '../types/cells'
 import { BoardConditionItem } from '../types/conditions'
 import { BoardConnectionsConditionItem } from '../types/connections'
-import { FigureCatalog, FigureId } from '../types/figures'
+import { FigureCatalog, FigureId, FigurePlacement, FigurePlacementInput } from '../types/figures'
 import { SliceHistory } from '../types/history'
 import { createDefaultFigureCatalog, migrateToFigureCatalog } from '../figureView'
 import { migrateBoardSliceStyleRules } from '../styleRules/migrateStyleRules'
-import { FiguresSlice, BoardSlice, composeGameState, splitGameState } from './slices'
+import { FiguresSlice, BoardSlice, composeGameState, splitGameState, normalizeFiguresSlice } from './slices'
 import { GameState } from '../types/gameState'
 
 export interface LegacyFiguresSlice {
     figuresByIndex?: Record<number, FigureId>
-    figuresByCoord?: Record<string, FigureId>
-    tray?: FigureId[]
+    figuresByCoord?: Record<string, FigureId | FigurePlacementInput>
+    tray?: Array<FigureId | FigurePlacementInput>
 }
 
 export interface LegacyBoardSlice {
@@ -42,22 +42,22 @@ function stripCatalogFromLegacyBoardSlice(slice: LegacyBoardSlice): BoardSlice {
 
 export function migrateFiguresSlice(slice: LegacyFiguresSlice, n: number): FiguresSlice {
     if (isCoordBasedFiguresSlice(slice)) {
-        return {
+        return normalizeFiguresSlice({
             figuresByCoord: { ...slice.figuresByCoord },
             tray: [...(slice.tray ?? [])],
-        }
+        } as FiguresSlice)
     }
 
-    const figuresByCoord: Record<string, FigureId> = {}
+    const figuresByCoord: Record<string, FigurePlacementInput> = {}
 
     for (const [indexStr, figure] of Object.entries(slice.figuresByIndex ?? {})) {
         figuresByCoord[coordKey(indexToCoord(+indexStr, n))] = figure
     }
 
-    return {
+    return normalizeFiguresSlice({
         figuresByCoord,
         tray: [...(slice.tray ?? [])],
-    }
+    } as FiguresSlice)
 }
 
 export function migrateBoardSlice(slice: LegacyBoardSlice): BoardSlice {

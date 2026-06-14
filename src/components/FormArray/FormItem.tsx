@@ -41,15 +41,6 @@ export function FormItem<ItemState>(props: FormItemProps<ItemState>) {
         onDown(index)
     }, [index, onDown])
 
-
-    console.log('FormItem valuee', value)
-    // const itemConfig = useMemo(() => {
-    //     if (typeof props.config === 'function') {
-    //         return props.config(value, index)
-    //     } else {
-    //         return props.config
-    //     }
-    // },  [props.config, value, index])
     const itemConfig = (() => {
         if (typeof props.config === 'function') {
             return props.config(value, index)

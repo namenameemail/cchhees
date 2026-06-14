@@ -92,6 +92,7 @@ export const defaultGameContextValue: GameContextValue = {
     setFigureStateMoveRules: mockFn,
     addFigureState: mockFn,
     removeFigureState: mockFn,
+    setFigureEventRules: mockFn,
     addFigure: mockFn,
     removeFigure: mockFn,
     clearAssetReferences: mockFn,

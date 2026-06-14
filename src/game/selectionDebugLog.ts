@@ -1,4 +1,4 @@
-import { profiler, profileDebug } from '../profiler'
+import { profiler, profileDebug, isProfilerPanelChannel } from '../profiler'
 import { CellCoord } from './types/coords'
 
 const CONSOLE_PREFIX = '[selection] '
@@ -28,7 +28,9 @@ function append(text: string, meta?: Record<string, unknown>): void {
         fractionalSecondDigits: 3,
     } as Intl.DateTimeFormatOptions)
 
-    profiler.appendPanelText('console', `${CONSOLE_PREFIX}${time}  ${text}`)
+    if (isProfilerPanelChannel('selection')) {
+        profiler.appendPanelText('console', `${CONSOLE_PREFIX}${time}  ${text}`)
+    }
     profileDebug('selection', text.slice(0, 120), meta)
 
     if (profiler.isRecording) {

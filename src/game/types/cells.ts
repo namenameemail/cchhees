@@ -1,4 +1,4 @@
-import { FigureId } from './figures'
+import { FigurePlacement } from './figures'
 
 export enum CellShape {
     rect = 'rect',
@@ -47,5 +47,5 @@ export interface CellParameters {
 
 export interface Cell {
     parameters?: CellParameters
-    figure?: FigureId
+    figure?: FigurePlacement
 }

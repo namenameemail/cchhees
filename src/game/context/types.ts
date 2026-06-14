@@ -1,5 +1,6 @@
 
-import { FigureId, FigureMoveRule, FigureViewParams, FigureCatalog } from '../types/figures'
+import { FigureId, FigureMoveRule, FigurePlacement, FigureViewParams, FigureCatalog } from '../types/figures'
+import { FigureEventRule } from '../types/events'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
 import { SliceHistory } from '../types/history'
@@ -48,7 +49,7 @@ export interface GameContextValue {
     setStyleRules: (value: BoardStyleRule[]) => void
 
     setMode: (value) => void
-    setTray: (value: FigureId[]) => void
+    setTray: (value: FigurePlacement[]) => void
     setCells: (value) => void
     setFigureStateViewParams: (figureId: FigureId, stateIndex: number, params: FigureViewParams) => void
     setFigureStateMoveRules: (
@@ -59,6 +60,7 @@ export interface GameContextValue {
     ) => void
     addFigureState: (figureId: FigureId) => void
     removeFigureState: (figureId: FigureId, stateIndex: number) => void
+    setFigureEventRules: (figureId: FigureId, eventRules: FigureEventRule[]) => void
     addFigure: () => void
     removeFigure: (figureId: FigureId) => void
     clearAssetReferences: (assetId: number) => void

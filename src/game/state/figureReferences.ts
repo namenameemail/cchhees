@@ -1,4 +1,5 @@
-import { FigureCatalog, FigureId } from '../types/figures'
+import { FigureCatalog, FigureId, FigurePlacement } from '../types/figures'
+import { cloneFigurePlacement } from '../figureView'
 import { FiguresSlice } from './slices'
 
 export function getFigureCatalogIds(catalog: FigureCatalog): Set<FigureId> {
@@ -6,32 +7,45 @@ export function getFigureCatalogIds(catalog: FigureCatalog): Set<FigureId> {
 }
 
 export function removeFigureFromBoard(figures: FiguresSlice, figureId: FigureId): FiguresSlice {
-    const figuresByCoord: Record<string, FigureId> = {}
+    const figuresByCoord: Record<string, FigurePlacement> = {}
 
-    for (const [key, id] of Object.entries(figures.figuresByCoord)) {
-        if (id !== figureId) {
-            figuresByCoord[key] = id
+    for (const [key, placement] of Object.entries(figures.figuresByCoord)) {
+        if (placement.figureId !== figureId) {
+            figuresByCoord[key] = placement
         }
     }
 
     return {
         figuresByCoord,
-        tray: figures.tray.filter(id => id !== figureId),
+        tray: figures.tray.filter(placement => placement.figureId !== figureId),
     }
 }
 
 export function pruneFigureReferences(figures: FiguresSlice, catalog: FigureCatalog): FiguresSlice {
     const validIds = getFigureCatalogIds(catalog)
-    const figuresByCoord: Record<string, FigureId> = {}
+    const figuresByCoord: Record<string, FigurePlacement> = {}
 
-    for (const [key, id] of Object.entries(figures.figuresByCoord)) {
-        if (validIds.has(id)) {
-            figuresByCoord[key] = id
+    for (const [key, placement] of Object.entries(figures.figuresByCoord)) {
+        if (validIds.has(placement.figureId)) {
+            figuresByCoord[key] = placement
         }
     }
 
     return {
         figuresByCoord,
-        tray: figures.tray.filter(id => validIds.has(id)),
+        tray: figures.tray.filter(placement => validIds.has(placement.figureId)),
+    }
+}
+
+export function cloneFiguresSlicePlacements(figures: FiguresSlice): FiguresSlice {
+    const figuresByCoord: Record<string, FigurePlacement> = {}
+
+    for (const [key, placement] of Object.entries(figures.figuresByCoord)) {
+        figuresByCoord[key] = cloneFigurePlacement(placement)
+    }
+
+    return {
+        figuresByCoord,
+        tray: figures.tray.map(cloneFigurePlacement),
     }
 }

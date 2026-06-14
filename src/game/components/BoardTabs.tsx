@@ -1,5 +1,6 @@
 import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import cn from 'classnames'
+import { HiddenScroll } from 'bbuutoonnss'
 import { useProjectContext } from '../../projects/ProjectContext'
 import styles from './BoardTabs.module.css'
 
@@ -184,31 +185,6 @@ export const BoardTabs: FC<BoardTabsProps> = ({ className }) => {
     useEffect(() => {
         const scrollEl = scrollRef.current
 
-        if (!scrollEl) {
-            return
-        }
-
-        const onWheel = (event: WheelEvent) => {
-            if (scrollEl.scrollWidth <= scrollEl.clientWidth) {
-                return
-            }
-
-            if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
-                return
-            }
-
-            event.preventDefault()
-            scrollEl.scrollLeft += event.deltaY
-        }
-
-        scrollEl.addEventListener('wheel', onWheel, { passive: false })
-
-        return () => scrollEl.removeEventListener('wheel', onWheel)
-    }, [boards.length])
-
-    useEffect(() => {
-        const scrollEl = scrollRef.current
-
         if (!scrollEl || !activeBoardId) {
             return
         }
@@ -269,37 +245,40 @@ export const BoardTabs: FC<BoardTabsProps> = ({ className }) => {
 
     return (
         <div className={cn(styles.boardTabs, className)}>
-            <div ref={scrollRef} className={styles.boardTabsScroll}>
-                <div className={styles.boardTabsTrack}>
-                    {boards.map(board => (
-                        <BoardTabGroup
-                            key={board.id}
-                            boardId={board.id}
-                            boardName={board.name}
-                            isActive={board.id === activeBoardId}
-                            showDelete={boards.length > 1}
-                            isRenaming={renamingBoardId === board.id}
-                            renameValue={renameValue}
-                            renameWidth={renamingBoardId === board.id ? renameWidth : null}
-                            onSelect={handleSelect}
-                            onStartRename={startRename}
-                            onRenameChange={setRenameValue}
-                            onRenameCommit={commitRename}
-                            onRenameCancel={cancelRename}
-                            onDuplicate={handleDuplicate}
-                            onDelete={handleDelete}
-                        />
-                    ))}
-                    <button
-                        type="button"
-                        className={styles.addTab}
-                        onClick={handleCreate}
-                        title="Новая доска"
-                    >
-                        +
-                    </button>
-                </div>
-            </div>
+            <HiddenScroll
+                ref={scrollRef}
+                direction="horizontal"
+                className={styles.boardTabsScroll}
+                trackClassName={styles.boardTabsTrack}
+            >
+                {boards.map(board => (
+                    <BoardTabGroup
+                        key={board.id}
+                        boardId={board.id}
+                        boardName={board.name}
+                        isActive={board.id === activeBoardId}
+                        showDelete={boards.length > 1}
+                        isRenaming={renamingBoardId === board.id}
+                        renameValue={renameValue}
+                        renameWidth={renamingBoardId === board.id ? renameWidth : null}
+                        onSelect={handleSelect}
+                        onStartRename={startRename}
+                        onRenameChange={setRenameValue}
+                        onRenameCommit={commitRename}
+                        onRenameCancel={cancelRename}
+                        onDuplicate={handleDuplicate}
+                        onDelete={handleDelete}
+                    />
+                ))}
+                <button
+                    type="button"
+                    className={styles.addTab}
+                    onClick={handleCreate}
+                    title="Новая доска"
+                >
+                    +
+                </button>
+            </HiddenScroll>
         </div>
     )
 }

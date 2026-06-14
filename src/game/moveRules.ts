@@ -1,8 +1,14 @@
 import { BoardParameters } from './types/boardParameters'
 import { CellCoord, coordKey, coordsEqual, isCoordInGrid } from './types/coords'
-import { FigureDefinition, FigureId, FigureState } from './types/figures'
+import { FigureDefinition, FigureId, FigurePlacement, FigureState } from './types/figures'
 import { FiguresSlice } from './state/slices'
-import { hasFigureMoveRules, normalizeFigureMoveRules, resolveFigurePlayState } from './figureView'
+import {
+    hasFigureMoveRules,
+    normalizeFigureMoveRules,
+    normalizeFigurePlacement,
+    resolveFigureState,
+    resolvePlacementStateIndex,
+} from './figureView'
 
 export interface MoveDelta {
     di: number
@@ -124,12 +130,27 @@ export function resolveJumpOverPieces(state: Pick<FigureState, 'jumpOverPieces'>
     return state.jumpOverPieces === true
 }
 
+function resolvePlayStateForActor(
+    definition: FigureDefinition,
+    actorPlacement?: FigurePlacement,
+): FigureState {
+    if (!actorPlacement) {
+        return resolveFigureState(definition, 0)
+    }
+
+    return resolveFigureState(
+        definition,
+        resolvePlacementStateIndex(normalizeFigurePlacement(actorPlacement)),
+    )
+}
+
 export function isFigureMoveAllowed(
     from: CellCoord,
     to: CellCoord,
     definition: FigureDefinition,
     figuresByCoord: FiguresSlice['figuresByCoord'],
     boardParameters: BoardParameters,
+    actorPlacement?: FigurePlacement,
 ): boolean {
     if (coordsEqual(from, to)) {
         return false
@@ -141,7 +162,7 @@ export function isFigureMoveAllowed(
         return false
     }
 
-    const playState = resolveFigurePlayState(definition)
+    const playState = resolvePlayStateForActor(definition, actorPlacement)
     const moveRules = normalizeFigureMoveRules(playState.moveRules)
 
     if (moveRules.length === 0) {
@@ -173,9 +194,10 @@ export function getLegalMoveDestinations(
     definition: FigureDefinition,
     figuresByCoord: FiguresSlice['figuresByCoord'],
     boardParameters: BoardParameters,
+    actorPlacement?: FigurePlacement,
 ): CellCoord[] {
     const { n, m } = boardParameters
-    const playState = resolveFigurePlayState(definition)
+    const playState = resolvePlayStateForActor(definition, actorPlacement)
     const moveRules = normalizeFigureMoveRules(playState.moveRules)
     const destinations: CellCoord[] = []
     const seen = new Set<string>()
@@ -191,7 +213,7 @@ export function getLegalMoveDestinations(
             return
         }
 
-        if (!isFigureMoveAllowed(from, coord, definition, figuresByCoord, boardParameters)) {
+        if (!isFigureMoveAllowed(from, coord, definition, figuresByCoord, boardParameters, actorPlacement)) {
             return
         }
 
@@ -257,16 +279,26 @@ export function getLegalMoveDestinationKeys(
     figuresSlice: FiguresSlice,
     boardParameters: BoardParameters,
 ): Set<string> {
-    if (figuresSlice.figuresByCoord[coordKey(from)] !== figureId) {
+    const actorPlacement = figuresSlice.figuresByCoord[coordKey(from)]
+
+    if (!actorPlacement || actorPlacement.figureId !== figureId) {
         return new Set()
     }
 
     return new Set(
-        getLegalMoveDestinations(from, definition, figuresSlice.figuresByCoord, boardParameters)
-            .map(coordKey),
+        getLegalMoveDestinations(
+            from,
+            definition,
+            figuresSlice.figuresByCoord,
+            boardParameters,
+            actorPlacement,
+        ).map(coordKey),
     )
 }
 
-export function isUnrestrictedFigureMovement(definition: FigureDefinition): boolean {
-    return !hasFigureMoveRules(resolveFigurePlayState(definition))
+export function isUnrestrictedFigureMovement(
+    definition: FigureDefinition,
+    actorPlacement?: FigurePlacement,
+): boolean {
+    return !hasFigureMoveRules(resolvePlayStateForActor(definition, actorPlacement))
 }

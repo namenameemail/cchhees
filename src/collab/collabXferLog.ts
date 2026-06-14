@@ -1,4 +1,4 @@
-import { profiler, profileDebug } from '../profiler'
+import { profiler, profileDebug, isProfilerPanelChannel } from '../profiler'
 import { CollabOp } from './ops'
 import { CollabSyncMessage } from './types'
 import { measureJsonBytes } from './dataChannelSend'
@@ -102,8 +102,11 @@ function appendLine(text: string, meta?: Record<string, unknown>): void {
     }
 
     const line = `${CONSOLE_PREFIX}${formatTime()}  ${text}`
-    profiler.appendPanelText('console', line)
-    trimConsoleLines()
+
+    if (isProfilerPanelChannel('collab')) {
+        profiler.appendPanelText('console', line)
+        trimConsoleLines()
+    }
 
     profileDebug('collab.xfer', text.slice(0, 120), meta)
 

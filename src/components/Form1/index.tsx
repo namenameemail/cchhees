@@ -187,8 +187,11 @@ export const inputComponentsByParameterType: {
     },
     [ParameterTypes.NumberInput]: ({ name, value, onChange, props }) => {
         const handleChange = React.useCallback((nextValue: number) => {
-            onChange(name, nextValue)
-        }, [onChange, name])
+            const normalized = props?.step === 1
+                ? Math.trunc(nextValue)
+                : nextValue
+            onChange(name, normalized)
+        }, [onChange, name, props?.step])
 
         const numericValue = typeof value === 'number' && Number.isFinite(value) ? value : 0
 
@@ -198,12 +201,17 @@ export const inputComponentsByParameterType: {
                 onChange={handleChange}
                 min={props?.min}
                 max={props?.max}
+                step={props?.step}
                 direction={props?.direction}
                 pointerLock={props?.pointerLock ?? true}
                 placeholder={props?.placeholder}
                 title={props?.title || props?.placeholder}
                 disabled={props?.disabled}
-                dragClassName={cn(styles.form1field, styles.cursorPointer)}
+                changeOnBlur={props?.changeOnBlur}
+                changeOnEnter={props?.changeOnEnter}
+                resetOnBlur={props?.resetOnBlur}
+                className={props?.className}
+                dragClassName={cn(styles.form1field, styles.cursorPointer, props?.dragClassName)}
             />
         )
     },

@@ -2,30 +2,53 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-height: 0;
 }
 
-.figureToolbar {
+.figureStrip {
     display: flex;
+    align-items: stretch;
     gap: 8px;
+    min-width: 0;
 }
 
-.figureToolbar button {
-    flex: 1;
+.figureStripAside {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    gap: 6px;
+}
+
+.addButton,
+.arrangeButton {
     padding: 8px 12px;
-    font-size: 14px;
+    font-size: 12px;
     cursor: pointer;
     border: 1px solid black;
     background: white;
+    white-space: nowrap;
 }
 
-.figureToolbar button:disabled {
+.addButton:disabled,
+.arrangeButton:disabled {
     opacity: 0.5;
     cursor: default;
 }
 
-.figurePicker {
+.arrangeButtonActive {
+    background: antiquewhite;
+    border-color: #666;
+}
+
+.figureStripScroll {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.figureStripTrack {
     display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 4px;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 2px 4px 0;
 }

@@ -1,5 +1,6 @@
 import { CellCoord, coordKey, isCoordInGrid, parseCoordKey } from '../types/coords'
-import { FigureId } from '../types/figures'
+import { FigurePlacement } from '../types/figures'
+import { cloneFigurePlacement } from '../figureView'
 import { FiguresSlice, BoardSlice } from './slices'
 
 export function getGridLength(n: number, m: number): number {
@@ -25,17 +26,17 @@ export function isGridShrink(
 }
 
 export function pruneFigures(figures: FiguresSlice, n: number, m: number): FiguresSlice {
-    const figuresByCoord: Record<string, FigureId> = {}
+    const figuresByCoord: Record<string, FigurePlacement> = {}
 
-    for (const [key, figure] of Object.entries(figures.figuresByCoord)) {
+    for (const [key, placement] of Object.entries(figures.figuresByCoord)) {
         if (isCoordInGrid(parseCoordKey(key), n, m)) {
-            figuresByCoord[key] = figure
+            figuresByCoord[key] = placement
         }
     }
 
     return {
         figuresByCoord,
-        tray: [...figures.tray],
+        tray: figures.tray.map(cloneFigurePlacement),
     }
 }
 
@@ -55,9 +56,15 @@ export function pruneCellParameters(board: BoardSlice, n: number, m: number): Bo
 }
 
 export function cloneFiguresSlice(figures: FiguresSlice): FiguresSlice {
+    const figuresByCoord: Record<string, FigurePlacement> = {}
+
+    for (const [key, placement] of Object.entries(figures.figuresByCoord)) {
+        figuresByCoord[key] = cloneFigurePlacement(placement)
+    }
+
     return {
-        figuresByCoord: { ...figures.figuresByCoord },
-        tray: [...figures.tray],
+        figuresByCoord,
+        tray: figures.tray.map(cloneFigurePlacement),
     }
 }
 

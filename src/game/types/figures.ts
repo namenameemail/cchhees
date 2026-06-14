@@ -1,6 +1,20 @@
 import { SvgCellSizeParams } from '../cellSvgSize'
+import { FigureEventRule } from './events'
 
 export type FigureId = string
+
+export interface FigurePlacement {
+    instanceId: string
+    figureId: FigureId
+    stateIndex?: number
+}
+
+/** Legacy persisted / collab payload may omit instanceId until normalized */
+export type FigurePlacementInput = FigureId | {
+    instanceId?: string
+    figureId: FigureId
+    stateIndex?: number
+}
 
 export interface FigureViewParams extends SvgCellSizeParams {
     symbol?: string
@@ -34,6 +48,7 @@ export interface FigureState {
 export interface FigureDefinition {
     id: FigureId
     states: FigureState[]
+    eventRules?: FigureEventRule[]
 }
 
 /** @deprecated Migrated to FigureDefinition.states */

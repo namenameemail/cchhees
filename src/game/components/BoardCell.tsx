@@ -107,7 +107,8 @@ export const BoardCell: FC<CellProps> = (props) => {
                 />
                 {cell.figure && (
                     <FigureSVGGroup
-                        figureId={cell.figure}
+                        figureId={cell.figure.figureId}
+                        stateIndex={cell.figure.stateIndex}
                         x={i * cellXDistance + (cellXDistance) / 2}
                         y={j * cellYDistance + (cellYDistance) / 2}
                     />

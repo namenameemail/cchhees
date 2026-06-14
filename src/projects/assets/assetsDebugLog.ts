@@ -1,4 +1,4 @@
-import { profiler, profileDebug } from '../../profiler'
+import { profiler, profileDebug, isProfilerPanelChannel } from '../../profiler'
 
 const MAX_CONSOLE_LINES = 120
 const CONSOLE_PREFIX = '[assets] '
@@ -32,9 +32,10 @@ function append(text: string, meta?: Record<string, unknown>): void {
         fractionalSecondDigits: 3,
     } as Intl.DateTimeFormatOptions)
 
-    profiler.appendPanelText('console', `${CONSOLE_PREFIX}${time}  ${text}`)
-    trimConsoleLines()
-
+    if (isProfilerPanelChannel('assets')) {
+        profiler.appendPanelText('console', `${CONSOLE_PREFIX}${time}  ${text}`)
+        trimConsoleLines()
+    }
     profileDebug('assets', text.slice(0, 120), meta)
 
     if (profiler.isRecording) {

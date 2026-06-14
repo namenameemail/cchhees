@@ -9,3 +9,6 @@ export const moveRuleRepeat = { min: 0 } as const
 
 /** anb pattern offset */
 export const anbOffset = { min: 0 } as const
+
+/** Integer-only (displace dx/dy, grid offsets) */
+export const integerStep = { step: 1 } as const

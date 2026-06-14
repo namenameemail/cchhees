@@ -6,6 +6,7 @@ import { ConnectionSVGGroup } from './ConnectionSVGGroup'
 import { CellSVGGroup } from './CellSVGGroup'
 import { coordKey, iterGridCoords, coordToIndex, indexToCoord } from '../types/coords'
 import { FigureId } from '../types/figures'
+import { FiguresSlice } from '../state/slices'
 import {
     buildStyleRuleDrawPlan,
     findConnectionDataByKey,
@@ -98,15 +99,15 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
         }
 
         const cellIndex = coordToIndex(activeCell, n)
-        const figureId = state.cells[cellIndex]?.figure
+        const placement = state.cells[cellIndex]?.figure
 
-        if (!figureId) {
+        if (!placement) {
             return new Set<string>()
         }
 
-        const definition = resolveFigureDefinition(figureId, figureCatalog ?? state.figureCatalog)
+        const definition = resolveFigureDefinition(placement.figureId, figureCatalog ?? state.figureCatalog)
 
-        const figuresByCoord: Record<string, FigureId> = {}
+        const figuresByCoord: FiguresSlice['figuresByCoord'] = {}
         for (const [index, cell] of state.cells.entries()) {
             if (cell.figure) {
                 figuresByCoord[coordKey(indexToCoord(index, n))] = cell.figure
@@ -119,6 +120,7 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                 definition,
                 figuresByCoord,
                 state.boardParameters,
+                placement,
             ).map(coordKey),
         )
     }, [mode, activeCell, state.cells, state.tray, state.boardParameters, n, figureCatalog, state.figureCatalog])
