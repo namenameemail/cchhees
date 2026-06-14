@@ -4,10 +4,11 @@
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    padding: 2px;
+    padding: 0;
     border: 1px solid #bbb;
     background: white;
-    overflow: hidden;
+    overflow: visible;
+    line-height: 0;
 }
 
 .itemHoldDeleting {
@@ -60,11 +61,12 @@
     cursor: pointer;
     line-height: 0;
     vertical-align: middle;
+    overflow: visible;
 }
 
 .figureButtonActive {
     outline: 2px solid #666;
-    outline-offset: 1px;
+    outline-offset: 2px;
 }
 
 .deleteButton {

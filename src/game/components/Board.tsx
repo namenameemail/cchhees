@@ -17,15 +17,23 @@ import { resolveFigureDefinition } from '../figureView'
 import { getLegalMoveDestinations } from '../moveRules'
 import {
     getBoardBackgroundRect,
+    getAxisNumberingFrameClipRadius,
     resolveBoardAppearance,
+    shouldClipAxisNumberingToFrame,
 } from '../boardAppearance'
 import {
     getBoardContentSize,
     getBoardPixelSize,
     getAxisLabelGutters,
+    isAnyAxisNumberingEnabled,
+    resolveAxisNumberings,
 } from '../boardAxisLabels'
 import { BoardBackgroundLayer, BoardBackgroundPattern } from './BoardBackground'
-import { BoardAxisLabels } from './BoardAxisLabels'
+import {
+    BoardAxisNumberingClipDefs,
+    BoardAxisNumberingFrameLayer,
+    BoardAxisNumberingItemsLayer,
+} from './BoardAxisLabels'
 
 export interface BoardProps {
     className?: string
@@ -38,6 +46,7 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
     const legalMoveGradientId = useId().replace(/:/g, '')
     const boardClipId = useId().replace(/:/g, '')
     const backgroundPatternId = useId().replace(/:/g, '')
+    const numberingClipId = useId().replace(/:/g, '')
 
     const {
         boardParameters,
@@ -143,6 +152,19 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
         )
     }, [mode, activeCell, state.cells, state.tray, state.boardParameters, n, figureCatalog, state.figureCatalog])
 
+    const numberingClipRadius = useMemo(
+        () => getAxisNumberingFrameClipRadius(boardParameters),
+        [boardParameters],
+    )
+    const numberingShouldClip = useMemo(
+        () => shouldClipAxisNumberingToFrame(boardParameters) && numberingClipRadius > 0,
+        [boardParameters, numberingClipRadius],
+    )
+    const hasNumberings = useMemo(
+        () => isAnyAxisNumberingEnabled(resolveAxisNumberings(boardParameters)),
+        [boardParameters],
+    )
+
     return (
         <svg ref={ref} style={boardStyle} className={className}>
             <defs>
@@ -164,13 +186,25 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                     <stop offset="5%" stopColor="#00aa4455" />
                     <stop offset="95%" stopColor="#00aa4400" />
                 </radialGradient>
+                {numberingShouldClip && (
+                    <BoardAxisNumberingClipDefs
+                        boardParameters={boardParameters}
+                        clipId={numberingClipId}
+                    />
+                )}
                 <BoardBackgroundPattern
                     boardParameters={boardParameters}
                     backgroundRect={backgroundRect}
                     patternId={backgroundPatternId}
                 />
             </defs>
-            <BoardAxisLabels boardParameters={boardParameters} />
+            {hasNumberings && (
+                <BoardAxisNumberingFrameLayer
+                    boardParameters={boardParameters}
+                    clipId={numberingClipId}
+                    clipRadius={numberingShouldClip ? numberingClipRadius : 0}
+                />
+            )}
             <g clipPath={boardClipPath} transform={boardTransform}>
             <BoardBackgroundLayer
                 boardParameters={boardParameters}
@@ -242,6 +276,13 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                 )
             })}
             </g>
+            {hasNumberings && (
+                <BoardAxisNumberingItemsLayer
+                    boardParameters={boardParameters}
+                    clipId={numberingClipId}
+                    clipRadius={numberingShouldClip ? numberingClipRadius : 0}
+                />
+            )}
         </svg>
     )
 })

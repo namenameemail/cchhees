@@ -46,6 +46,8 @@ export interface GameContextValue {
     toTray: (coord: CellCoord) => void
 
     setBoardParameters: (value: BoardParameters) => void
+    /** Bumps when a board-parameters edit is rejected (e.g. shrink warning) so forms resync inputs. */
+    boardParametersFormKey: number
     setStyleRules: (value: BoardStyleRule[]) => void
 
     setMode: (value) => void

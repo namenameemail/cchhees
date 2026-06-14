@@ -189,22 +189,34 @@ export function ColorAutocompleteInput({
     }, [handleSelect])
 
     const inputTitle = [title, PICKER_HINT].filter(Boolean).join('. ')
+    const previewColor = draft.trim()
 
     const field = (
         <div className={cn(styles.colorAutocomplete, className)}>
-            <input
-                className="blur-text-input"
-                type="text"
-                value={draft}
-                disabled={disabled}
-                onChange={handleChange}
-                onKeyDown={handleKeyDown}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
-                onDoubleClick={handleDoubleClick}
-                placeholder={placeholder}
-                title={inputTitle}
-            />
+            <div className={styles.inputRow}>
+                <input
+                    className="blur-text-input"
+                    type="text"
+                    value={draft}
+                    disabled={disabled}
+                    onChange={handleChange}
+                    onKeyDown={handleKeyDown}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
+                    onDoubleClick={handleDoubleClick}
+                    placeholder={placeholder}
+                    title={inputTitle}
+                />
+                <span
+                    className={cn(
+                        styles.previewSwatch,
+                        !previewColor && styles.previewSwatchEmpty,
+                    )}
+                    style={previewColor ? { backgroundColor: previewColor } : undefined}
+                    title={previewColor || undefined}
+                    aria-hidden
+                />
+            </div>
             <input
                 ref={pickerRef}
                 type="color"

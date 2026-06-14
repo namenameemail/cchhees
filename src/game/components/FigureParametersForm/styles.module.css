@@ -99,6 +99,17 @@
     justify-content: space-between;
     align-items: flex-start;
     gap: 8px;
+    overflow: visible;
+}
+
+.figureParametersFormLayout svg {
+    background: white;
+    border-bottom: 1px solid lightgrey;
+    border-right: 1px solid lightgrey;
+    border-top: 1px solid grey;
+    border-left: 1px solid grey;
+    flex: 0 0 auto;
+    overflow: visible;
 }
 
 .figureParametersForm {
@@ -121,15 +132,6 @@
 .figureParametersFormByType > * {
     width: 100%;
     box-sizing: border-box;
-}
-
-.figureParametersFormLayout svg {
-    background: white;
-    border-bottom: 1px solid lightgrey;
-    border-right: 1px solid lightgrey;
-    border-top: 1px solid grey;
-    border-left: 1px solid grey;
-    flex: 0 0 auto;
 }
 
 .displayType {

@@ -94,95 +94,69 @@ div.boardParametersForm {
     width: 100%;
 }
 
-.axisLabelsForm {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+.axisNumberingsForm {
     padding: 6px;
-    max-width: 320px;
+    max-width: 100%;
 }
 
-.axisSideBlock {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid #eee;
+.axisNumberingFrameSection {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #ddd;
 }
 
-.axisSideBlock:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-}
-
-.axisSideRow {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 8px;
-    align-items: center;
-}
-
-.axisSideEnable {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+.axisNumberingFrameTitle {
     font-size: 12px;
-    cursor: pointer;
+    font-weight: 600;
+    padding: 0 6px 4px;
 }
 
-.axisSideEnable input {
-    margin: 0;
+.axisNumberingFrameForm {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: row;
+    width: 100%;
+    max-width: 320px;
+    padding: 4px 6px;
+    box-sizing: border-box;
 }
 
-.axisSideFormat,
+.axisNumberingFrameForm > * {
+    width: 50%;
+    box-sizing: border-box;
+}
+
+.axisNumberingFrameForm > .fullWidth {
+    width: 100%;
+    flex: 0 0 100%;
+}
+
+.axisNumberingItemForm {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: row;
+    width: 100%;
+    max-width: 320px;
+    padding: 4px 6px;
+    box-sizing: border-box;
+}
+
+.axisNumberingItemForm > * {
+    width: 50%;
+    box-sizing: border-box;
+}
+
+.axisNumberingItemForm > .fullWidth {
+    width: 100%;
+    flex: 0 0 100%;
+}
+
 .axisSideSelect {
     min-width: 6.5rem;
     font-size: 12px;
     padding: 2px 4px;
 }
 
-.axisSideFormat:disabled,
 .axisSideSelect:disabled {
     opacity: 0.5;
-}
-
-.axisSideFontForm {
-    display: flex;
-    flex-wrap: wrap;
-    flex-direction: row;
-    width: 100%;
-    padding-left: 20px;
-    box-sizing: border-box;
-}
-
-.axisSideFontForm > * {
-    width: 50%;
-    box-sizing: border-box;
-}
-
-.axisSideFontForm > .fullWidth {
-    width: 100%;
-    flex: 0 0 100%;
-}
-
-.axisSideBlockSettings {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding-left: 20px;
-    padding-top: 4px;
-    border-top: 1px dashed #ddd;
-}
-
-.axisSpanRefRow {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    cursor: pointer;
-    padding-bottom: 4px;
-}
-
-.axisSpanRefRow input {
-    margin: 0;
 }

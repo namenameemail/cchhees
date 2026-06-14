@@ -123,7 +123,6 @@ export const inputComponentsByParameterType: {
 } = {
     [ParameterTypes.Array]: ({ name, value, onChange, props }) => {
         const handleChange = React.useCallback((newValue) => {
-            console.log(3, name, newValue)
             onChange(name, newValue)
         }, [onChange, name])
         return (
@@ -155,9 +154,9 @@ export const inputComponentsByParameterType: {
         }, [onChange, name])
         return (
             <BlurEnterTextInput
-                changeOnEnter
-                changeOnBlur
-                resetOnBlur
+                changeOnBlur={props?.changeOnBlur ?? true}
+                changeOnEnter={props?.changeOnEnter ?? true}
+                resetOnBlur={props?.resetOnBlur ?? false}
                 value={value}
                 onChange={handleChange}
                 title={props.placeholder}
@@ -207,9 +206,10 @@ export const inputComponentsByParameterType: {
                 placeholder={props?.placeholder}
                 title={props?.title || props?.placeholder}
                 disabled={props?.disabled}
-                changeOnBlur={props?.changeOnBlur}
-                changeOnEnter={props?.changeOnEnter}
-                resetOnBlur={props?.resetOnBlur}
+                changeOnBlur={props?.changeOnBlur ?? true}
+                changeOnChange={props?.changeOnChange ?? true}
+                changeOnEnter={props?.changeOnEnter ?? true}
+                resetOnBlur={props?.resetOnBlur ?? false}
                 className={props?.className}
                 dragClassName={cn(styles.form1field, styles.cursorPointer, props?.dragClassName)}
             />

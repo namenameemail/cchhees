@@ -1,18 +1,11 @@
 import React, { FC } from 'react'
-import styles from './styles.module.css'
-import { useGameContext } from '../../context'
-import { Form1, ParameterInputComponentProps } from '../../../components/Form1'
-import {
-    BoardBackgroundImageFit,
-    BoardParameters,
-} from '../../types/boardParameters'
+import { ParameterInputComponentProps } from '../../../components/Form1'
 import { ParameterTypes } from '../../../components/Form1/types'
 import { atLeastOne, nonNegative } from '../../../components/Form1/numberInputConstraints'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
-
-export interface BoardParametersFormProps {
-
-}
+import { BoardBackgroundImageFit, BoardAxisNumberingFrameSettings, BoardSurfaceAppearance } from '../../types/boardParameters'
+import { Form1FieldConfig } from '../../../components/Form1/types'
+import styles from './styles.module.css'
 
 const BackgroundAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
     const hasAsset = typeof value === 'number'
@@ -42,36 +35,13 @@ const BackgroundAssetSelectField: FC<ParameterInputComponentProps> = ({ name, va
     )
 }
 
-const parametersConfig = (value: BoardParameters) => {
+export function createSurfaceAppearanceFormConfig(
+    value: BoardSurfaceAppearance,
+): Form1FieldConfig<BoardSurfaceAppearance>[] {
     const hasBackgroundImage = value.backgroundAssetId != null
     const imageFit = value.backgroundImageFit ?? BoardBackgroundImageFit.tile
 
     return [
-        {
-            name: 'n',
-            type: ParameterTypes.NumberInput,
-            props: { placeholder: 'n', ...atLeastOne },
-        },
-        {
-            name: 'm',
-            type: ParameterTypes.NumberInput,
-            props: { placeholder: 'm', ...atLeastOne },
-        },
-        {
-            name: 'cellXDistance',
-            type: ParameterTypes.NumberInput,
-            props: { placeholder: 'cellXDistance', ...atLeastOne },
-        },
-        {
-            name: 'cellYDistance',
-            type: ParameterTypes.NumberInput,
-            props: { placeholder: 'cellYDistance', ...atLeastOne },
-        },
-        {
-            name: 'showAxisLabels',
-            type: ParameterTypes.Checkbox,
-            props: { text: 'нумерация строк и столбцов' },
-        },
         {
             name: 'background',
             type: ParameterTypes.ColorInput,
@@ -138,20 +108,36 @@ const parametersConfig = (value: BoardParameters) => {
     ]
 }
 
-export const BoardParametersForm: React.FC<BoardParametersFormProps> = () => {
-    const {
-        state,
-        setBoardParameters,
-        boardParametersFormKey,
-    } = useGameContext()
+const ClipNumberingSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange, props }) => {
+    const checked = value === true
 
     return (
-        <Form1<BoardParameters>
-            key={boardParametersFormKey}
-            className={styles.boardParametersForm}
-            value={state.boardParameters}
-            config={parametersConfig}
-            onChange={setBoardParameters}
-        />
+        <div className={props?.className}>
+            <select
+                className={styles.axisSideSelect}
+                value={checked ? 'clip' : 'none'}
+                title="обрезка по скруглению"
+                onChange={event => onChange(name, event.target.value === 'clip')}
+            >
+                <option value="none">не обрезать</option>
+                <option value="clip">обрезать по скруглению</option>
+            </select>
+        </div>
     )
+}
+
+export function createAxisNumberingFrameFormConfig(
+    value: BoardAxisNumberingFrameSettings,
+): Form1FieldConfig<BoardAxisNumberingFrameSettings>[] {
+    const hasBorderRadius = (value.borderRadius ?? 0) > 0
+
+    return [
+        ...createSurfaceAppearanceFormConfig(value),
+        {
+            name: 'clipNumberingToBorderRadius',
+            Component: ClipNumberingSelectField,
+            visibility: () => hasBorderRadius,
+            props: { className: styles.fullWidth },
+        },
+    ]
 }

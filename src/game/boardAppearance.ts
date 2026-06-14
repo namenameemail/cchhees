@@ -4,6 +4,11 @@ import {
 } from './types/boardParameters'
 import { BoardParameters } from './types/boardParameters'
 import { resolveColorValue, resolveColorValueOrDefault } from './resolveColorValue'
+import {
+    getAxisLabelGutters,
+    isAnyAxisNumberingEnabled,
+    resolveAxisNumberings,
+} from './boardAxisLabels'
 
 export interface BoardAppearance {
     background: string
@@ -28,26 +33,133 @@ export const DEFAULT_BOARD_APPEARANCE: BoardAppearance = {
     borderColor: 'black',
 }
 
-export function resolveBoardAppearance(parameters: BoardParameters): BoardAppearance {
-    return {
-        background: resolveColorValueOrDefault(
-            parameters.background,
-            DEFAULT_BOARD_APPEARANCE.background,
-        ),
-        backgroundAssetId: parameters.backgroundAssetId ?? DEFAULT_BOARD_APPEARANCE.backgroundAssetId,
-        backgroundImageFit: parameters.backgroundImageFit ?? DEFAULT_BOARD_APPEARANCE.backgroundImageFit,
-        backgroundRepeatWidth: parameters.backgroundRepeatWidth,
-        backgroundRepeatHeight: parameters.backgroundRepeatHeight,
-        backgroundRepeatOffsetX: parameters.backgroundRepeatOffsetX,
-        backgroundRepeatOffsetY: parameters.backgroundRepeatOffsetY,
-        borderRadius: parameters.borderRadius ?? DEFAULT_BOARD_APPEARANCE.borderRadius,
-        borderWidth: parameters.borderWidth ?? DEFAULT_BOARD_APPEARANCE.borderWidth,
-        borderColor: resolveColorValueOrDefault(
-            parameters.borderColor,
-            DEFAULT_BOARD_APPEARANCE.borderColor,
-        ),
-        borderDasharray: parameters.borderDasharray,
+export const DEFAULT_AXIS_NUMBERING_FRAME_APPEARANCE: BoardAppearance = {
+    background: 'transparent',
+    backgroundAssetId: null,
+    backgroundImageFit: BoardBackgroundImageFit.tile,
+    borderRadius: 0,
+    borderWidth: 0,
+    borderColor: 'black',
+}
+
+export function hasSurfaceAppearance(settings: {
+    background?: string
+    backgroundAssetId?: number | null
+    borderWidth?: number
+} | undefined): boolean {
+    if (!settings) {
+        return false
     }
+
+    if (settings.backgroundAssetId != null) {
+        return true
+    }
+
+    if (settings.background?.trim()) {
+        return true
+    }
+
+    return (settings.borderWidth ?? 0) > 0
+}
+
+export function resolveSurfaceAppearance(
+    partial: {
+        background?: string
+        backgroundAssetId?: number | null
+        backgroundImageFit?: BoardBackgroundImageFit
+        backgroundRepeatWidth?: number
+        backgroundRepeatHeight?: number
+        backgroundRepeatOffsetX?: number
+        backgroundRepeatOffsetY?: number
+        borderRadius?: number
+        borderWidth?: number
+        borderColor?: string
+        borderDasharray?: string
+    } | undefined,
+    defaults: BoardAppearance,
+): BoardAppearance {
+    return {
+        background: resolveColorValueOrDefault(partial?.background, defaults.background),
+        backgroundAssetId: partial?.backgroundAssetId ?? defaults.backgroundAssetId,
+        backgroundImageFit: partial?.backgroundImageFit ?? defaults.backgroundImageFit,
+        backgroundRepeatWidth: partial?.backgroundRepeatWidth,
+        backgroundRepeatHeight: partial?.backgroundRepeatHeight,
+        backgroundRepeatOffsetX: partial?.backgroundRepeatOffsetX,
+        backgroundRepeatOffsetY: partial?.backgroundRepeatOffsetY,
+        borderRadius: partial?.borderRadius ?? defaults.borderRadius,
+        borderWidth: partial?.borderWidth ?? defaults.borderWidth,
+        borderColor: resolveColorValueOrDefault(partial?.borderColor, defaults.borderColor),
+        borderDasharray: partial?.borderDasharray,
+    }
+}
+
+export function resolveBoardAppearance(parameters: BoardParameters): BoardAppearance {
+    return resolveSurfaceAppearance(parameters, DEFAULT_BOARD_APPEARANCE)
+}
+
+export function resolveAxisNumberingFrameAppearance(parameters: BoardParameters): BoardAppearance {
+    return resolveSurfaceAppearance(
+        parameters.axisNumberingFrame,
+        DEFAULT_AXIS_NUMBERING_FRAME_APPEARANCE,
+    )
+}
+
+export function shouldClipAxisNumberingToFrame(parameters: BoardParameters): boolean {
+    return Boolean(parameters.axisNumberingFrame?.clipNumberingToBorderRadius)
+}
+
+export function getAxisNumberingFrameClipRadius(parameters: BoardParameters): number {
+    if (!shouldClipAxisNumberingToFrame(parameters)) {
+        return 0
+    }
+
+    const radius = resolveAxisNumberingFrameAppearance(parameters).borderRadius
+
+    return radius > 0 ? radius : 0
+}
+
+function hasExportSeparateNumberingZone(parameters: BoardParameters): boolean {
+    if (parameters.axisNumberingFrame != null && hasSurfaceAppearance(parameters.axisNumberingFrame)) {
+        return true
+    }
+
+    if (!isAnyAxisNumberingEnabled(resolveAxisNumberings(parameters))) {
+        return false
+    }
+
+    const gutters = getAxisLabelGutters(parameters)
+
+    return gutters.top > 0
+        || gutters.bottom > 0
+        || gutters.left > 0
+        || gutters.right > 0
+}
+
+/** Скругление canvas при экспорте: только при включённой обрезке нумерации, иначе — доски. */
+export function resolveBoardExportBorderRadius(parameters: BoardParameters): number {
+    if (parameters.axisNumberingFrame != null) {
+        return getAxisNumberingFrameClipRadius(parameters)
+    }
+
+    return resolveBoardAppearance(parameters).borderRadius
+}
+
+export function resolveExportCanvasBackground(
+    parameters: BoardParameters,
+    mimeType: 'image/png' | 'image/jpeg',
+): string {
+    const exportClipRadius = resolveBoardExportBorderRadius(parameters)
+    const boardBackground = resolveBoardAppearance(parameters).background
+
+    if (mimeType === 'image/jpeg') {
+        return exportClipRadius > 0 ? '#ffffff' : boardBackground
+    }
+
+    if (exportClipRadius > 0 || hasExportSeparateNumberingZone(parameters)) {
+        return 'transparent'
+    }
+
+    return boardBackground !== 'transparent' ? boardBackground : 'transparent'
 }
 
 export function getBoardBackgroundRect(

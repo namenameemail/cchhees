@@ -1,4 +1,4 @@
-import React, { FC, useCallback, useMemo } from 'react'
+import React, { FC, useCallback } from 'react'
 import { useGameContext } from '../context'
 import styles from '../styles.module.css'
 import { FigureSVG } from './FigureSVG'
@@ -18,10 +18,8 @@ export const Tray: FC = () => {
         tray,
     } = state
 
-    const figureSize = useMemo(
-        () => Math.round(Math.min(cellXDistance, cellYDistance) * 1.15),
-        [cellXDistance, cellYDistance],
-    )
+    const figureWidth = cellXDistance
+    const figureHeight = cellYDistance
 
     return (
         <div className={styles.trayRoot}>
@@ -36,14 +34,15 @@ export const Tray: FC = () => {
                         key={`tray-item-${index}`}
                         className={styles.trayFigure}
                         style={{
-                            width: figureSize + 8,
-                            height: figureSize + 8,
+                            width: figureWidth + 8,
+                            height: figureHeight + 8,
                         }}
                     >
                         <FigureSVG
                             figureId={item.figureId}
                             stateIndex={item.stateIndex}
-                            size={figureSize}
+                            width={figureWidth}
+                            height={figureHeight}
                         />
                     </span>
                 ))}

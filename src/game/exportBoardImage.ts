@@ -1,3 +1,7 @@
+import { getFontFormat } from '../projects/assets/assetKinds'
+import { getFontFamilyName } from '../projects/assets/useFontAssetFamily'
+import { exportDebugLog } from './exportDebugLog'
+
 async function blobUrlToDataUrl(url: string): Promise<string> {
     const response = await fetch(url)
     const blob = await response.blob()
@@ -9,9 +13,6 @@ async function blobUrlToDataUrl(url: string): Promise<string> {
         reader.readAsDataURL(blob)
     })
 }
-
-import { getFontFormat } from '../projects/assets/assetKinds'
-import { getFontFamilyName } from '../projects/assets/useFontAssetFamily'
 
 const FONT_FAMILY_STYLE_RE = /font-family:\s*([^;]+)/i
 const FONT_FACE_URL_RE = /src:\s*url\(['"]?([^'")]+)['"]?\)\s*format\(['"]([^'"]+)['"]\)/
@@ -142,7 +143,8 @@ function getSvgExportSize(svg: SVGSVGElement): { width: number; height: number }
 }
 
 function getBoardBorderRadiusFromSvg(svg: SVGSVGElement): number {
-    const clipRect = svg.querySelector('defs clipPath rect[rx]')
+    const outerClipRect = svg.querySelector('defs clipPath[data-export-clip="outer"] rect[rx]')
+    const clipRect = outerClipRect ?? svg.querySelector('defs clipPath rect[rx]')
     const rx = clipRect?.getAttribute('rx')
 
     if (!rx) {
@@ -153,28 +155,35 @@ function getBoardBorderRadiusFromSvg(svg: SVGSVGElement): number {
     return Number.isFinite(value) && value > 0 ? value : 0
 }
 
-function shouldFillCanvasBackground(
-    borderRadius: number,
-    mimeType: 'image/png' | 'image/jpeg',
-    background: string,
-): boolean {
-    if (borderRadius > 0) {
-        return mimeType === 'image/jpeg'
-    }
+function summarizeSvgForExportDebug(svg: SVGSVGElement): Record<string, unknown> {
+    const clipPaths = [...svg.querySelectorAll('defs clipPath rect[rx]')].map(rect => ({
+        exportClip: rect.parentElement?.getAttribute('data-export-clip') ?? null,
+        width: rect.getAttribute('width'),
+        height: rect.getAttribute('height'),
+        rx: rect.getAttribute('rx'),
+    }))
 
-    return background !== 'transparent'
+    const topRects = [...svg.querySelectorAll(':scope > rect, :scope > g > rect')]
+        .slice(0, 6)
+        .map(rect => ({
+            fill: rect.getAttribute('fill'),
+            x: rect.getAttribute('x'),
+            y: rect.getAttribute('y'),
+            width: rect.getAttribute('width'),
+            height: rect.getAttribute('height'),
+        }))
+
+    return {
+        clipPaths,
+        topRectCount: topRects.length,
+        topRects,
+        svgWidth: svg.getAttribute('width'),
+        svgHeight: svg.getAttribute('height'),
+    }
 }
 
-function resolveCanvasBackground(
-    borderRadius: number,
-    mimeType: 'image/png' | 'image/jpeg',
-    background: string,
-): string {
-    if (borderRadius > 0 && mimeType === 'image/jpeg') {
-        return '#ffffff'
-    }
-
-    return background
+function shouldFillCanvasBackground(background: string): boolean {
+    return background !== 'transparent'
 }
 
 export interface ExportBoardImageOptions {
@@ -256,12 +265,25 @@ export async function renderBoardImageDataUrl(
     } = options
     const { width, height } = getSvgExportSize(svg)
 
+    exportDebugLog.start({ mimeType, scale, maxWidth, width, height })
+
     const clone = svg.cloneNode(true) as SVGSVGElement
 
     clone.querySelectorAll('[data-board-handler]').forEach(element => element.remove())
     clone.querySelectorAll('radialGradient').forEach(element => element.remove())
 
     const borderRadius = options.borderRadius ?? getBoardBorderRadiusFromSvg(clone)
+    const shouldFill = shouldFillCanvasBackground(background)
+
+    exportDebugLog.params({
+        resolvedBorderRadius: borderRadius,
+        canvasBackground: background,
+        shouldFill,
+        borderRadiusFromOptions: options.borderRadius ?? null,
+        borderRadiusFromSvg: options.borderRadius == null ? getBoardBorderRadiusFromSvg(clone) : null,
+    })
+
+    exportDebugLog.svgSummary(summarizeSvgForExportDebug(clone))
 
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
     clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
@@ -300,8 +322,8 @@ export async function renderBoardImageDataUrl(
 
         context.clearRect(0, 0, canvas.width, canvas.height)
 
-        if (shouldFillCanvasBackground(borderRadius, mimeType, background)) {
-            context.fillStyle = resolveCanvasBackground(borderRadius, mimeType, background)
+        if (shouldFill) {
+            context.fillStyle = background
             context.fillRect(0, 0, canvas.width, canvas.height)
         }
 
@@ -316,9 +338,16 @@ export async function renderBoardImageDataUrl(
 
         context.drawImage(image, 0, 0, canvas.width, canvas.height)
 
-        return mimeType === 'image/jpeg'
+        const dataUrl = mimeType === 'image/jpeg'
             ? canvas.toDataURL('image/jpeg', quality)
             : canvas.toDataURL('image/png')
+
+        exportDebugLog.done({ canvasWidth, canvasHeight, drawScale })
+
+        return dataUrl
+    } catch (error) {
+        exportDebugLog.error(error instanceof Error ? error.message : String(error))
+        throw error
     } finally {
         URL.revokeObjectURL(objectUrl)
     }

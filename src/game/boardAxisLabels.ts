@@ -3,7 +3,12 @@ import {
     AxisLabelFormat,
     AxisLabelGutterAlign,
     AxisLabelSide,
+    AxisNumberingEdge,
+    AxisNumberingFormat,
+    AxisNumberingOrder,
+    AxisNumberingOrientation,
     BoardAxisLabelsSettings,
+    BoardAxisNumbering,
     BoardAxisSideSettings,
     BoardParameters,
 } from './types/boardParameters'
@@ -29,30 +34,10 @@ export interface AxisSideBlockRect {
     height: number
 }
 
-export interface AxisSideSpanReference {
-    size: number
-    origin: number
-}
-
-export interface AxisSideBlockRange {
-    startCellIndex: number
+export interface AxisNumberingCellRange {
+    startIndex: number
+    endIndex: number
     cellCount: number
-    startOffset: number
-    availableSize: number
-    spanSize: number
-}
-
-function isHorizontalAxisSide(side: AxisLabelSide): boolean {
-    return side === 'top' || side === 'bottom'
-}
-
-function clampStartCellIndex(blockStartCell: number | undefined, maxCells: number): number {
-    if (maxCells <= 0) {
-        return 0
-    }
-
-    const requested = Math.floor(blockStartCell ?? 1)
-    return Math.min(Math.max(requested - 1, 0), maxCells - 1)
 }
 
 const ROMAN_NUMERALS: ReadonlyArray<readonly [string, number]> = [
@@ -71,6 +56,239 @@ const ROMAN_NUMERALS: ReadonlyArray<readonly [string, number]> = [
     ['I', 1],
 ]
 
+const DEFAULT_NUMBERING_STYLE = {
+    fontSize: 12,
+    color: '#444444',
+    fontAssetId: null as number | null,
+    offsetX: 0,
+    offsetY: 0,
+    align: 'center' as AxisLabelAlign,
+    gutterAlign: 'center' as AxisLabelGutterAlign,
+    skipCellsStart: 0,
+    skipCellsEnd: 0,
+    numberOffset: 0,
+    edgeInsetCells: 0,
+}
+
+export function createDefaultAxisNumbering(): BoardAxisNumbering {
+    return {
+        orientation: 'horizontal',
+        edge: 'top',
+        order: 'forward',
+        format: 'letter',
+        ...DEFAULT_NUMBERING_STYLE,
+    }
+}
+
+function isAxisLabelAlign(value: unknown): value is AxisLabelAlign {
+    return value === 'start' || value === 'center' || value === 'end'
+}
+
+function isAxisLabelGutterAlign(value: unknown): value is AxisLabelGutterAlign {
+    return value === 'inner' || value === 'center' || value === 'outer'
+}
+
+function isAxisNumberingOrientation(value: unknown): value is AxisNumberingOrientation {
+    return value === 'horizontal' || value === 'vertical'
+}
+
+function isAxisNumberingOrder(value: unknown): value is AxisNumberingOrder {
+    return value === 'forward' || value === 'reverse'
+}
+
+function isAxisNumberingFormat(value: unknown): value is AxisNumberingFormat {
+    return value === 'digit' || value === 'letter' || value === 'roman'
+}
+
+function normalizeEdgeForOrientation(
+    orientation: AxisNumberingOrientation,
+    edge: AxisNumberingEdge | undefined,
+): AxisNumberingEdge {
+    if (orientation === 'horizontal') {
+        return edge === 'bottom' ? 'bottom' : 'top'
+    }
+
+    return edge === 'right' ? 'right' : 'left'
+}
+
+export function normalizeAxisNumbering(item: BoardAxisNumbering | undefined): BoardAxisNumbering {
+    const fallback = createDefaultAxisNumbering()
+    const orientation = isAxisNumberingOrientation(item?.orientation)
+        ? item.orientation
+        : fallback.orientation
+
+    return {
+        orientation,
+        edge: normalizeEdgeForOrientation(orientation, item?.edge),
+        order: isAxisNumberingOrder(item?.order) ? item.order : fallback.order,
+        format: isAxisNumberingFormat(item?.format) ? item.format : fallback.format,
+        skipCellsStart: typeof item?.skipCellsStart === 'number' && item.skipCellsStart >= 0
+            ? Math.floor(item.skipCellsStart)
+            : fallback.skipCellsStart,
+        skipCellsEnd: typeof item?.skipCellsEnd === 'number' && item.skipCellsEnd >= 0
+            ? Math.floor(item.skipCellsEnd)
+            : fallback.skipCellsEnd,
+        numberOffset: typeof item?.numberOffset === 'number' ? item.numberOffset : fallback.numberOffset,
+        edgeInsetCells: typeof item?.edgeInsetCells === 'number' && item.edgeInsetCells >= 0
+            ? Math.floor(item.edgeInsetCells)
+            : fallback.edgeInsetCells,
+        fontSize: typeof item?.fontSize === 'number' && item.fontSize > 0
+            ? item.fontSize
+            : fallback.fontSize,
+        color: item?.color?.trim() || fallback.color,
+        fontAssetId: typeof item?.fontAssetId === 'number' ? item.fontAssetId : null,
+        offsetX: typeof item?.offsetX === 'number' ? item.offsetX : fallback.offsetX,
+        offsetY: typeof item?.offsetY === 'number' ? item.offsetY : fallback.offsetY,
+        align: isAxisLabelAlign(item?.align) ? item.align : fallback.align,
+        gutterAlign: isAxisLabelGutterAlign(item?.gutterAlign)
+            ? item.gutterAlign
+            : fallback.gutterAlign,
+        stripSize: typeof item?.stripSize === 'number' && item.stripSize > 0
+            ? item.stripSize
+            : undefined,
+        background: item?.background?.trim() || undefined,
+        backgroundAssetId: typeof item?.backgroundAssetId === 'number'
+            ? item.backgroundAssetId
+            : null,
+    }
+}
+
+export function isHorizontalNumbering(item: BoardAxisNumbering): boolean {
+    return item.orientation === 'horizontal'
+}
+
+export function getAxisNumberingAxisLength(
+    item: BoardAxisNumbering,
+    n: number,
+    m: number,
+): number {
+    return isHorizontalNumbering(item) ? n : m
+}
+
+/** Max skip leaving at least one cell when the opposite skip is fixed. */
+export function getAxisNumberingMaxSkip(
+    item: BoardAxisNumbering,
+    oppositeSkip: number,
+    n: number,
+    m: number,
+): number {
+    const axisLength = getAxisNumberingAxisLength(item, n, m)
+
+    if (axisLength <= 0) {
+        return 0
+    }
+
+    const opposite = Math.max(0, Math.floor(oppositeSkip))
+
+    return Math.max(0, axisLength - 1 - opposite)
+}
+
+export function clampAxisNumberingSkips(
+    item: BoardAxisNumbering,
+    n: number,
+    m: number,
+): BoardAxisNumbering {
+    const axisLength = getAxisNumberingAxisLength(item, n, m)
+
+    if (axisLength <= 0) {
+        return { ...item, skipCellsStart: 0, skipCellsEnd: 0 }
+    }
+
+    let skipStart = Math.max(0, Math.floor(item.skipCellsStart))
+    let skipEnd = Math.max(0, Math.floor(item.skipCellsEnd))
+    const maxSum = axisLength - 1
+
+    skipStart = Math.min(skipStart, maxSum)
+    skipEnd = Math.min(skipEnd, maxSum)
+
+    if (skipStart + skipEnd > maxSum) {
+        skipEnd = Math.min(skipEnd, maxSum - skipStart)
+        skipStart = Math.min(skipStart, maxSum - skipEnd)
+    }
+
+    return { ...item, skipCellsStart: skipStart, skipCellsEnd: skipEnd }
+}
+
+export function getAxisNumberingMaxEdgeInset(
+    item: BoardAxisNumbering,
+    n: number,
+    m: number,
+): number {
+    return isHorizontalNumbering(item) ? m : n
+}
+
+export function getAxisNumberingEdgeInsetCells(item: BoardAxisNumbering): number {
+    return Math.max(0, Math.floor(item.edgeInsetCells ?? 0))
+}
+
+/** Линия привязки полосы к границе row/col N (внутренняя грань полосы). */
+export function getAxisNumberingStripAnchorLine(
+    item: BoardAxisNumbering,
+    parameters: BoardParameters,
+    gutters: AxisGutters,
+): number {
+    const inset = getAxisNumberingEdgeInsetCells(item)
+    const { n, m, cellXDistance, cellYDistance } = parameters
+
+    switch (item.edge) {
+        case 'top':
+            return gutters.top + inset * cellYDistance
+        case 'bottom':
+            return gutters.top + (m - inset) * cellYDistance
+        case 'left':
+            return gutters.left + inset * cellXDistance
+        case 'right':
+            return gutters.left + (n - inset) * cellXDistance
+    }
+}
+
+export function getAxisNumberingStripOrigin(
+    item: BoardAxisNumbering,
+    parameters: BoardParameters,
+    gutters: AxisGutters,
+    stripThickness: number,
+): { x: number; y: number } {
+    const anchor = getAxisNumberingStripAnchorLine(item, parameters, gutters)
+
+    switch (item.edge) {
+        case 'top':
+            return { x: 0, y: anchor - stripThickness }
+        case 'bottom':
+            return { x: 0, y: anchor }
+        case 'left':
+            return { x: anchor - stripThickness, y: 0 }
+        case 'right':
+            return { x: anchor, y: 0 }
+    }
+}
+
+export function hasAxisNumberingBoardOverlap(numberings: BoardAxisNumbering[]): boolean {
+    return numberings.some(item => getAxisNumberingEdgeInsetCells(item) > 0)
+}
+
+export function clampAxisNumberingEdgeInset(
+    item: BoardAxisNumbering,
+    n: number,
+    m: number,
+): BoardAxisNumbering {
+    const maxInset = getAxisNumberingMaxEdgeInset(item, n, m)
+    const inset = Math.min(getAxisNumberingEdgeInsetCells(item), maxInset)
+
+    return { ...item, edgeInsetCells: inset }
+}
+
+export function normalizeAxisNumberingForBoard(
+    item: BoardAxisNumbering | undefined,
+    n: number,
+    m: number,
+): BoardAxisNumbering {
+    return clampAxisNumberingEdgeInset(
+        clampAxisNumberingSkips(normalizeAxisNumbering(item), n, m),
+        n,
+        m,
+    )
+}
+
 const DEFAULT_SIDE_FONT = {
     fontSize: 12,
     color: '#444444',
@@ -83,15 +301,8 @@ const DEFAULT_SIDE_FONT = {
     blockStartCell: 1,
 }
 
-function createDefaultSide(
-    format: AxisLabelFormat,
-    enabled = false,
-): BoardAxisSideSettings {
-    return {
-        enabled,
-        format,
-        ...DEFAULT_SIDE_FONT,
-    }
+function createDefaultSide(format: AxisLabelFormat, enabled = false): BoardAxisSideSettings {
+    return { enabled, format, ...DEFAULT_SIDE_FONT }
 }
 
 export const DEFAULT_AXIS_LABELS: BoardAxisLabelsSettings = {
@@ -107,14 +318,6 @@ interface LegacyAxisFontSettings {
     fontAssetId?: number | null
 }
 
-function isAxisLabelAlign(value: unknown): value is AxisLabelAlign {
-    return value === 'start' || value === 'center' || value === 'end'
-}
-
-function isAxisLabelGutterAlign(value: unknown): value is AxisLabelGutterAlign {
-    return value === 'inner' || value === 'center' || value === 'outer'
-}
-
 function normalizeSide(
     side: BoardAxisSideSettings | undefined,
     fallback: BoardAxisSideSettings,
@@ -128,9 +331,7 @@ function normalizeSide(
         format: format === 'digit' || format === 'letter' || format === 'roman'
             ? format
             : fallback.format,
-        fontSize: typeof fontSize === 'number' && fontSize > 0
-            ? fontSize
-            : fallback.fontSize,
+        fontSize: typeof fontSize === 'number' && fontSize > 0 ? fontSize : fallback.fontSize,
         color: side?.color?.trim() || legacyFont?.color?.trim() || fallback.color,
         fontAssetId: typeof side?.fontAssetId === 'number'
             ? side.fontAssetId
@@ -143,12 +344,8 @@ function normalizeSide(
         gutterAlign: isAxisLabelGutterAlign(side?.gutterAlign)
             ? side.gutterAlign
             : fallback.gutterAlign,
-        blockWidth: typeof side?.blockWidth === 'number' && side.blockWidth > 0
-            ? side.blockWidth
-            : undefined,
-        blockHeight: typeof side?.blockHeight === 'number' && side.blockHeight > 0
-            ? side.blockHeight
-            : undefined,
+        blockWidth: typeof side?.blockWidth === 'number' && side.blockWidth > 0 ? side.blockWidth : undefined,
+        blockHeight: typeof side?.blockHeight === 'number' && side.blockHeight > 0 ? side.blockHeight : undefined,
         blockSpanPercent: typeof side?.blockSpanPercent === 'number' && side.blockSpanPercent > 0
             ? side.blockSpanPercent
             : undefined,
@@ -157,13 +354,11 @@ function normalizeSide(
             ? Math.floor(side.blockStartCell)
             : fallback.blockStartCell ?? 1,
         background: side?.background?.trim() || undefined,
-        backgroundAssetId: typeof side?.backgroundAssetId === 'number'
-            ? side.backgroundAssetId
-            : null,
+        backgroundAssetId: typeof side?.backgroundAssetId === 'number' ? side.backgroundAssetId : null,
     }
 }
 
-export function normalizeAxisLabelsSettings(
+function normalizeAxisLabelsSettings(
     axisLabels?: BoardAxisLabelsSettings,
     legacyShowAxisLabels?: boolean,
 ): BoardAxisLabelsSettings {
@@ -197,15 +392,80 @@ export function normalizeAxisLabelsSettings(
     return base
 }
 
+function legacySideToNumbering(
+    side: AxisLabelSide,
+    settings: BoardAxisSideSettings,
+    n: number,
+    m: number,
+): BoardAxisNumbering | null {
+    if (!settings.enabled) {
+        return null
+    }
+
+    const horizontal = side === 'top' || side === 'bottom'
+    const maxCells = horizontal ? n : m
+    const skipStart = Math.max(0, (settings.blockStartCell ?? 1) - 1)
+    let skipEnd = 0
+
+    if (
+        typeof settings.blockSpanPercent === 'number'
+        && settings.blockSpanPercent > 0
+        && settings.blockSpanPercent < 100
+        && maxCells > skipStart
+    ) {
+        const rangeCells = maxCells - skipStart
+        const covered = Math.round(rangeCells * settings.blockSpanPercent / 100)
+        skipEnd = Math.max(0, maxCells - skipStart - covered)
+    }
+
+    return normalizeAxisNumbering({
+        orientation: horizontal ? 'horizontal' : 'vertical',
+        edge: side,
+        order: 'forward',
+        format: settings.format,
+        skipCellsStart: skipStart,
+        skipCellsEnd: skipEnd,
+        numberOffset: 0,
+        fontSize: settings.fontSize,
+        color: settings.color,
+        fontAssetId: settings.fontAssetId,
+        offsetX: settings.offsetX,
+        offsetY: settings.offsetY,
+        align: settings.align,
+        gutterAlign: settings.gutterAlign,
+        stripSize: horizontal ? settings.blockHeight : settings.blockWidth,
+        background: settings.background,
+        backgroundAssetId: settings.backgroundAssetId,
+    })
+}
+
+export function migrateLegacyAxisLabels(parameters: BoardParameters): BoardAxisNumbering[] {
+    const legacy = normalizeAxisLabelsSettings(parameters.axisLabels, parameters.showAxisLabels)
+    const sides: AxisLabelSide[] = ['top', 'bottom', 'left', 'right']
+
+    return sides
+        .map(side => legacySideToNumbering(side, legacy[side], parameters.n, parameters.m))
+        .filter((item): item is BoardAxisNumbering => item != null)
+}
+
+export function resolveAxisNumberings(parameters: BoardParameters): BoardAxisNumbering[] {
+    const { n, m } = parameters
+
+    if (parameters.axisNumberings && parameters.axisNumberings.length > 0) {
+        return parameters.axisNumberings.map(item => normalizeAxisNumberingForBoard(item, n, m))
+    }
+
+    return migrateLegacyAxisLabels(parameters)
+        .map(item => normalizeAxisNumberingForBoard(item, n, m))
+}
+
+/** @deprecated use resolveAxisNumberings */
 export function resolveAxisLabelsSettings(parameters: BoardParameters): BoardAxisLabelsSettings {
     return normalizeAxisLabelsSettings(parameters.axisLabels, parameters.showAxisLabels)
 }
 
-export function isAnyAxisSideEnabled(settings: BoardAxisLabelsSettings): boolean {
-    return settings.top.enabled
-        || settings.bottom.enabled
-        || settings.left.enabled
-        || settings.right.enabled
+export function isAnyAxisNumberingEnabled(numberings: BoardAxisNumbering[]): boolean {
+    return numberings.length > 0
 }
 
 export function formatColumnLabel(columnIndex: number): string {
@@ -250,6 +510,54 @@ export function formatAxisLabel(index: number, format: AxisLabelFormat): string 
     }
 }
 
+export function getAxisNumberingCellRange(
+    item: BoardAxisNumbering,
+    n: number,
+    m: number,
+): AxisNumberingCellRange | null {
+    const maxCells = getAxisNumberingAxisLength(item, n, m)
+
+    if (maxCells <= 0) {
+        return null
+    }
+
+    const skipStart = Math.min(Math.max(0, item.skipCellsStart), maxCells - 1)
+    const skipEnd = Math.min(Math.max(0, item.skipCellsEnd), maxCells - 1)
+    const startIndex = skipStart
+    const endIndex = maxCells - 1 - skipEnd
+
+    if (startIndex > endIndex) {
+        return null
+    }
+
+    return {
+        startIndex,
+        endIndex,
+        cellCount: endIndex - startIndex + 1,
+    }
+}
+
+export function formatAxisNumberingLabel(
+    item: BoardAxisNumbering,
+    cellIndex: number,
+    range: AxisNumberingCellRange,
+): string {
+    const seqPos = cellIndex - range.startIndex
+    const seqIndex = item.order === 'reverse'
+        ? range.cellCount - 1 - seqPos
+        : seqPos
+
+    if (item.format === 'letter') {
+        const letterIndex = item.order === 'reverse'
+            ? range.endIndex - seqPos
+            : cellIndex
+
+        return formatColumnLabel(letterIndex)
+    }
+
+    return formatAxisLabel(seqIndex + item.numberOffset, item.format)
+}
+
 function estimateLabelSpan(text: string, fontSize: number): number {
     return Math.max(fontSize + 6, text.length * fontSize * 0.62 + 8)
 }
@@ -257,87 +565,108 @@ function estimateLabelSpan(text: string, fontSize: number): number {
 const CELL_ALIGN_PADDING = 4
 const GUTTER_EDGE_PADDING = 4
 
-function getGutterBandPosition(
+function getAxisNumberingStripBandPosition(
     side: AxisLabelSide,
-    gutterSize: number,
+    stripThickness: number,
     gutterAlign: AxisLabelGutterAlign,
     fontSize: number,
-    contentOffset: number,
+    anchorLine: number,
 ): number {
     const innerPadding = GUTTER_EDGE_PADDING + fontSize * 0.35
     const outerPadding = GUTTER_EDGE_PADDING + fontSize * 0.35
 
     switch (side) {
-        case 'top':
+        case 'top': {
+            const stripStart = anchorLine - stripThickness
             switch (gutterAlign) {
                 case 'inner':
-                    return contentOffset - innerPadding
+                    return anchorLine - innerPadding
                 case 'outer':
-                    return outerPadding
+                    return stripStart + outerPadding
                 case 'center':
                 default:
-                    return gutterSize / 2
+                    return stripStart + stripThickness / 2
             }
-        case 'bottom':
+        }
+        case 'bottom': {
+            const stripEnd = anchorLine + stripThickness
             switch (gutterAlign) {
                 case 'inner':
-                    return contentOffset + innerPadding
+                    return anchorLine + innerPadding
                 case 'outer':
-                    return contentOffset + gutterSize - outerPadding
+                    return stripEnd - outerPadding
                 case 'center':
                 default:
-                    return contentOffset + gutterSize / 2
+                    return anchorLine + stripThickness / 2
             }
-        case 'left':
+        }
+        case 'left': {
+            const stripStart = anchorLine - stripThickness
             switch (gutterAlign) {
                 case 'inner':
-                    return contentOffset - innerPadding
+                    return anchorLine - innerPadding
                 case 'outer':
-                    return outerPadding
+                    return stripStart + outerPadding
                 case 'center':
                 default:
-                    return gutterSize / 2
+                    return stripStart + stripThickness / 2
             }
-        case 'right':
+        }
+        case 'right': {
+            const stripEnd = anchorLine + stripThickness
             switch (gutterAlign) {
                 case 'inner':
-                    return contentOffset + innerPadding
+                    return anchorLine + innerPadding
                 case 'outer':
-                    return contentOffset + gutterSize - outerPadding
+                    return stripEnd - outerPadding
                 case 'center':
                 default:
-                    return contentOffset + gutterSize / 2
+                    return anchorLine + stripThickness / 2
             }
+        }
         default:
-            return gutterSize / 2
+            return anchorLine
     }
 }
 
-export function getAxisSideLabelTextAttrs(
-    side: AxisLabelSide,
-    index: number,
+export function getAxisNumberingFontSize(
+    parameters: BoardParameters,
+    item: BoardAxisNumbering,
+): number {
+    if (typeof item.fontSize === 'number' && item.fontSize > 0) {
+        return item.fontSize
+    }
+
+    return Math.max(
+        9,
+        Math.min(13, parameters.cellXDistance * 0.28, parameters.cellYDistance * 0.28),
+    )
+}
+
+export function getAxisNumberingLabelTextAttrs(
+    item: BoardAxisNumbering,
+    cellIndex: number,
     parameters: BoardParameters,
     gutters: AxisGutters,
     contentSize: { width: number; height: number },
-    sideSettings: BoardAxisSideSettings,
 ): AxisLabelTextAttrs {
-    const {
-        cellXDistance,
-        cellYDistance,
-    } = parameters
-    const fontSize = getAxisSideFontSize(parameters, sideSettings)
-    const align = sideSettings.align ?? 'center'
-    const gutterAlign = sideSettings.gutterAlign ?? 'center'
-    const offsetX = sideSettings.offsetX ?? 0
-    const offsetY = sideSettings.offsetY ?? 0
+    const { cellXDistance, cellYDistance } = parameters
+    const side = item.edge
+    const fontSize = getAxisNumberingFontSize(parameters, item)
+    const align = item.align ?? 'center'
+    const gutterAlign = item.gutterAlign ?? 'center'
+    const offsetX = item.offsetX ?? 0
+    const offsetY = item.offsetY ?? 0
     const cellPadding = Math.max(CELL_ALIGN_PADDING, fontSize * 0.2)
+    const range = getAxisNumberingCellRange(item, parameters.n, parameters.m)
+    const stripThickness = range
+        ? getAxisNumberingGutterContribution(item, parameters, range)
+        : 0
+    const anchorLine = getAxisNumberingStripAnchorLine(item, parameters, gutters)
 
     if (side === 'top' || side === 'bottom') {
-        const cellLeft = gutters.left + index * cellXDistance
+        const cellLeft = gutters.left + cellIndex * cellXDistance
         const cellRight = cellLeft + cellXDistance
-        const contentOffset = side === 'top'
-            ? gutters.top
-            : gutters.top + contentSize.height
 
         let x = cellLeft + cellXDistance / 2
         let textAnchor: AxisLabelTextAttrs['textAnchor'] = 'middle'
@@ -352,17 +681,20 @@ export function getAxisSideLabelTextAttrs(
 
         return {
             x: x + offsetX,
-            y: getGutterBandPosition(side, side === 'top' ? gutters.top : gutters.bottom, gutterAlign, fontSize, contentOffset) + offsetY,
+            y: getAxisNumberingStripBandPosition(
+                side,
+                stripThickness,
+                gutterAlign,
+                fontSize,
+                anchorLine,
+            ) + offsetY,
             textAnchor,
             dominantBaseline: 'middle',
         }
     }
 
-    const cellTop = gutters.top + index * cellYDistance
+    const cellTop = gutters.top + cellIndex * cellYDistance
     const cellBottom = cellTop + cellYDistance
-    const contentOffset = side === 'left'
-        ? gutters.left
-        : gutters.left + contentSize.width
 
     let y = cellTop + cellYDistance / 2
     let dominantBaseline: AxisLabelTextAttrs['dominantBaseline'] = 'middle'
@@ -376,22 +708,27 @@ export function getAxisSideLabelTextAttrs(
     }
 
     return {
-        x: getGutterBandPosition(side, side === 'left' ? gutters.left : gutters.right, gutterAlign, fontSize, contentOffset) + offsetX,
+        x: getAxisNumberingStripBandPosition(
+            side,
+            stripThickness,
+            gutterAlign,
+            fontSize,
+            anchorLine,
+        ) + offsetX,
         y: y + offsetY,
         textAnchor: 'middle',
         dominantBaseline,
     }
 }
 
-function getWidestColumnLabel(n: number, format: AxisLabelFormat): string {
-    if (n <= 0) {
-        return ''
-    }
+function getWidestLabelInRange(
+    item: BoardAxisNumbering,
+    range: AxisNumberingCellRange,
+): string {
+    let widest = ''
 
-    let widest = formatAxisLabel(0, format)
-
-    for (let index = 1; index < n; index += 1) {
-        const candidate = formatAxisLabel(index, format)
+    for (let index = range.startIndex; index <= range.endIndex; index += 1) {
+        const candidate = formatAxisNumberingLabel(item, index, range)
         if (candidate.length > widest.length) {
             widest = candidate
         }
@@ -400,261 +737,97 @@ function getWidestColumnLabel(n: number, format: AxisLabelFormat): string {
     return widest
 }
 
-function getWidestRowLabel(m: number, format: AxisLabelFormat): string {
-    return getWidestColumnLabel(m, format)
-}
-
-export function getAxisSideFontSize(
+function getAxisNumberingGutterContribution(
+    item: BoardAxisNumbering,
     parameters: BoardParameters,
-    sideSettings: BoardAxisSideSettings,
+    range: AxisNumberingCellRange,
 ): number {
-    if (typeof sideSettings.fontSize === 'number' && sideSettings.fontSize > 0) {
-        return sideSettings.fontSize
-    }
+    const fontSize = getAxisNumberingFontSize(parameters, item)
+    const widest = getWidestLabelInRange(item, range)
+    const perpendicularOffset = isHorizontalNumbering(item)
+        ? Math.abs(item.offsetY ?? 0)
+        : Math.abs(item.offsetX ?? 0)
+    const baseMin = isHorizontalNumbering(item) ? 18 : 20
 
     return Math.max(
-        9,
-        Math.min(13, parameters.cellXDistance * 0.28, parameters.cellYDistance * 0.28),
+        baseMin,
+        estimateLabelSpan(widest, fontSize) + perpendicularOffset,
+        item.stripSize ?? 0,
     )
 }
 
-/** @deprecated use getAxisSideFontSize */
-export function getAxisLabelFontSize(parameters: BoardParameters): number {
-    const settings = resolveAxisLabelsSettings(parameters)
+function getAxisNumberingExternalGutterContribution(
+    item: BoardAxisNumbering,
+    parameters: BoardParameters,
+    range: AxisNumberingCellRange,
+): number {
+    const thickness = getAxisNumberingGutterContribution(item, parameters, range)
+    const insetPx = getAxisNumberingEdgeInsetCells(item) * (
+        isHorizontalNumbering(item)
+            ? parameters.cellYDistance
+            : parameters.cellXDistance
+    )
 
-    return getAxisSideFontSize(parameters, settings.top)
+    return Math.max(0, thickness - insetPx)
 }
 
 export function getAxisLabelGutters(parameters: BoardParameters): AxisGutters {
-    const settings = resolveAxisLabelsSettings(parameters)
+    const numberings = resolveAxisNumberings(parameters)
+    const gutters: AxisGutters = { top: 0, bottom: 0, left: 0, right: 0 }
 
-    if (!isAnyAxisSideEnabled(settings)) {
-        return { top: 0, bottom: 0, left: 0, right: 0 }
-    }
-
-    const topLabel = settings.top.enabled
-        ? getWidestColumnLabel(parameters.n, settings.top.format)
-        : ''
-    const bottomLabel = settings.bottom.enabled
-        ? getWidestColumnLabel(parameters.n, settings.bottom.format)
-        : ''
-    const leftLabel = settings.left.enabled
-        ? getWidestRowLabel(parameters.m, settings.left.format)
-        : ''
-    const rightLabel = settings.right.enabled
-        ? getWidestRowLabel(parameters.m, settings.right.format)
-        : ''
-
-    const topFontSize = getAxisSideFontSize(parameters, settings.top)
-    const bottomFontSize = getAxisSideFontSize(parameters, settings.bottom)
-    const leftFontSize = getAxisSideFontSize(parameters, settings.left)
-    const rightFontSize = getAxisSideFontSize(parameters, settings.right)
-
-    return {
-        top: settings.top.enabled
-            ? Math.max(
-                18,
-                estimateLabelSpan(topLabel, topFontSize) + Math.abs(settings.top.offsetY ?? 0),
-                settings.top.blockHeight ?? 0,
-            )
-            : 0,
-        bottom: settings.bottom.enabled
-            ? Math.max(
-                18,
-                estimateLabelSpan(bottomLabel, bottomFontSize) + Math.abs(settings.bottom.offsetY ?? 0),
-                settings.bottom.blockHeight ?? 0,
-            )
-            : 0,
-        left: settings.left.enabled
-            ? Math.max(
-                20,
-                estimateLabelSpan(leftLabel, leftFontSize) + Math.abs(settings.left.offsetX ?? 0),
-                settings.left.blockWidth ?? 0,
-            )
-            : 0,
-        right: settings.right.enabled
-            ? Math.max(
-                20,
-                estimateLabelSpan(rightLabel, rightFontSize) + Math.abs(settings.right.offsetX ?? 0),
-                settings.right.blockWidth ?? 0,
-            )
-            : 0,
-    }
-}
-
-export function getAxisSideSpanReference(
-    side: AxisLabelSide,
-    gutters: AxisGutters,
-    contentSize: { width: number; height: number },
-    includeGutters: boolean,
-): AxisSideSpanReference {
-    const boardWidth = gutters.left + contentSize.width + gutters.right
-    const boardHeight = gutters.top + contentSize.height + gutters.bottom
-
-    if (side === 'top' || side === 'bottom') {
-        return {
-            size: includeGutters ? boardWidth : contentSize.width,
-            origin: includeGutters ? 0 : gutters.left,
+    for (const item of numberings) {
+        const range = getAxisNumberingCellRange(item, parameters.n, parameters.m)
+        if (!range) {
+            continue
         }
+
+        const thickness = getAxisNumberingExternalGutterContribution(item, parameters, range)
+        gutters[item.edge] = Math.max(gutters[item.edge], thickness)
     }
 
-    return {
-        size: includeGutters ? boardHeight : contentSize.height,
-        origin: includeGutters ? 0 : gutters.top,
-    }
+    return gutters
 }
 
-function resolveBlockSpanPercent(
-    side: AxisLabelSide,
-    sideSettings: BoardAxisSideSettings,
-    spanReference: AxisSideSpanReference,
-): number {
-    if (typeof sideSettings.blockSpanPercent === 'number' && sideSettings.blockSpanPercent > 0) {
-        return sideSettings.blockSpanPercent
-    }
-
-    if (
-        (side === 'top' || side === 'bottom')
-        && typeof sideSettings.blockWidth === 'number'
-        && sideSettings.blockWidth > 0
-        && spanReference.size > 0
-    ) {
-        return (sideSettings.blockWidth / spanReference.size) * 100
-    }
-
-    if (
-        (side === 'left' || side === 'right')
-        && typeof sideSettings.blockHeight === 'number'
-        && sideSettings.blockHeight > 0
-        && spanReference.size > 0
-    ) {
-        return (sideSettings.blockHeight / spanReference.size) * 100
-    }
-
-    return 100
-}
-
-export function getAxisSideBlockRange(
-    side: AxisLabelSide,
-    boardParameters: BoardParameters,
+export function getAxisNumberingBlockRect(
+    item: BoardAxisNumbering,
+    parameters: BoardParameters,
     gutters: AxisGutters,
     contentSize: { width: number; height: number },
-    sideSettings: BoardAxisSideSettings,
-): AxisSideBlockRange | null {
-    if (!sideSettings.enabled) {
-        return null
-    }
-
-    const horizontal = isHorizontalAxisSide(side)
-    const maxCells = horizontal ? boardParameters.n : boardParameters.m
-
-    if (!maxCells) {
-        return null
-    }
-
-    const includeGutters = sideSettings.blockSpanIncludeGutters !== false
-    const spanReference = getAxisSideSpanReference(side, gutters, contentSize, includeGutters)
-    const spanPercent = resolveBlockSpanPercent(side, sideSettings, spanReference)
-    const startCellIndex = clampStartCellIndex(sideSettings.blockStartCell, maxCells)
-    const cellDistance = horizontal ? boardParameters.cellXDistance : boardParameters.cellYDistance
-    const contentStart = horizontal ? gutters.left : gutters.top
-    const absoluteStart = contentStart + startCellIndex * cellDistance
-    const startOffset = absoluteStart - spanReference.origin
-    const availableSize = Math.max(0, spanReference.size - startOffset)
-    const spanSize = availableSize * spanPercent / 100
-    const maxCellCount = maxCells - startCellIndex
-    const cellCount = maxCellCount > 0
-        ? Math.min(maxCellCount, Math.max(1, Math.round(spanSize / cellDistance)))
-        : 0
-
-    return {
-        startCellIndex,
-        cellCount,
-        startOffset,
-        availableSize,
-        spanSize,
-    }
-}
-
-export function getAxisSideBlockRect(
-    side: AxisLabelSide,
-    boardParameters: BoardParameters,
-    gutters: AxisGutters,
-    contentSize: { width: number; height: number },
-    sideSettings: BoardAxisSideSettings,
 ): AxisSideBlockRect | null {
-    if (!sideSettings.enabled) {
+    const range = getAxisNumberingCellRange(item, parameters.n, parameters.m)
+    if (!range) {
         return null
     }
 
-    const spanReference = getAxisSideSpanReference(
-        side,
-        gutters,
-        contentSize,
-        sideSettings.blockSpanIncludeGutters !== false,
-    )
-    const blockRange = getAxisSideBlockRange(
-        side,
-        boardParameters,
-        gutters,
-        contentSize,
-        sideSettings,
-    )
+    const { cellXDistance, cellYDistance } = parameters
+    const stripThickness = getAxisNumberingGutterContribution(item, parameters, range)
+    const origin = getAxisNumberingStripOrigin(item, parameters, gutters, stripThickness)
 
-    if (!blockRange || blockRange.spanSize <= 0) {
-        return null
+    if (isHorizontalNumbering(item)) {
+        const width = range.cellCount * cellXDistance
+        const x = gutters.left + range.startIndex * cellXDistance
+
+        return {
+            x,
+            y: origin.y,
+            width,
+            height: stripThickness,
+        }
     }
 
-    const spanSize = blockRange.spanSize
+    const height = range.cellCount * cellYDistance
+    const y = gutters.top + range.startIndex * cellYDistance
 
-    switch (side) {
-        case 'top': {
-            const height = gutters.top
-
-            return {
-                x: spanReference.origin + blockRange.startOffset,
-                y: 0,
-                width: spanSize,
-                height,
-            }
-        }
-        case 'bottom': {
-            const height = gutters.bottom
-
-            return {
-                x: spanReference.origin + blockRange.startOffset,
-                y: gutters.top + contentSize.height,
-                width: spanSize,
-                height,
-            }
-        }
-        case 'left': {
-            const width = gutters.left
-
-            return {
-                x: 0,
-                y: spanReference.origin + blockRange.startOffset,
-                width,
-                height: spanSize,
-            }
-        }
-        case 'right': {
-            const width = gutters.right
-
-            return {
-                x: gutters.left + contentSize.width,
-                y: spanReference.origin + blockRange.startOffset,
-                width,
-                height: spanSize,
-            }
-        }
-        default:
-            return null
+    return {
+        x: origin.x,
+        y,
+        width: stripThickness,
+        height,
     }
 }
 
-export function hasAxisSideBlockBackground(sideSettings: BoardAxisSideSettings): boolean {
-    return Boolean(sideSettings.background?.trim() || sideSettings.backgroundAssetId != null)
+export function hasAxisNumberingBlockBackground(item: BoardAxisNumbering): boolean {
+    return Boolean(item.background?.trim() || item.backgroundAssetId != null)
 }
 
 export function getBoardContentSize(parameters: BoardParameters): { width: number; height: number } {
@@ -675,18 +848,43 @@ export function getBoardPixelSize(parameters: BoardParameters): { width: number;
 }
 
 export function normalizeBoardParameters(parameters: BoardParameters): BoardParameters {
-    const axisLabels = normalizeAxisLabelsSettings(parameters.axisLabels, parameters.showAxisLabels)
-    const { showAxisLabels: _legacy, ...rest } = parameters
+    const axisNumberings = resolveAxisNumberings(parameters)
+    const { showAxisLabels: _show, axisLabels: _labels, ...rest } = parameters
 
     return {
         ...rest,
-        axisLabels,
+        axisNumberings,
     }
 }
 
-export function getAxisSideAssetIds(settings: BoardAxisLabelsSettings): number[] {
+export function getAxisNumberingFrameAssetIds(
+    frame: BoardParameters['axisNumberingFrame'],
+): number[] {
+    if (frame?.backgroundAssetId == null) {
+        return []
+    }
+
+    return [frame.backgroundAssetId]
+}
+
+export function getAxisNumberingAssetIds(numberings: BoardAxisNumbering[]): number[] {
     const ids: number[] = []
+
+    for (const item of numberings) {
+        for (const assetId of [item.fontAssetId, item.backgroundAssetId]) {
+            if (typeof assetId === 'number' && !ids.includes(assetId)) {
+                ids.push(assetId)
+            }
+        }
+    }
+
+    return ids
+}
+
+/** @deprecated use getAxisNumberingAssetIds */
+export function getAxisSideAssetIds(settings: BoardAxisLabelsSettings): number[] {
     const sides: AxisLabelSide[] = ['top', 'bottom', 'left', 'right']
+    const ids: number[] = []
 
     for (const side of sides) {
         for (const assetId of [settings[side].fontAssetId, settings[side].backgroundAssetId]) {
@@ -699,7 +897,7 @@ export function getAxisSideAssetIds(settings: BoardAxisLabelsSettings): number[]
     return ids
 }
 
-/** @deprecated use getAxisSideAssetIds */
+/** @deprecated use getAxisNumberingAssetIds */
 export function getAxisSideFontAssetIds(settings: BoardAxisLabelsSettings): number[] {
     return getAxisSideAssetIds(settings)
 }

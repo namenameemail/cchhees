@@ -4,7 +4,6 @@ import { Cell, CellShape } from './types/cells'
 import { BoardBackgroundImageFit } from './types/boardParameters'
 import { getDefaultSvgCellParams } from './cellSvgSize'
 import { createDefaultFigureCatalog } from './figureView'
-import { DEFAULT_AXIS_LABELS } from './boardAxisLabels'
 import { GameState } from './types/gameState'
 import { Mode } from './types'
 
@@ -49,7 +48,7 @@ export const initialGameState: GameState = {
         borderRadius: 0,
         borderWidth: 0,
         borderColor: 'black',
-        axisLabels: DEFAULT_AXIS_LABELS,
+        axisNumberings: [],
     },
 
     styleRules: [],
@@ -78,6 +77,7 @@ export const defaultGameContextValue: GameContextValue = {
     undoBoard: mockFn,
     redoBoard: mockFn,
     setBoardParameters: mockFn,
+    boardParametersFormKey: 0,
     setStyleRules: mockFn,
 
     setMode: mockFn,

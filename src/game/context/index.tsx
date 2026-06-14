@@ -166,6 +166,7 @@ export function GameProvider({
 
     const [shrinkWarningOpen, setShrinkWarningOpen] = useState(false)
     const [shrinkWarningCount, setShrinkWarningCount] = useState(0)
+    const [boardParametersFormKey, setBoardParametersFormKey] = useState(0)
     const pendingBoardParametersRef = useRef<BoardParameters | null>(null)
 
     const clearActiveCellIfInvalid = useCallback((n: number, m: number, cell?: CellCoord) => {
@@ -383,6 +384,7 @@ export function GameProvider({
             pendingBoardParametersRef.current = value
             setShrinkWarningCount(outsideCount)
             setShrinkWarningOpen(true)
+            setBoardParametersFormKey(key => key + 1)
             return
         }
 
@@ -408,6 +410,7 @@ export function GameProvider({
         pendingBoardParametersRef.current = null
         setShrinkWarningOpen(false)
         setShrinkWarningCount(0)
+        setBoardParametersFormKey(key => key + 1)
     }, [])
 
     const setStyleRules = useCallback((value: BoardStyleRule[]) => {
@@ -808,6 +811,7 @@ export function GameProvider({
             setCellParameters,
             toTray,
             setBoardParameters,
+            boardParametersFormKey,
             setStyleRules,
             setTray,
             setCells,
@@ -843,6 +847,7 @@ export function GameProvider({
             setCellParameters,
             toTray,
             setBoardParameters,
+            boardParametersFormKey,
             setStyleRules,
             setTray,
             setCells,

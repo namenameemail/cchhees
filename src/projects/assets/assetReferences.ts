@@ -1,6 +1,6 @@
 import { CellParameters, CellShape, CellImageShapeParams } from '../../game/types/cells'
 import { getCellImageShapeParams } from '../../game/cellImageShape'
-import { getAxisSideAssetIds, resolveAxisLabelsSettings } from '../../game/boardAxisLabels'
+import { getAxisNumberingAssetIds, getAxisNumberingFrameAssetIds, resolveAxisNumberings } from '../../game/boardAxisLabels'
 import { GameState } from '../../game/types/gameState'
 import { isCellStyleRule } from '../../game/types/styleRules'
 import { FigureViewParams } from '../../game/types/figures'
@@ -43,7 +43,10 @@ function collectFromGameState(ids: Set<number>, gameState: GameState) {
 
     const { boardParameters } = gameState
     addAssetId(ids, boardParameters.backgroundAssetId)
-    for (const assetId of getAxisSideAssetIds(resolveAxisLabelsSettings(boardParameters))) {
+    for (const assetId of getAxisNumberingFrameAssetIds(boardParameters.axisNumberingFrame)) {
+        addAssetId(ids, assetId)
+    }
+    for (const assetId of getAxisNumberingAssetIds(resolveAxisNumberings(boardParameters))) {
         addAssetId(ids, assetId)
     }
 
@@ -76,7 +79,10 @@ export function collectReferencedAssetIdsFromBoardSlice(board: BoardSlice): Set<
     }
 
     addAssetId(ids, board.boardParameters.backgroundAssetId)
-    for (const assetId of getAxisSideAssetIds(resolveAxisLabelsSettings(board.boardParameters))) {
+    for (const assetId of getAxisNumberingFrameAssetIds(board.boardParameters.axisNumberingFrame)) {
+        addAssetId(ids, assetId)
+    }
+    for (const assetId of getAxisNumberingAssetIds(resolveAxisNumberings(board.boardParameters))) {
         addAssetId(ids, assetId)
     }
 
@@ -201,35 +207,38 @@ function clearMissingBoardBackgroundAsset(
         changed = true
     }
 
-    const axisLabels = resolveAxisLabelsSettings(next)
+    if (
+        next.axisNumberingFrame?.backgroundAssetId != null
+        && !availableIds.has(next.axisNumberingFrame.backgroundAssetId)
+    ) {
+        next = {
+            ...next,
+            axisNumberingFrame: {
+                ...next.axisNumberingFrame,
+                backgroundAssetId: null,
+            },
+        }
+        changed = true
+    }
+
+    const numberings = resolveAxisNumberings(next)
 
     let axisChanged = false
-    const nextAxisLabels = { ...axisLabels }
+    const nextNumberings = numberings.map(item => {
+        let nextItem = item
 
-    for (const side of ['top', 'bottom', 'left', 'right'] as const) {
-        const sideSettings = nextAxisLabels[side]
-        let nextSide = sideSettings
-
-        if (
-            sideSettings.fontAssetId != null
-            && !availableIds.has(sideSettings.fontAssetId)
-        ) {
-            nextSide = { ...nextSide, fontAssetId: null }
+        if (item.fontAssetId != null && !availableIds.has(item.fontAssetId)) {
+            nextItem = { ...nextItem, fontAssetId: null }
             axisChanged = true
         }
 
-        if (
-            sideSettings.backgroundAssetId != null
-            && !availableIds.has(sideSettings.backgroundAssetId)
-        ) {
-            nextSide = { ...nextSide, backgroundAssetId: null }
+        if (item.backgroundAssetId != null && !availableIds.has(item.backgroundAssetId)) {
+            nextItem = { ...nextItem, backgroundAssetId: null }
             axisChanged = true
         }
 
-        if (nextSide !== sideSettings) {
-            nextAxisLabels[side] = nextSide
-        }
-    }
+        return nextItem
+    })
 
     if (!changed && !axisChanged) {
         return boardParameters
@@ -237,7 +246,7 @@ function clearMissingBoardBackgroundAsset(
 
     return {
         ...next,
-        axisLabels: axisChanged ? nextAxisLabels : next.axisLabels,
+        axisNumberings: axisChanged ? nextNumberings : next.axisNumberings,
     }
 }
 
@@ -471,13 +480,15 @@ export function countAssetReferences(gameState: GameState, assetId: number): num
         count++
     }
 
-    const axisLabels = resolveAxisLabelsSettings(gameState.boardParameters)
-    for (const sideKey of ['top', 'bottom', 'left', 'right'] as const) {
-        const sideSettings = axisLabels[sideKey]
-        if (sideSettings.fontAssetId === assetId) {
+    if (gameState.boardParameters.axisNumberingFrame?.backgroundAssetId === assetId) {
+        count++
+    }
+
+    for (const item of resolveAxisNumberings(gameState.boardParameters)) {
+        if (item.fontAssetId === assetId) {
             count++
         }
-        if (sideSettings.backgroundAssetId === assetId) {
+        if (item.backgroundAssetId === assetId) {
             count++
         }
     }
@@ -512,28 +523,34 @@ export function clearAssetIdFromBoardParameters(
         changed = true
     }
 
-    const axisLabels = resolveAxisLabelsSettings(next)
-    let axisChanged = false
-    const nextAxisLabels = { ...axisLabels }
-
-    for (const side of ['top', 'bottom', 'left', 'right'] as const) {
-        const sideSettings = nextAxisLabels[side]
-        let nextSide = sideSettings
-
-        if (sideSettings.fontAssetId === assetId) {
-            nextSide = { ...nextSide, fontAssetId: null }
-            axisChanged = true
+    if (parameters.axisNumberingFrame?.backgroundAssetId === assetId) {
+        next = {
+            ...next,
+            axisNumberingFrame: {
+                ...next.axisNumberingFrame,
+                backgroundAssetId: null,
+            },
         }
-
-        if (sideSettings.backgroundAssetId === assetId) {
-            nextSide = { ...nextSide, backgroundAssetId: null }
-            axisChanged = true
-        }
-
-        if (nextSide !== sideSettings) {
-            nextAxisLabels[side] = nextSide
-        }
+        changed = true
     }
+
+    const numberings = resolveAxisNumberings(next)
+    let axisChanged = false
+    const nextNumberings = numberings.map(item => {
+        let nextItem = item
+
+        if (item.fontAssetId === assetId) {
+            nextItem = { ...nextItem, fontAssetId: null }
+            axisChanged = true
+        }
+
+        if (item.backgroundAssetId === assetId) {
+            nextItem = { ...nextItem, backgroundAssetId: null }
+            axisChanged = true
+        }
+
+        return nextItem
+    })
 
     if (!changed && !axisChanged) {
         return parameters
@@ -541,7 +558,7 @@ export function clearAssetIdFromBoardParameters(
 
     return {
         ...next,
-        axisLabels: axisChanged ? nextAxisLabels : next.axisLabels,
+        axisNumberings: axisChanged ? nextNumberings : next.axisNumberings,
     }
 }
 

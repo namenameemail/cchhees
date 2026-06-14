@@ -9,8 +9,8 @@ import { ParameterTypes } from '../../../components/Form1/types'
 import { atLeastOne, nonNegative } from '../../../components/Form1/numberInputConstraints'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
 import { BoardStyleRules } from '../BoardStyleRules'
-import { BoardAxisLabelsForm } from './BoardAxisLabelsForm'
-import { resolveAxisLabelsSettings } from '../../boardAxisLabels'
+import { BoardAxisNumberingsForm } from './BoardAxisNumberingsForm'
+import { normalizeAxisNumberingForBoard, resolveAxisNumberings } from '../../boardAxisLabels'
 import styles from './styles.module.css'
 
 type BoardSectionTab = 'view' | 'cells' | 'numbering'
@@ -141,13 +141,17 @@ const viewParametersConfig = (value: BoardParameters) => {
 }
 
 export const BoardSettingsPanel: FC = () => {
-    const { state, setBoardParameters } = useGameContext()
+    const { state, setBoardParameters, boardParametersFormKey } = useGameContext()
     const [activeSection, setActiveSection] = useState<BoardSectionTab>('view')
 
     const handleViewChange = useCallback((value: BoardParameters) => {
+        const numberings = resolveAxisNumberings(state.boardParameters).map(item =>
+            normalizeAxisNumberingForBoard(item, value.n, value.m),
+        )
+
         setBoardParameters({
             ...value,
-            axisLabels: resolveAxisLabelsSettings(state.boardParameters),
+            axisNumberings: numberings,
         })
     }, [setBoardParameters, state.boardParameters])
 
@@ -168,6 +172,7 @@ export const BoardSettingsPanel: FC = () => {
             {activeSection === 'view' && (
                 <div className={styles.sectionPanel}>
                     <Form1<BoardParameters>
+                        key={boardParametersFormKey}
                         className={styles.boardParametersForm}
                         value={state.boardParameters}
                         config={viewParametersConfig}
@@ -182,7 +187,7 @@ export const BoardSettingsPanel: FC = () => {
             )}
             {activeSection === 'numbering' && (
                 <div className={styles.sectionPanel}>
-                    <BoardAxisLabelsForm />
+                    <BoardAxisNumberingsForm />
                 </div>
             )}
         </div>

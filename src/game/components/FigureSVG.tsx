@@ -7,6 +7,8 @@ export interface FigureSVGProps {
     className?: string
     figureId: FigureId
     size?: number
+    width?: number
+    height?: number
     highlighted?: boolean
     stateIndex?: number
 }
@@ -15,6 +17,8 @@ export const FigureSVG: FC<FigureSVGProps> = ({
     className,
     figureId,
     size,
+    width,
+    height,
     highlighted,
     stateIndex = 0,
 }) => {
@@ -25,10 +29,12 @@ export const FigureSVG: FC<FigureSVGProps> = ({
         },
     } = useGameContext()
 
-    const viewWidth = cellXDistance * 2
-    const viewHeight = cellYDistance * 2
-    const displayWidth = size ?? viewWidth
-    const displayHeight = size ?? viewHeight
+    const useCellViewBox = width != null && height != null
+
+    const viewWidth = useCellViewBox ? cellXDistance : cellXDistance * 2
+    const viewHeight = useCellViewBox ? cellYDistance : cellYDistance * 2
+    const displayWidth = width ?? size ?? cellXDistance * 2
+    const displayHeight = height ?? size ?? cellYDistance * 2
     const centerX = viewWidth / 2
     const centerY = viewHeight / 2
     const highlightRadius = Math.min(cellXDistance, cellYDistance) / 2
@@ -39,6 +45,7 @@ export const FigureSVG: FC<FigureSVGProps> = ({
             viewBox={`0 0 ${viewWidth} ${viewHeight}`}
             width={displayWidth}
             height={displayHeight}
+            overflow="visible"
         >
             {highlighted && (
                 <>

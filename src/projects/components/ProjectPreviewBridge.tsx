@@ -4,7 +4,10 @@ import { useAssetsContext } from '../../projects/assets/AssetsContext'
 import { getFontFamilyName } from '../../projects/assets/useFontAssetFamily'
 import { useProjectContext } from '../../projects/ProjectContext'
 import { renderBoardImageDataUrl } from '../../game/exportBoardImage'
-import { resolveBoardAppearance } from '../../game/boardAppearance'
+import {
+    resolveBoardExportBorderRadius,
+    resolveExportCanvasBackground,
+} from '../../game/boardAppearance'
 import { useGameContext } from '../../game/context'
 
 const PREVIEW_MAX_WIDTH = 220
@@ -31,8 +34,8 @@ export function ProjectPreviewBridge({ boardRef }: ProjectPreviewBridgeProps) {
                 scale: 1,
                 mimeType: 'image/jpeg',
                 quality: 0.82,
-                background: resolveBoardAppearance(state.boardParameters).background,
-                borderRadius: resolveBoardAppearance(state.boardParameters).borderRadius,
+                background: resolveExportCanvasBackground(state.boardParameters, 'image/jpeg'),
+                borderRadius: resolveBoardExportBorderRadius(state.boardParameters),
                 getFontFaceForAsset: (assetId) => {
                     const asset = getAssetById(assetId)
                     const url = getAssetUrl(assetId)

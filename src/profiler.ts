@@ -1,6 +1,6 @@
 import { createProfiler, createProfileDebug } from 'vite-dev-profiler'
 
-export type ProfilerPanelChannel = 'scroll' | 'moves' | 'selection' | 'assets' | 'collab'
+export type ProfilerPanelChannel = 'scroll' | 'moves' | 'selection' | 'assets' | 'collab' | 'export'
 
 let activeProfilerPanelChannel: ProfilerPanelChannel = 'scroll'
 

@@ -1,4 +1,4 @@
-import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import cn from 'classnames'
 import { useGameContext } from '../context'
 import { FigureId } from '../types/figures'
@@ -65,11 +65,6 @@ export const FigureButton: FC<FigureButtonProps> = ({
 
     useEffect(() => () => clearHold(), [clearHold])
 
-    const previewSize = useMemo(
-        () => Math.round(Math.min(cellXDistance, cellYDistance) * 1.15),
-        [cellXDistance, cellYDistance],
-    )
-
     const showDelete = canDelete && onDelete != null
 
     return (
@@ -99,7 +94,8 @@ export const FigureButton: FC<FigureButtonProps> = ({
             >
                 <FigureSVG
                     figureId={figureId}
-                    size={previewSize}
+                    width={cellXDistance}
+                    height={cellYDistance}
                     highlighted={isActive}
                 />
             </button>

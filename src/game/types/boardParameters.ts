@@ -14,6 +14,56 @@ export type AxisLabelAlign = 'start' | 'center' | 'end'
 
 export type AxisLabelGutterAlign = 'inner' | 'center' | 'outer'
 
+export type AxisNumberingOrientation = 'horizontal' | 'vertical'
+
+export type AxisNumberingEdge = AxisLabelSide
+
+export type AxisNumberingOrder = 'forward' | 'reverse'
+
+export type AxisNumberingFormat = AxisLabelFormat
+
+export interface BoardSurfaceAppearance {
+    background?: string
+    backgroundAssetId?: number | null
+    backgroundImageFit?: BoardBackgroundImageFit
+    backgroundRepeatWidth?: number
+    backgroundRepeatHeight?: number
+    backgroundRepeatOffsetX?: number
+    backgroundRepeatOffsetY?: number
+    borderRadius?: number
+    borderWidth?: number
+    borderColor?: string
+    borderDasharray?: string
+}
+
+export interface BoardAxisNumberingFrameSettings extends BoardSurfaceAppearance {
+    /** обрезать общий фон и полосы нумерации по borderRadius рамки */
+    clipNumberingToBorderRadius?: boolean
+}
+
+export interface BoardAxisNumbering {
+    orientation: AxisNumberingOrientation
+    edge: AxisNumberingEdge
+    order: AxisNumberingOrder
+    format: AxisNumberingFormat
+    skipCellsStart: number
+    skipCellsEnd: number
+    numberOffset: number
+    /** смещение полосы от внешнего края внутрь доски, в клетках */
+    edgeInsetCells?: number
+    fontSize?: number
+    color?: string
+    fontAssetId?: number | null
+    offsetX?: number
+    offsetY?: number
+    align?: AxisLabelAlign
+    gutterAlign?: AxisLabelGutterAlign
+    stripSize?: number
+    background?: string
+    backgroundAssetId?: number | null
+}
+
+/** @deprecated migrated to axisNumberings */
 export interface BoardAxisSideSettings {
     enabled: boolean
     format: AxisLabelFormat
@@ -24,30 +74,23 @@ export interface BoardAxisSideSettings {
     offsetY?: number
     align?: AxisLabelAlign
     gutterAlign?: AxisLabelGutterAlign
-    /** top/bottom: strip thickness in px */
     blockHeight?: number
-    /** left/right: strip thickness in px */
     blockWidth?: number
-    /** Span along the strip as percent of reference size */
     blockSpanPercent?: number
-    /** If true, 100% = full board SVG; if false, 100% = cell grid only */
     blockSpanIncludeGutters?: boolean
-    /** 1-based first cell along the strip (column for top/bottom, row for left/right) */
     blockStartCell?: number
     background?: string
     backgroundAssetId?: number | null
 }
 
+/** @deprecated migrated to axisNumberings */
 export interface BoardAxisLabelsSettings {
     top: BoardAxisSideSettings
     bottom: BoardAxisSideSettings
     left: BoardAxisSideSettings
     right: BoardAxisSideSettings
-    /** @deprecated migrated to per-side settings */
     fontSize?: number
-    /** @deprecated migrated to per-side settings */
     color?: string
-    /** @deprecated migrated to per-side settings */
     fontAssetId?: number | null
 }
 
@@ -70,9 +113,46 @@ export interface BoardParameters {
     borderWidth?: number
     borderColor?: string
     borderDasharray?: string
-    /** @deprecated migrated to axisLabels */
+    axisNumberings?: BoardAxisNumbering[]
+    /** общий фон полосы нумерации (вокруг доски) */
+    axisNumberingFrame?: BoardAxisNumberingFrameSettings
+    /** @deprecated migrated to axisNumberings */
     showAxisLabels?: boolean
+    /** @deprecated migrated to axisNumberings */
     axisLabels?: BoardAxisLabelsSettings
+}
+
+export const AXIS_NUMBERING_FORMAT_OPTIONS: AxisNumberingFormat[] = ['digit', 'letter', 'roman']
+
+export const AXIS_NUMBERING_ORIENTATION_OPTIONS: AxisNumberingOrientation[] = ['horizontal', 'vertical']
+
+export const AXIS_NUMBERING_ORDER_OPTIONS: AxisNumberingOrder[] = ['forward', 'reverse']
+
+export const AXIS_NUMBERING_HORIZONTAL_EDGE_OPTIONS: AxisNumberingEdge[] = ['top', 'bottom']
+
+export const AXIS_NUMBERING_VERTICAL_EDGE_OPTIONS: AxisNumberingEdge[] = ['left', 'right']
+
+export const AXIS_NUMBERING_ORIENTATION_LABELS: Record<AxisNumberingOrientation, string> = {
+    horizontal: 'горизонтальная',
+    vertical: 'вертикальная',
+}
+
+export const AXIS_NUMBERING_ORDER_LABELS: Record<AxisNumberingOrder, string> = {
+    forward: 'прямой',
+    reverse: 'обратный',
+}
+
+export const AXIS_NUMBERING_FORMAT_LABELS: Record<AxisNumberingFormat, string> = {
+    digit: 'арабские',
+    letter: 'буквы',
+    roman: 'римские',
+}
+
+export const AXIS_NUMBERING_EDGE_LABELS: Record<AxisNumberingEdge, string> = {
+    top: 'сверху',
+    bottom: 'снизу',
+    left: 'слева',
+    right: 'справа',
 }
 
 export const AXIS_LABEL_FORMAT_OPTIONS: AxisLabelFormat[] = ['digit', 'letter', 'roman']

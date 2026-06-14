@@ -5,7 +5,14 @@ import { useAssetsContext } from '../../projects/assets/AssetsContext'
 import { getFontFamilyName } from '../../projects/assets/useFontAssetFamily'
 import { useProjectContext } from '../../projects/ProjectContext'
 import { createBoardImageFilename, exportBoardAsPng } from '../exportBoardImage'
-import { resolveBoardAppearance } from '../boardAppearance'
+import {
+    resolveAxisNumberingFrameAppearance,
+    resolveBoardAppearance,
+    resolveBoardExportBorderRadius,
+    resolveExportCanvasBackground,
+    shouldClipAxisNumberingToFrame,
+} from '../boardAppearance'
+import { exportDebugLog } from '../exportDebugLog'
 import { useGameContext } from '../context'
 import styles from '../styles.module.css'
 
@@ -28,11 +35,28 @@ export const BoardExportButton: FC<BoardExportButtonProps> = ({ boardRef }) => {
 
         setIsExporting(true)
 
+        const { boardParameters } = state
+        const boardAppearance = resolveBoardAppearance(boardParameters)
+        const frameAppearance = resolveAxisNumberingFrameAppearance(boardParameters)
+        const borderRadius = resolveBoardExportBorderRadius(boardParameters)
+        const canvasBackground = resolveExportCanvasBackground(boardParameters, 'image/png')
+
+        exportDebugLog.params({
+            boardBg: boardAppearance.background,
+            frameBg: frameAppearance.background,
+            frameRadius: frameAppearance.borderRadius,
+            clipEnabled: shouldClipAxisNumberingToFrame(boardParameters),
+            resolvedBorderRadius: borderRadius,
+            canvasBackground,
+            shouldFill: canvasBackground !== 'transparent',
+            source: 'BoardExportButton',
+        })
+
         try {
             await exportBoardAsPng(svg, {
                 filename: createBoardImageFilename(currentProject?.name ?? 'board'),
-                background: resolveBoardAppearance(state.boardParameters).background,
-                borderRadius: resolveBoardAppearance(state.boardParameters).borderRadius,
+                background: canvasBackground,
+                borderRadius,
                 getFontFaceForAsset: (assetId) => {
                     const asset = getAssetById(assetId)
                     const url = getAssetUrl(assetId)

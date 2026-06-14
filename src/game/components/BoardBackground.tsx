@@ -1,21 +1,20 @@
 import { useMemo } from 'react'
 import { BoardParameters } from '../types/boardParameters'
 import {
+    BoardAppearance,
     getBoardBackgroundImageLayout,
     resolveBoardAppearance,
     useAssetImageSize,
 } from '../boardAppearance'
 import { useAssetHref } from '../../projects/assets/useAssetHref'
 
-function useBoardBackgroundImage(
-    boardParameters: BoardParameters,
+export type SurfaceBackgroundRect = ReturnType<typeof import('../boardAppearance').getBoardBackgroundRect>
+
+function useSurfaceBackgroundImage(
+    appearance: BoardAppearance,
     areaWidth: number,
     areaHeight: number,
 ) {
-    const appearance = useMemo(
-        () => resolveBoardAppearance(boardParameters),
-        [boardParameters],
-    )
     const assetUrl = useAssetHref(appearance.backgroundAssetId)
     const imageSize = useAssetImageSize(assetUrl)
 
@@ -42,19 +41,32 @@ function useBoardBackgroundImage(
     return { appearance, assetUrl, imageLayout }
 }
 
-export interface BoardBackgroundPatternProps {
-    boardParameters: BoardParameters
-    backgroundRect: ReturnType<typeof import('../boardAppearance').getBoardBackgroundRect>
+function useBoardBackgroundImage(
+    boardParameters: BoardParameters,
+    areaWidth: number,
+    areaHeight: number,
+) {
+    const appearance = useMemo(
+        () => resolveBoardAppearance(boardParameters),
+        [boardParameters],
+    )
+
+    return useSurfaceBackgroundImage(appearance, areaWidth, areaHeight)
+}
+
+export interface SurfaceBackgroundPatternProps {
+    appearance: BoardAppearance
+    backgroundRect: SurfaceBackgroundRect
     patternId: string
 }
 
-export function BoardBackgroundPattern({
-    boardParameters,
+export function SurfaceBackgroundPattern({
+    appearance,
     backgroundRect,
     patternId,
-}: BoardBackgroundPatternProps) {
-    const { assetUrl, imageLayout } = useBoardBackgroundImage(
-        boardParameters,
+}: SurfaceBackgroundPatternProps) {
+    const { assetUrl, imageLayout } = useSurfaceBackgroundImage(
+        appearance,
         backgroundRect.width,
         backgroundRect.height,
     )
@@ -82,19 +94,19 @@ export function BoardBackgroundPattern({
     )
 }
 
-export interface BoardBackgroundLayerProps {
-    boardParameters: BoardParameters
-    backgroundRect: ReturnType<typeof import('../boardAppearance').getBoardBackgroundRect>
+export interface SurfaceBackgroundLayerProps {
+    appearance: BoardAppearance
+    backgroundRect: SurfaceBackgroundRect
     patternId: string
 }
 
-export function BoardBackgroundLayer({
-    boardParameters,
+export function SurfaceBackgroundLayer({
+    appearance,
     backgroundRect,
     patternId,
-}: BoardBackgroundLayerProps) {
-    const { assetUrl, imageLayout } = useBoardBackgroundImage(
-        boardParameters,
+}: SurfaceBackgroundLayerProps) {
+    const { assetUrl, imageLayout } = useSurfaceBackgroundImage(
+        appearance,
         backgroundRect.width,
         backgroundRect.height,
     )
@@ -128,5 +140,57 @@ export function BoardBackgroundLayer({
                 />
             )}
         </>
+    )
+}
+
+export interface BoardBackgroundPatternProps {
+    boardParameters: BoardParameters
+    backgroundRect: SurfaceBackgroundRect
+    patternId: string
+}
+
+export function BoardBackgroundPattern({
+    boardParameters,
+    backgroundRect,
+    patternId,
+}: BoardBackgroundPatternProps) {
+    const { appearance } = useBoardBackgroundImage(
+        boardParameters,
+        backgroundRect.width,
+        backgroundRect.height,
+    )
+
+    return (
+        <SurfaceBackgroundPattern
+            appearance={appearance}
+            backgroundRect={backgroundRect}
+            patternId={patternId}
+        />
+    )
+}
+
+export interface BoardBackgroundLayerProps {
+    boardParameters: BoardParameters
+    backgroundRect: SurfaceBackgroundRect
+    patternId: string
+}
+
+export function BoardBackgroundLayer({
+    boardParameters,
+    backgroundRect,
+    patternId,
+}: BoardBackgroundLayerProps) {
+    const { appearance } = useBoardBackgroundImage(
+        boardParameters,
+        backgroundRect.width,
+        backgroundRect.height,
+    )
+
+    return (
+        <SurfaceBackgroundLayer
+            appearance={appearance}
+            backgroundRect={backgroundRect}
+            patternId={patternId}
+        />
     )
 }

@@ -3,6 +3,7 @@
     flex-direction: column;
     gap: 8px;
     min-height: 0;
+    overflow: visible;
 }
 
 .figureStrip {
@@ -10,6 +11,7 @@
     align-items: stretch;
     gap: 8px;
     min-width: 0;
+    overflow: visible;
 }
 
 .figureStripAside {
@@ -43,6 +45,8 @@
 .figureStripScroll {
     flex: 1 1 auto;
     min-width: 0;
+    padding-block: 6px;
+    overflow-y: visible;
 }
 
 .figureStripTrack {
@@ -50,5 +54,6 @@
     flex-wrap: nowrap;
     align-items: center;
     gap: 6px;
-    padding: 1px 2px 4px 0;
+    padding: 2px 0;
+    overflow: visible;
 }
