@@ -14,7 +14,7 @@ import {
 } from '../figureView'
 import { isFigureMoveAllowed } from '../moveRules'
 import { applyFigureMove } from '../events/applyFigureMove'
-import { removeFigureFromBoard } from '../state/figureReferences'
+import { removeFigureFromBoard, removeFigureReferencesFromCatalog } from '../state/figureReferences'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
 import { SliceHistory } from '../types/history'
@@ -658,11 +658,12 @@ export function GameProvider({
     }, [figureCatalog, applyCatalogChange, setActiveFigure])
 
     const removeFigure = useCallback((figureId: FigureId) => {
-        const nextCatalog = figureCatalog.filter(entry => entry.id !== figureId)
-        if (nextCatalog.length === figureCatalog.length) {
+        const filteredCatalog = figureCatalog.filter(entry => entry.id !== figureId)
+        if (filteredCatalog.length === figureCatalog.length) {
             return
         }
 
+        const nextCatalog = removeFigureReferencesFromCatalog(filteredCatalog, figureId)
         const nextFigures = cloneFiguresSlice(removeFigureFromBoard(figuresSlice, figureId))
 
         const catalogResult = historyPush(catalogHistory, figureCatalog, cloneFigureCatalog(nextCatalog))

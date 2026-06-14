@@ -9,6 +9,7 @@ import {
 } from '../types/events'
 import { FigureId } from '../types/figures'
 import { resolvePlacementStateIndex } from '../figureView'
+import { matchesFigureFilter } from '../figureFilter'
 import { MoveEventContext, TriggeredFigureEvent } from './types'
 
 function toOneBased(coord: { i: number; j: number }) {
@@ -74,7 +75,7 @@ export function matchesFigureEvent(
                 return false
             }
 
-            if (params?.targetFigureId && ctx.targetAtTo.figureId !== params.targetFigureId) {
+            if (!matchesFigureFilter(params?.targetFigureId, ctx.targetAtTo.figureId)) {
                 return false
             }
 

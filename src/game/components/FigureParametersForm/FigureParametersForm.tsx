@@ -4,7 +4,7 @@ import { Form1, ParameterInputComponentProps } from '../../../components/Form1'
 import { Form1FieldConfig } from '../../../components/Form1/types'
 import { ParameterTypes } from '../../../components/Form1/types'
 import { atLeastOne, integerStep, nonNegative } from '../../../components/Form1/numberInputConstraints'
-import { FigureId, FigureMoveRule, FigureViewParams, FigureCatalog } from '../../types/figures'
+import { FigureId, FigureMoveRule, FigureViewParams } from '../../types/figures'
 import {
     FigureEventRule,
     FigureEventType,
@@ -14,6 +14,8 @@ import {
     StepCause,
 } from '../../types/events'
 import { FigureSVG } from '../FigureSVG'
+import { createFigureStateFieldConfig } from '../FigureStateSelect/FigureStateSelectField'
+import { FIGURE_FILTER_ANY } from '../../figureFilter'
 import { FigureMoveRulesGrid } from '../FigureMoveRulesGrid/FigureMoveRulesGrid'
 import { FormArray } from '../../../components/FormArray'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
@@ -211,7 +213,6 @@ const gameActionTargetOptions = Object.values<GameActionTarget>([
     'areaAnchor',
 ])
 const stepCauseOptions: StepCause[] = ['any', 'manual', 'displacement']
-const stepperFigureOptions = (figureOptions: FigureId[]) => ['', ...figureOptions]
 const boundaryActionTypeOptions = [
     GameActionType.moveToTray,
     GameActionType.displaceFigure,
@@ -227,47 +228,17 @@ const eventNumberInputProps = {
     resetOnBlur: false,
 } as const
 
-function getStepperStateCount(catalog: FigureCatalog, stepperFigureId?: FigureId): number {
-    if (!stepperFigureId) {
-        return 1
-    }
-
-    return catalog.find(entry => entry.id === stepperFigureId)?.states.length ?? 1
-}
-
-function getTargetStateCount(catalog: FigureCatalog, targetFigureId?: FigureId): number {
-    if (!targetFigureId) {
-        return 1
-    }
-
-    return catalog.find(entry => entry.id === targetFigureId)?.states.length ?? 1
-}
-
 function getEventParamsConfig(
     type: FigureEventType,
-    figureOptions: FigureId[],
-    catalog: FigureCatalog,
 ) {
     switch (type) {
         case FigureEventType.steppedOnBy:
             return [
-                {
-                    name: 'stepperFigureId',
-                    type: ParameterTypes.SelectArray,
-                    props: {
-                        className: styles.eventTypeSelect,
-                        options: stepperFigureOptions(figureOptions),
-                        title: 'stepper (пусто = любой)',
-                    },
-                },
-                {
-                    name: 'stepperStateIndex',
-                    type: ParameterTypes.NumberInput,
-                    props: { placeholder: 'stepper state', ...nonNegative, ...eventNumberInputProps },
-                    visibility: (params: { stepperFigureId?: FigureId }) => (
-                        getStepperStateCount(catalog, params?.stepperFigureId) > 1
-                    ),
-                },
+                createFigureStateFieldConfig('stepperFigureId', {
+                    stateField: 'stepperStateIndex',
+                    allowAny: true,
+                    title: 'stepper (любая = ?)',
+                }),
                 {
                     name: 'cause',
                     type: ParameterTypes.SelectArray,
@@ -280,23 +251,11 @@ function getEventParamsConfig(
             ]
         case FigureEventType.stepOnFigure:
             return [
-                {
-                    name: 'targetFigureId',
-                    type: ParameterTypes.SelectArray,
-                    props: {
-                        className: styles.eventTypeSelect,
-                        options: stepperFigureOptions(figureOptions),
-                        title: 'target (пусто = любая)',
-                    },
-                },
-                {
-                    name: 'targetStateIndex',
-                    type: ParameterTypes.NumberInput,
-                    props: { placeholder: 'target state', ...nonNegative, ...eventNumberInputProps },
-                    visibility: (params: { targetFigureId?: FigureId }) => (
-                        getTargetStateCount(catalog, params?.targetFigureId) > 1
-                    ),
-                },
+                createFigureStateFieldConfig('targetFigureId', {
+                    stateField: 'targetStateIndex',
+                    allowAny: true,
+                    title: 'target (любая = ?)',
+                }),
                 {
                     name: 'cause',
                     type: ParameterTypes.SelectArray,
@@ -322,15 +281,11 @@ function getEventParamsConfig(
             ]
         case FigureEventType.enterFigureArea:
             return [
-                {
-                    name: 'figureId',
-                    type: ParameterTypes.SelectArray,
-                    props: {
-                        className: styles.eventTypeSelect,
-                        options: figureOptions,
-                        title: 'figure',
-                    },
-                },
+                createFigureStateFieldConfig('figureId', {
+                    showStatePicker: false,
+                    allowAny: false,
+                    title: 'figure',
+                }),
                 { name: 'halfWidth', type: ParameterTypes.NumberInput, props: { placeholder: 'half w', ...nonNegative, ...eventNumberInputProps } },
                 { name: 'halfHeight', type: ParameterTypes.NumberInput, props: { placeholder: 'half h', ...nonNegative, ...eventNumberInputProps } },
             ]
@@ -339,7 +294,7 @@ function getEventParamsConfig(
     }
 }
 
-function getActionParamsConfig(type: GameActionType, figureOptions: FigureId[]) {
+function getActionParamsConfig(type: GameActionType) {
     switch (type) {
         case GameActionType.moveToTray:
             return []
@@ -350,18 +305,12 @@ function getActionParamsConfig(type: GameActionType, figureOptions: FigureId[]) 
             ]
         case GameActionType.spawnFigure:
             return [
-                {
-                    name: 'figureId',
-                    type: ParameterTypes.SelectArray,
-                    props: {
-                        className: styles.eventTypeSelect,
-                        options: figureOptions,
-                        title: 'figure',
-                    },
-                },
+                createFigureStateFieldConfig('figureId', {
+                    stateField: 'stateIndex',
+                    title: 'figure',
+                }),
                 { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne, ...eventNumberInputProps } },
                 { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne, ...eventNumberInputProps } },
-                { name: 'stateIndex', type: ParameterTypes.NumberInput, props: { placeholder: 'state', ...nonNegative, ...eventNumberInputProps } },
             ]
         case GameActionType.setSelfState:
             return [
@@ -407,7 +356,7 @@ function createEventActionsArrayProps(
         itemFormClassName: styles.eventActionItemForm,
         addButtonClassName: styles.eventActionsAddRow,
         itemConfig: (item: GameAction) => {
-            const paramsConfig = getActionParamsConfig(item.type, figureOptions)
+            const paramsConfig = getActionParamsConfig(item.type)
             const fields: Form1FieldConfig<GameAction>[] = [
                 {
                     name: 'type',
@@ -442,10 +391,8 @@ function createEventActionsArrayProps(
 
 function getEventRuleEventFields(
     rule: FigureEventRule,
-    figureOptions: FigureId[],
-    catalog: FigureCatalog,
 ): Form1FieldConfig<FigureEventRule>[] {
-    const paramsConfig = getEventParamsConfig(rule.type, figureOptions, catalog)
+    const paramsConfig = getEventParamsConfig(rule.type)
     const fields: Form1FieldConfig<FigureEventRule>[] = [
         {
             name: 'type',
@@ -491,7 +438,6 @@ interface EventRuleRowProps {
     rule: FigureEventRule
     index: number
     figureOptions: FigureId[]
-    catalog: FigureCatalog
     onChange: (rule: FigureEventRule, index: number) => void
     onRemove: (index: number) => void
 }
@@ -500,13 +446,12 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
     rule,
     index,
     figureOptions,
-    catalog,
     onChange,
     onRemove,
 }) => {
     const eventFields = useMemo(
-        () => getEventRuleEventFields(rule, figureOptions, catalog),
-        [rule, figureOptions, catalog],
+        () => getEventRuleEventFields(rule),
+        [rule],
     )
 
     const actionsArrayProps = useMemo(
@@ -659,6 +604,10 @@ export const FigureParametersForm: FC = () => {
     const getEventRuleInitialValue = useCallback((): FigureEventRule => ({
         id: crypto.randomUUID(),
         type: FigureEventType.stepOnFigure,
+        params: {
+            targetFigureId: FIGURE_FILTER_ANY,
+            cause: 'any',
+        },
         actions: [{
             type: GameActionType.setSelfState,
             params: { stateIndex: 0 },
@@ -903,7 +852,6 @@ export const FigureParametersForm: FC = () => {
                                     rule={rule}
                                     index={index}
                                     figureOptions={figureOptions}
-                                    catalog={state.figureCatalog}
                                     onChange={handleEventRuleChange}
                                     onRemove={handleEventRuleRemove}
                                 />

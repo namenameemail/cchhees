@@ -49,11 +49,15 @@
     overflow-y: visible;
 }
 
+.figureStripScroll:global(.bb-hidden-scroll--horizontal) {
+    overflow-y: visible;
+}
+
 .figureStripTrack {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
     gap: 6px;
-    padding: 2px 0;
+    padding-block: 2px;
     overflow: visible;
 }

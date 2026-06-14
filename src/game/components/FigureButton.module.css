@@ -69,6 +69,10 @@
     outline-offset: 2px;
 }
 
+.item :global(svg) {
+    overflow: visible;
+}
+
 .deleteButton {
     position: absolute;
     top: 1px;

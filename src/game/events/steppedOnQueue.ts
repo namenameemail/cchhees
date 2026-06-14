@@ -12,6 +12,7 @@ import {
 import { FigureCatalog, FigureId, FigurePlacement } from '../types/figures'
 import { FiguresSlice } from '../state/slices'
 import { cloneFigurePlacement, placementsMatch, placementMatchesAt, resolvePlacementStateIndex } from '../figureView'
+import { matchesFigureFilter, normalizeStoredFigureFilterId } from '../figureFilter'
 import { applyLeaveBoardAction, applySteppedOnAction } from './execute'
 import { gameMovesDebugLog } from '../gameMovesDebugLog'
 import { runFigureEvents } from './runFigureEvents'
@@ -136,7 +137,7 @@ export function matchesSteppedOnBy(
 
     const params = normalizeSteppedOnParams(rule.params as FigureEventParamsSteppedOnBy | undefined)
 
-    if (params.stepperFigureId && event.stepperPlacement.figureId !== params.stepperFigureId) {
+    if (!matchesFigureFilter(params.stepperFigureId, event.stepperPlacement.figureId)) {
         return false
     }
 
@@ -160,8 +161,10 @@ function normalizeSteppedOnParams(
 ): FigureEventParamsSteppedOnBy {
     const normalized: FigureEventParamsSteppedOnBy = {}
 
-    if (typeof params?.stepperFigureId === 'string' && params.stepperFigureId.trim()) {
-        normalized.stepperFigureId = params.stepperFigureId.trim()
+    const filterId = normalizeStoredFigureFilterId(params?.stepperFigureId)
+
+    if (filterId !== undefined) {
+        normalized.stepperFigureId = filterId
     }
 
     if (params?.stepperStateIndex !== undefined && Number.isFinite(params.stepperStateIndex)) {

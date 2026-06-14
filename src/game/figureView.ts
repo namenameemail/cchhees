@@ -16,6 +16,7 @@ import {
     LegacyFigureDefinition,
 } from './types/figures'
 import { CellCoord, coordKey } from './types/coords'
+import { normalizeStoredFigureFilterId } from './figureFilter'
 import {
     DisplaceFigureActionParams,
     FigureEventParamsStepOnFigure,
@@ -172,8 +173,10 @@ export function normalizeFigureEventParamsStepOnFigure(
     const normalized: FigureEventParamsStepOnFigure = {}
     const cause = params?.cause
 
-    if (typeof params?.targetFigureId === 'string' && params.targetFigureId.trim()) {
-        normalized.targetFigureId = params.targetFigureId.trim()
+    const filterId = normalizeStoredFigureFilterId(params?.targetFigureId)
+
+    if (filterId !== undefined) {
+        normalized.targetFigureId = filterId
     }
 
     if (params?.targetStateIndex !== undefined && Number.isFinite(params.targetStateIndex)) {
@@ -192,8 +195,10 @@ export function normalizeFigureEventParamsSteppedOnBy(
 ): FigureEventParamsSteppedOnBy {
     const normalized: FigureEventParamsSteppedOnBy = {}
 
-    if (typeof params?.stepperFigureId === 'string' && params.stepperFigureId.trim()) {
-        normalized.stepperFigureId = params.stepperFigureId.trim()
+    const filterId = normalizeStoredFigureFilterId(params?.stepperFigureId)
+
+    if (filterId !== undefined) {
+        normalized.stepperFigureId = filterId
     }
 
     if (params?.stepperStateIndex !== undefined && Number.isFinite(params.stepperStateIndex)) {

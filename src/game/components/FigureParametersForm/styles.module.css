@@ -243,6 +243,7 @@
     align-items: start;
     padding-bottom: 6px;
     border-bottom: 1px solid #e8e8e8;
+    overflow: visible;
 }
 
 .eventRuleRow:last-of-type {
@@ -287,6 +288,18 @@
     flex-wrap: wrap;
     gap: 4px;
     align-items: center;
+    overflow: visible;
+}
+
+.eventActionItemForm {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    min-width: 0;
+    gap: 4px;
+    align-items: center;
+    flex-wrap: wrap;
+    overflow: visible;
 }
 
 .eventRulesSection :global(.number-drag-pointer-lock-input) {
@@ -323,16 +336,6 @@
     display: flex;
     align-items: flex-start;
     gap: 4px;
-}
-
-.eventActionItemForm {
-    display: flex;
-    flex-direction: row;
-    flex: 1;
-    min-width: 0;
-    gap: 4px;
-    align-items: center;
-    flex-wrap: wrap;
 }
 
 .eventActionsAddRow {

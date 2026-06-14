@@ -31,6 +31,13 @@ export function Form1<StateType>(props: Form1Props<StateType>) {
         }, name)
     }, [onChange, value, name])
 
+    const handleFieldsChange = React.useCallback((fields: Record<string, unknown>) => {
+        onChange({
+            ...value,
+            ...fields,
+        }, name)
+    }, [onChange, value, name])
+
     const config = (() => {
         if (typeof props.config === 'function') {
             return props.config(value)
@@ -53,6 +60,7 @@ export function Form1<StateType>(props: Form1Props<StateType>) {
                         props={props}
                         propsByState={propsByState}
                         onChange={handleParameterChange}
+                        onFieldsChange={handleFieldsChange}
                     />
                 )
             })}
@@ -67,6 +75,10 @@ export interface ParameterInputComponentProps {
     onChange(name: string, value: any)
 
     props: any
+
+    formState?: any
+
+    onFieldsChange?: (fields: Record<string, unknown>) => void
 }
 
 const rotateVector = ({ x, y }, angle) => {
@@ -85,6 +97,7 @@ export interface ParameterComponentProps<StateType> {
     visibility?: (state: StateType) => boolean
     state: StateType
     onChange: (name: string, value: any) => void
+    onFieldsChange?: (fields: Record<string, unknown>) => void
 }
 
 export function ParameterComponent<StateType>(props: ParameterComponentProps<StateType>) {
@@ -97,6 +110,7 @@ export function ParameterComponent<StateType>(props: ParameterComponentProps<Sta
         props: inputProps,
         propsByState,
         visibility,
+        onFieldsChange,
     } = props
 
     const Component = _Component || (type ? inputComponentsByParameterType[type] : undefined)
@@ -114,6 +128,8 @@ export function ParameterComponent<StateType>(props: ParameterComponentProps<Sta
                 props={_inputProps}
                 name={name}
                 onChange={onChange}
+                formState={state}
+                onFieldsChange={onFieldsChange}
             /> : null
     )
 }
