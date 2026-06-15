@@ -1,6 +1,6 @@
 import { BoardParameters } from '../types/boardParameters'
 import { CellCoord } from '../types/coords'
-import { StepCause } from '../types/events'
+import { FigureEventType, StepCause } from '../types/events'
 import { FigureCatalog, FigureId, FigurePlacement } from '../types/figures'
 
 export interface MoveEventContext {
@@ -13,13 +13,21 @@ export interface MoveEventContext {
     boardParameters: BoardParameters
     catalog: FigureCatalog
     areaAnchor?: CellCoord
+    eventType?: FigureEventType
     stepCause?: StepCause
     stepperPlacement?: FigurePlacement
     stepperCoord?: CellCoord
+    figuresBeforeMove?: Record<string, FigurePlacement>
+    areaSubjectCoord?: CellCoord
+    areaSubjectPlacement?: FigurePlacement
 }
 
 export interface TriggeredFigureEvent {
     ownerFigureId: FigureId
     ruleId: string
     areaAnchor?: CellCoord
+    subjectCoord?: CellCoord
+    subjectPlacement?: FigurePlacement
+    triggerMode?: 'active' | 'passive'
+    includePassive?: boolean
 }

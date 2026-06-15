@@ -1,7 +1,7 @@
 import { BoardSlice } from './state/slices'
 import { CellImageShapeParams, CellParameters, CellShape } from './types/cells'
 import { GameState } from './types/gameState'
-import { SliceHistory } from './types/history'
+import { SliceHistory, normalizeSliceHistory } from './types/history'
 import { getDefaultSvgCellParams } from './cellSvgSize'
 import { isCellStyleRule } from './types/styleRules'
 
@@ -107,9 +107,11 @@ export function migrateCellShapesInGameState(gameState: GameState): GameState {
 export function migrateCellShapesInBoardHistory(
     history: SliceHistory<BoardSlice>,
 ): SliceHistory<BoardSlice> {
+    const normalized = normalizeSliceHistory(history)
+
     return {
-        before: history.before.map(migrateBoardSliceCellShapes),
-        after: history.after.map(migrateBoardSliceCellShapes),
+        before: normalized.before.map(migrateBoardSliceCellShapes),
+        after: normalized.after.map(migrateBoardSliceCellShapes),
     }
 }
 

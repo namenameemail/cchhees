@@ -31,6 +31,13 @@ export function applyFigureMove(
         swapOnEat: input.swapOnEat,
     })
 
+    const figuresBeforeMove = Object.fromEntries(
+        Object.entries(figures.figuresByCoord).map(([key, placement]) => [
+            key,
+            cloneFigurePlacement(placement),
+        ]),
+    )
+
     const fromKey = coordKey(input.from)
     const toKey = coordKey(input.to)
     const figuresByCoord = { ...figures.figuresByCoord }
@@ -103,6 +110,7 @@ export function applyFigureMove(
         stepCause: 'manual',
         stepperPlacement: input.actorPlacement,
         stepperCoord: input.from,
+        figuresBeforeMove,
     }
 
     return runFigureEvents(afterMove, eventContext)

@@ -1,5 +1,6 @@
 import { FigureCatalog, FigureId, FigurePlacement } from '../types/figures'
 import {
+    FigureEventParamsAreaEnteredBy,
     FigureEventParamsEnterFigureArea,
     FigureEventParamsStepOnFigure,
     FigureEventParamsSteppedOnBy,
@@ -10,7 +11,11 @@ import {
     SpawnFigureActionParams,
 } from '../types/events'
 import { cloneFigurePlacement, normalizeFigureEventRule } from '../figureView'
-import { FIGURE_FILTER_NONE } from '../figureFilter'
+import {
+    canonicalizeFigureFilterArray,
+    FIGURE_FILTER_NONE,
+    isConcreteFigureFilter,
+} from '../figureFilter'
 import { FiguresSlice } from './slices'
 
 export function getFigureCatalogIds(catalog: FigureCatalog): Set<FigureId> {
@@ -81,7 +86,14 @@ function scrubEventRuleReferences(rule: FigureEventRule, removedFigureId: Figure
     if (rule.type === FigureEventType.steppedOnBy) {
         const steppedParams = { ...(params as FigureEventParamsSteppedOnBy | undefined) }
 
-        if (steppedParams.stepperFigureId === removedFigureId) {
+        if (steppedParams.stepperFigures?.length) {
+            steppedParams.stepperFigures = canonicalizeFigureFilterArray(
+                steppedParams.stepperFigures.filter(entry => (
+                    !isConcreteFigureFilter(entry.figureId)
+                    || entry.figureId !== removedFigureId
+                )),
+            )
+        } else if (steppedParams.stepperFigureId === removedFigureId) {
             steppedParams.stepperFigureId = FIGURE_FILTER_NONE
             delete steppedParams.stepperStateIndex
         }
@@ -90,7 +102,14 @@ function scrubEventRuleReferences(rule: FigureEventRule, removedFigureId: Figure
     } else if (rule.type === FigureEventType.stepOnFigure) {
         const stepOnParams = { ...(params as FigureEventParamsStepOnFigure | undefined) }
 
-        if (stepOnParams.targetFigureId === removedFigureId) {
+        if (stepOnParams.targetFigures?.length) {
+            stepOnParams.targetFigures = canonicalizeFigureFilterArray(
+                stepOnParams.targetFigures.filter(entry => (
+                    !isConcreteFigureFilter(entry.figureId)
+                    || entry.figureId !== removedFigureId
+                )),
+            )
+        } else if (stepOnParams.targetFigureId === removedFigureId) {
             stepOnParams.targetFigureId = FIGURE_FILTER_NONE
             delete stepOnParams.targetStateIndex
         }
@@ -99,12 +118,33 @@ function scrubEventRuleReferences(rule: FigureEventRule, removedFigureId: Figure
     } else if (rule.type === FigureEventType.enterFigureArea) {
         const areaParams = { ...(params as FigureEventParamsEnterFigureArea | undefined) }
 
-        if (areaParams.figureId === removedFigureId) {
-            const { figureId: _removed, ...rest } = areaParams
-            params = rest as FigureEventRule['params']
-        } else {
-            params = areaParams as FigureEventRule['params']
+        if (areaParams.anchorFigures?.length) {
+            areaParams.anchorFigures = canonicalizeFigureFilterArray(
+                areaParams.anchorFigures.filter(entry => (
+                    !isConcreteFigureFilter(entry.figureId)
+                    || entry.figureId !== removedFigureId
+                )),
+            )
+        } else if (areaParams.figureId === removedFigureId) {
+            delete areaParams.figureId
+            delete areaParams.halfWidth
+            delete areaParams.halfHeight
         }
+
+        params = areaParams as FigureEventRule['params']
+    } else if (rule.type === FigureEventType.areaEnteredBy) {
+        const areaParams = { ...(params as FigureEventParamsAreaEnteredBy | undefined) }
+
+        if (areaParams.entererFigures?.length) {
+            areaParams.entererFigures = canonicalizeFigureFilterArray(
+                areaParams.entererFigures.filter(entry => (
+                    !isConcreteFigureFilter(entry.figureId)
+                    || entry.figureId !== removedFigureId
+                )),
+            )
+        }
+
+        params = areaParams as FigureEventRule['params']
     }
 
     const actions = (rule.actions ?? [])

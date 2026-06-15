@@ -1,5 +1,12 @@
-import React, { FC, useCallback, useEffect, useMemo, useState } from 'react'
-import { NumberDragPointerLockInput } from 'bbuutoonnss'
+import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+    DragEvent,
+    DragHandler,
+    getNumberDragDelta,
+    NumberDragDirection,
+    NumberDragPointerLockInput,
+    scaleNumberDragDelta,
+} from 'bbuutoonnss'
 import { FigureId, FigureMoveRule } from '../../types/figures'
 import { normalizeFigureMoveRules } from '../../figureView'
 import { FigureSVG } from '../FigureSVG'
@@ -13,6 +20,7 @@ import {
     isCenterOffset,
     iterGridCells,
     MAX_MOVE_GRID_N,
+    MOVE_GRID_AREA_SIZE,
     removeRule,
     upsertRule,
 } from './moveRulesGrid'
@@ -25,17 +33,32 @@ export interface FigureMoveRulesGridProps {
     onChange: (rules: FigureMoveRule[]) => void
 }
 
-function offsetsEqual(
-    left: { x: number; y: number } | null,
-    right: { x: number; y: number },
-): boolean {
-    return left !== null && left.x === right.x && left.y === right.y
-}
-
 function formatRuleN(n: number | undefined): string {
     const resolved = n === undefined ? 1 : n
     return resolved === 0 ? '∞' : String(resolved)
 }
+
+function getRuleNDragValue(n: number | undefined): number {
+    return n === undefined ? 1 : n
+}
+
+const MOVE_RULES_DRAG_PIXELS_PER_STEP = 8
+
+type GridBorder = 'top' | 'bottom' | 'left' | 'right'
+
+const GRID_BORDER_DRAG_DIRECTION: Record<GridBorder, NumberDragDirection> = {
+    top: NumberDragDirection.ny,
+    bottom: NumberDragDirection.y,
+    left: NumberDragDirection.nx,
+    right: NumberDragDirection.x,
+}
+
+const GRID_BORDER_HANDLES: Array<{ border: GridBorder; className: keyof typeof styles }> = [
+    { border: 'top', className: 'gridResizeHandleTop' },
+    { border: 'bottom', className: 'gridResizeHandleBottom' },
+    { border: 'left', className: 'gridResizeHandleLeft' },
+    { border: 'right', className: 'gridResizeHandleRight' },
+]
 
 export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
     figureId,
@@ -45,11 +68,11 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
 }) => {
     const minGridN = useMemo(() => getMinGridN(moveRules), [moveRules])
     const [gridN, setGridN] = useState(minGridN)
-    const [selected, setSelected] = useState<{ x: number; y: number } | null>(null)
+    const [gridAreaSize, setGridAreaSize] = useState(MOVE_GRID_AREA_SIZE)
+    const gridAreaRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         setGridN(getMinGridN(moveRules))
-        setSelected(null)
     }, [figureId, stateIndex])
 
     useEffect(() => {
@@ -57,10 +80,23 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
     }, [moveRules])
 
     useEffect(() => {
-        if (selected && !getRuleAt(moveRules, selected.x, selected.y)) {
-            setSelected(null)
+        const gridArea = gridAreaRef.current
+
+        if (!gridArea) {
+            return
         }
-    }, [moveRules, selected])
+
+        const updateSize = () => {
+            setGridAreaSize(gridArea.clientWidth || MOVE_GRID_AREA_SIZE)
+        }
+
+        updateSize()
+
+        const observer = new ResizeObserver(updateSize)
+        observer.observe(gridArea)
+
+        return () => observer.disconnect()
+    }, [])
 
     const emitChange = useCallback((nextRules: FigureMoveRule[]) => {
         onChange(normalizeFigureMoveRules(nextRules))
@@ -70,19 +106,25 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
         setGridN(clampGridN(value, moveRules))
     }, [moveRules])
 
-    const handleGridWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const handleGridNBorderDrag = useCallback((
+        border: GridBorder,
+        event: DragEvent,
+        _pointerEvent: PointerEvent,
+        savedValue: number = minGridN,
+    ) => {
+        const direction = GRID_BORDER_DRAG_DIRECTION[border]
+        const delta = scaleNumberDragDelta(
+            getNumberDragDelta[direction](event.x, event.y),
+            MOVE_RULES_DRAG_PIXELS_PER_STEP,
+        )
+
+        setGridN(clampGridN(savedValue + delta, moveRules))
+    }, [minGridN, moveRules])
+
+    const handleCellDoubleClick = useCallback((event: React.MouseEvent, x: number, y: number) => {
         event.preventDefault()
+        event.stopPropagation()
 
-        const combinedDelta = event.deltaX + event.deltaY
-
-        if (combinedDelta === 0) {
-            return
-        }
-
-        setGridN(current => clampGridN(current + (combinedDelta > 0 ? -1 : 1), moveRules))
-    }, [moveRules])
-
-    const handleCellClick = useCallback((x: number, y: number) => {
         if (isCenterOffset(x, y)) {
             return
         }
@@ -90,38 +132,45 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
         const existing = getRuleAt(moveRules, x, y)
 
         if (existing) {
-            if (offsetsEqual(selected, { x, y })) {
-                emitChange(removeRule(moveRules, x, y))
-                setSelected(null)
-                return
-            }
-
-            setSelected({ x, y })
+            emitChange(removeRule(moveRules, x, y))
             return
         }
 
-        const nextRules = upsertRule(moveRules, { x, y, n: 1 })
-        emitChange(nextRules)
-        setSelected({ x, y })
-    }, [emitChange, moveRules, selected])
+        emitChange(upsertRule(moveRules, { x, y, n: 1 }))
+    }, [emitChange, moveRules])
 
-    const handleNChange = useCallback((x: number, y: number, nextValue: number) => {
+    const handleRuleNDrag = useCallback((
+        x: number,
+        y: number,
+        event: DragEvent,
+        _pointerEvent: PointerEvent,
+        savedValue: number = 1,
+    ) => {
         const existing = getRuleAt(moveRules, x, y)
 
         if (!existing) {
             return
         }
 
+        const delta = scaleNumberDragDelta(
+            getNumberDragDelta[NumberDragDirection.ny](event.x, event.y),
+            MOVE_RULES_DRAG_PIXELS_PER_STEP,
+        )
+        const nextN = clampMoveRuleN(savedValue + delta)
+
         emitChange(upsertRule(moveRules, {
             ...existing,
-            n: clampMoveRuleN(nextValue),
+            n: nextN,
         }))
     }, [emitChange, moveRules])
 
     const cells = useMemo(() => iterGridCells(gridN), [gridN])
     const gridSize = getMoveGridSize(gridN)
-    const cellSize = useMemo(() => getMoveGridCellSize(gridN), [gridN])
-    const figureSize = Math.max(12, Math.floor(cellSize * 0.82))
+    const cellSize = useMemo(
+        () => getMoveGridCellSize(gridN, gridAreaSize),
+        [gridAreaSize, gridN],
+    )
+    const previewSize = Math.max(1, Math.floor(cellSize))
     const cellFontSize = Math.max(8, Math.floor(cellSize * 0.38))
 
     return (
@@ -131,40 +180,43 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
                     N
                     <NumberDragPointerLockInput
                         className={styles.gridNInput}
+                        dragClassName={styles.dragInput}
                         value={gridN}
                         onChange={handleGridNChange}
                         min={minGridN}
                         max={MAX_MOVE_GRID_N}
                         step={1}
-                        pointerLock={false}
+                        dragPixelsPerStep={MOVE_RULES_DRAG_PIXELS_PER_STEP}
+                        changeOnChange
                         changeOnBlur
                         resetOnBlur
-                        title={`Радиус сетки (${gridSize}×${gridSize}). Колесо над полем меняет N.`}
+                        title={`Радиус сетки (${gridSize}×${gridSize}). Перетаскивание границ меняет N.`}
                     />
                 </label>
             </div>
-            <div
-                className={styles.gridArea}
-                style={{ '--grid-size': gridSize } as React.CSSProperties}
-                onWheel={handleGridWheel}
-            >
-                {cells.map(({ gi, gj, x, y }) => {
+            <div className={styles.gridFrame}>
+                <div
+                    ref={gridAreaRef}
+                    className={styles.gridArea}
+                    style={{ '--grid-size': gridSize } as React.CSSProperties}
+                >
+                    {cells.map(({ gi, gj, x, y }) => {
                     const rule = getRuleAt(moveRules, x, y)
                     const isCenter = isCenterOffset(x, y)
-                    const isSelected = offsetsEqual(selected, { x, y })
 
                     if (isCenter) {
                         return (
                             <div
                                 key={`${gi},${gj}`}
-                                className={`${styles.cell} ${styles.cellCenter}`}
+                                className={styles.cellCenter}
                                 title="Фигура"
                             >
                                 <FigureSVG
                                     className={styles.figurePreview}
                                     figureId={figureId}
                                     stateIndex={stateIndex}
-                                    size={figureSize}
+                                    width={previewSize}
+                                    height={previewSize}
                                 />
                             </div>
                         )
@@ -173,50 +225,49 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
                     const cellClassName = [
                         styles.cell,
                         rule ? styles.cellRule : styles.cellEmpty,
-                        isSelected ? styles.cellSelected : '',
                     ].filter(Boolean).join(' ')
 
                     return (
-                        <button
+                        <div
                             key={`${gi},${gj}`}
-                            type="button"
                             className={cellClassName}
                             title={rule
-                                ? `Ход (${x}, ${y}), n=${formatRuleN(rule.n)}. Повторный клик — удалить.`
-                                : `Добавить ход (${x}, ${y})`}
-                            onClick={() => handleCellClick(x, y)}
+                                ? `Ход (${x}, ${y}), n=${formatRuleN(rule.n)}. Двойной клик — удалить. Перетаскивание — изменить n.`
+                                : `Двойной клик — добавить ход (${x}, ${y})`}
+                            onDoubleClick={event => handleCellDoubleClick(event, x, y)}
                         >
-                            {isSelected ? (
-                                <span
-                                    className={styles.nInputWrap}
-                                    style={{ fontSize: cellFontSize }}
-                                    onPointerDown={event => event.stopPropagation()}
-                                    onClick={event => event.stopPropagation()}
+                            {rule ? (
+                                <DragHandler<number>
+                                    className={styles.ruleDragArea}
+                                    saveValue={getRuleNDragValue(rule.n)}
+                                    onChange={(event, pointerEvent, savedValue) => {
+                                        handleRuleNDrag(x, y, event, pointerEvent, savedValue)
+                                    }}
                                 >
-                                    <NumberDragPointerLockInput
-                                        className={styles.nInput}
-                                        value={rule?.n === undefined ? 1 : rule.n}
-                                        onChange={nextValue => handleNChange(x, y, nextValue)}
-                                        min={0}
-                                        max={100}
-                                        step={1}
-                                        pointerLock={false}
-                                        changeOnBlur
-                                        resetOnBlur
-                                        title="n (0 = бесконечно)"
-                                    />
-                                </span>
-                            ) : rule ? (
-                                <span
-                                    className={styles.ruleMarker}
-                                    style={{ fontSize: cellFontSize }}
-                                >
-                                    {formatRuleN(rule.n)}
-                                </span>
+                                    <span
+                                        className={styles.ruleMarker}
+                                        style={{ fontSize: cellFontSize }}
+                                    >
+                                        {formatRuleN(rule.n)}
+                                    </span>
+                                </DragHandler>
                             ) : null}
-                        </button>
+                        </div>
                     )
-                })}
+                    })}
+                </div>
+                {GRID_BORDER_HANDLES.map(({ border, className }) => (
+                    <DragHandler<number>
+                        key={border}
+                        className={styles[className]}
+                        pointerLock
+                        saveValue={gridN}
+                        onChange={(event, pointerEvent, savedValue) => {
+                            handleGridNBorderDrag(border, event, pointerEvent, savedValue)
+                        }}
+                        title={`Изменить радиус сетки (N). Тяните ${border === 'top' ? 'вверх' : border === 'bottom' ? 'вниз' : border === 'left' ? 'влево' : 'вправо'} — увеличить.`}
+                    />
+                ))}
             </div>
         </div>
     )

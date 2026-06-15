@@ -15,6 +15,7 @@ import { isCellStyleRule, isConnectionStyleRule } from '../types/styleRules'
 import { Mode } from '../types'
 import { resolveFigureDefinition } from '../figureView'
 import { getLegalMoveDestinations } from '../moveRules'
+import { resolveBoardMarks } from '../boardMarks'
 import {
     getBoardBackgroundRect,
     getAxisNumberingFrameClipRadius,
@@ -28,6 +29,7 @@ import {
     isAnyAxisNumberingEnabled,
     resolveAxisNumberings,
 } from '../boardAxisLabels'
+import { BoardMarkGradientDefs } from './BoardMarkGradientDefs'
 import { BoardBackgroundLayer, BoardBackgroundPattern } from './BoardBackground'
 import {
     BoardAxisNumberingClipDefs,
@@ -43,7 +45,11 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
 
     const { state, mode, activeCell, figureCatalog, previewCellStyleRuleIndex } = useGameContext()
     const selectionGradientId = useId().replace(/:/g, '')
+    const selectionOverlayGradientId = useId().replace(/:/g, '')
     const legalMoveGradientId = useId().replace(/:/g, '')
+    const legalMoveOverlayGradientId = useId().replace(/:/g, '')
+    const cursorGradientId = useId().replace(/:/g, '')
+    const cursorOverlayGradientId = useId().replace(/:/g, '')
     const boardClipId = useId().replace(/:/g, '')
     const backgroundPatternId = useId().replace(/:/g, '')
     const numberingClipId = useId().replace(/:/g, '')
@@ -80,6 +86,43 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
         () => resolveBoardAppearance(boardParameters),
         [boardParameters],
     )
+
+    const boardMarks = useMemo(
+        () => resolveBoardMarks(boardParameters),
+        [boardParameters],
+    )
+
+    const markGradientIds = useMemo(() => ({
+        selection: boardMarks.selection.fill.type === 'solid' || boardMarks.selection.fill.type === 'none'
+            ? undefined
+            : selectionGradientId,
+        selectionOverlay: boardMarks.selection.overlay?.fill?.type === 'linear'
+            || boardMarks.selection.overlay?.fill?.type === 'radial'
+            ? selectionOverlayGradientId
+            : undefined,
+        legalMove: boardMarks.legalMove.fill.type === 'solid' || boardMarks.legalMove.fill.type === 'none'
+            ? undefined
+            : legalMoveGradientId,
+        legalMoveOverlay: boardMarks.legalMove.overlay?.fill?.type === 'linear'
+            || boardMarks.legalMove.overlay?.fill?.type === 'radial'
+            ? legalMoveOverlayGradientId
+            : undefined,
+        cursor: boardMarks.cursor.fill.type === 'solid' || boardMarks.cursor.fill.type === 'none'
+            ? undefined
+            : cursorGradientId,
+        cursorOverlay: boardMarks.cursor.overlay?.fill?.type === 'linear'
+            || boardMarks.cursor.overlay?.fill?.type === 'radial'
+            ? cursorOverlayGradientId
+            : undefined,
+    }), [
+        boardMarks,
+        selectionGradientId,
+        selectionOverlayGradientId,
+        legalMoveGradientId,
+        legalMoveOverlayGradientId,
+        cursorGradientId,
+        cursorOverlayGradientId,
+    ])
 
     const connections = useMemo(() => {
         return (n && m) ? getConnections(n, m) : {}
@@ -178,14 +221,15 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                         />
                     </clipPath>
                 )}
-                <radialGradient id={selectionGradientId}>
-                    <stop offset="5%" stopColor="#ff00FF99" />
-                    <stop offset="95%" stopColor="#ff000000" />
-                </radialGradient>
-                <radialGradient id={legalMoveGradientId}>
-                    <stop offset="5%" stopColor="#00aa4455" />
-                    <stop offset="95%" stopColor="#00aa4400" />
-                </radialGradient>
+                <BoardMarkGradientDefs
+                    boardMarks={boardMarks}
+                    selectionGradientId={selectionGradientId}
+                    selectionOverlayGradientId={selectionOverlayGradientId}
+                    legalMoveGradientId={legalMoveGradientId}
+                    legalMoveOverlayGradientId={legalMoveOverlayGradientId}
+                    cursorGradientId={cursorGradientId}
+                    cursorOverlayGradientId={cursorOverlayGradientId}
+                />
                 {numberingShouldClip && (
                     <BoardAxisNumberingClipDefs
                         boardParameters={boardParameters}
@@ -269,8 +313,8 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                         key={coordKey(coord)}
                         cell={cells[index]}
                         coord={coord}
-                        selectionGradientId={selectionGradientId}
-                        legalMoveGradientId={legalMoveGradientId}
+                        boardMarks={boardMarks}
+                        gradientIds={markGradientIds}
                         isLegalMove={legalMoveKeys.has(coordKey(coord))}
                     />
                 )

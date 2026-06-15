@@ -1,48 +1,15 @@
 {
-  "recordedAt": "2026-06-13T22:01:02.603Z",
-  "clickCount": 5,
+  "recordedAt": "2026-06-14T21:43:12.174Z",
+  "clickCount": 1,
   "clicks": [
     {
-      "ts": "2026-06-13T22:00:45.336Z",
-      "tag": "select",
-      "className": "_eventTypeSelect_qwrr0_348",
-      "text": "DraughtsManWhite DraughtsKingWhite DraughtsManBlack DraughtsKingBlack ChessKingW…",
-      "selector": "select._eventTypeSelect_qwrr0_348:nth-of-type(1)",
-      "x": 921,
-      "y": 483
-    },
-    {
-      "ts": "2026-06-13T22:00:46.453Z",
-      "tag": "input",
-      "className": "blur-text-input",
-      "selector": "input.blur-text-input",
-      "x": 899,
-      "y": 504
-    },
-    {
-      "ts": "2026-06-13T22:00:49.133Z",
-      "tag": "select",
-      "className": "_eventTypeSelect_qwrr0_348",
-      "text": "any manual displacement",
-      "selector": "select._eventTypeSelect_qwrr0_348:nth-of-type(2)",
-      "x": 934,
-      "y": 538
-    },
-    {
-      "ts": "2026-06-13T22:00:54.609Z",
-      "tag": "button",
-      "text": "x",
-      "selector": "button",
-      "x": 1221,
-      "y": 366
-    },
-    {
-      "ts": "2026-06-13T22:00:58.252Z",
-      "tag": "button",
-      "text": "x",
-      "selector": "button",
-      "x": 1201,
-      "y": 565
+      "ts": "2026-06-14T21:43:10.566Z",
+      "tag": "div",
+      "className": "_cellCenter_16ady_122",
+      "text": "●",
+      "selector": "div._cellCenter_16ady_122:nth-of-type(5)",
+      "x": 2050,
+      "y": 489
     }
   ]
 }

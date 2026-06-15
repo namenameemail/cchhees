@@ -2,7 +2,7 @@ import { BoardConditionItem } from '../types/conditions'
 import { BoardConnectionsConditionItem } from '../types/connections'
 import { GameState } from '../types/gameState'
 import { BoardSlice } from '../state/slices'
-import { SliceHistory } from '../types/history'
+import { SliceHistory, normalizeSliceHistory } from '../types/history'
 import { BoardStyleRule, CellStyleRule, ConnectionStyleRule } from '../types/styleRules'
 
 export interface LegacyGameStateWithConditions extends Omit<GameState, 'styleRules'> {
@@ -91,8 +91,10 @@ export function migrateBoardSliceStyleRules(slice: LegacyBoardSliceWithCondition
 export function migrateBoardHistoryStyleRules(
     history: SliceHistory<LegacyBoardSliceWithConditions>,
 ): SliceHistory<BoardSlice> {
+    const normalized = normalizeSliceHistory(history)
+
     return {
-        before: history.before.map(migrateBoardSliceStyleRules),
-        after: history.after.map(migrateBoardSliceStyleRules),
+        before: normalized.before.map(migrateBoardSliceStyleRules),
+        after: normalized.after.map(migrateBoardSliceStyleRules),
     }
 }

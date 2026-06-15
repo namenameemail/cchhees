@@ -1,3 +1,5 @@
+import { BoardMarksSettings } from './boardMarks'
+
 export enum BoardBackgroundImageFit {
     tile = 'tile',
     center = 'center',
@@ -113,6 +115,7 @@ export interface BoardParameters {
     borderWidth?: number
     borderColor?: string
     borderDasharray?: string
+    boardMarks?: BoardMarksSettings
     axisNumberings?: BoardAxisNumbering[]
     /** общий фон полосы нумерации (вокруг доски) */
     axisNumberingFrame?: BoardAxisNumberingFrameSettings

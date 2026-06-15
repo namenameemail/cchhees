@@ -1,7 +1,10 @@
-import React, { FC, useId } from 'react'
+import React, { FC, useId, useMemo } from 'react'
 import { useGameContext } from '../context'
 import { FigureId } from '../types/figures'
 import { FigureSVGGroup } from './FigureSVGGroup'
+import { buildMarkGradientDef, DEFAULT_BOARD_MARKS, getMarkPaintStyle, getOverlayPaintStyle, isOverlayVisible } from '../boardMarks'
+
+const FIGURE_PICKER_HIGHLIGHT = DEFAULT_BOARD_MARKS.selection
 
 export interface FigureSVGProps {
     className?: string
@@ -29,6 +32,18 @@ export const FigureSVG: FC<FigureSVGProps> = ({
         },
     } = useGameContext()
 
+    const highlightPaint = useMemo(
+        () => getMarkPaintStyle(FIGURE_PICKER_HIGHLIGHT, gradientId),
+        [gradientId],
+    )
+
+    const overlayPaint = useMemo(
+        () => FIGURE_PICKER_HIGHLIGHT.overlay != null
+            ? getOverlayPaintStyle(FIGURE_PICKER_HIGHLIGHT.overlay)
+            : null,
+        [],
+    )
+
     const useCellViewBox = width != null && height != null
 
     const viewWidth = useCellViewBox ? cellXDistance : cellXDistance * 2
@@ -48,20 +63,9 @@ export const FigureSVG: FC<FigureSVGProps> = ({
             overflow="visible"
         >
             {highlighted && (
-                <>
-                    <defs>
-                        <radialGradient id={gradientId}>
-                            <stop offset="5%" stopColor="#ff00FF99" />
-                            <stop offset="95%" stopColor="#ff000000" />
-                        </radialGradient>
-                    </defs>
-                    <circle
-                        cx={centerX}
-                        cy={centerY}
-                        r={highlightRadius}
-                        fill={`url(#${gradientId})`}
-                    />
-                </>
+                <defs>
+                    {buildMarkGradientDef(FIGURE_PICKER_HIGHLIGHT.fill, gradientId)}
+                </defs>
             )}
             <FigureSVGGroup
                 figureId={figureId}
@@ -69,6 +73,34 @@ export const FigureSVG: FC<FigureSVGProps> = ({
                 y={centerY}
                 stateIndex={stateIndex}
             />
+            {highlighted && (
+                <>
+                    <circle
+                        cx={centerX}
+                        cy={centerY}
+                        r={highlightRadius}
+                        fill={highlightPaint.fill}
+                        stroke={highlightPaint.stroke}
+                        strokeWidth={highlightPaint.strokeWidth}
+                        strokeDasharray={highlightPaint.strokeDasharray}
+                        pointerEvents="none"
+                        style={{ mixBlendMode: 'darken' }}
+                    />
+                    {overlayPaint != null && isOverlayVisible(overlayPaint) && (
+                        <circle
+                            cx={centerX}
+                            cy={centerY}
+                            r={highlightRadius}
+                            fill={overlayPaint.fill}
+                            stroke={overlayPaint.stroke}
+                            strokeWidth={overlayPaint.strokeWidth}
+                            strokeDasharray={overlayPaint.strokeDasharray}
+                            pointerEvents="none"
+                            style={{ mixBlendMode: overlayPaint.mixBlendMode as React.CSSProperties['mixBlendMode'] }}
+                        />
+                    )}
+                </>
+            )}
         </svg>
     )
 }

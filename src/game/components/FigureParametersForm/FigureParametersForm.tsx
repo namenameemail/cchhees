@@ -11,11 +11,18 @@ import {
     GameAction,
     GameActionTarget,
     GameActionType,
+    DisplaceFigureActionParams,
+    SetOtherStateActionParams,
+    SpawnFigureActionParams,
     StepCause,
 } from '../../types/events'
 import { FigureSVG } from '../FigureSVG'
-import { createFigureStateFieldConfig } from '../FigureStateSelect/FigureStateSelectField'
-import { FIGURE_FILTER_ANY } from '../../figureFilter'
+import {
+    createFigureFilterArrayFieldConfig,
+    createFigureStateFieldConfig,
+} from '../FigureStateSelect/FigureStateSelectField'
+import { createFigureAreaGridFieldConfig } from '../FigureAreaGrid/FigureAreaGridField'
+import { FIGURE_FILTER_ANY, canonicalizeFigureFilterArray } from '../../figureFilter'
 import { FigureMoveRulesGrid } from '../FigureMoveRulesGrid/FigureMoveRulesGrid'
 import { FormArray } from '../../../components/FormArray'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
@@ -27,11 +34,20 @@ import {
 } from '../../cellSvgSize'
 import {
     getDefaultFigureViewParams,
+    normalizeFigureEventParamsAreaEnteredBy,
+    normalizeFigureEventParamsEnterFigureArea,
     normalizeFigureEventRule,
+    normalizeGameAction,
     resolveFigureDefinition,
     resolveFigureState,
     resolveFigureViewParams,
 } from '../../figureView'
+import {
+    logFigureEventActionsChange,
+    logFigureEventRulesBatchChange,
+    logFigureEventRulesDebug,
+} from '../../figureEventRulesDebugLog'
+import { setProfilerPanelChannel } from '../../../profiler'
 import { isFigureTextShadowEnabled } from '../../figureTextShadow'
 import styles from './styles.module.css'
 
@@ -212,6 +228,7 @@ const gameActionTargetOptions = Object.values<GameActionTarget>([
     'steppedBy',
     'areaAnchor',
 ])
+const VALID_ACTION_TARGETS = new Set<GameActionTarget>(gameActionTargetOptions)
 const stepCauseOptions: StepCause[] = ['any', 'manual', 'displacement']
 const boundaryActionTypeOptions = [
     GameActionType.moveToTray,
@@ -230,14 +247,16 @@ const eventNumberInputProps = {
 
 function getEventParamsConfig(
     type: FigureEventType,
+    ownerFigureId?: FigureId,
 ) {
     switch (type) {
         case FigureEventType.steppedOnBy:
             return [
-                createFigureStateFieldConfig('stepperFigureId', {
-                    stateField: 'stepperStateIndex',
+                createFigureFilterArrayFieldConfig('stepperFigures', {
                     allowAny: true,
                     title: 'stepper (любая = ?)',
+                    className: styles.figureFilterArray,
+                    itemClassName: styles.figureFilterArrayItem,
                 }),
                 {
                     name: 'cause',
@@ -251,10 +270,11 @@ function getEventParamsConfig(
             ]
         case FigureEventType.stepOnFigure:
             return [
-                createFigureStateFieldConfig('targetFigureId', {
-                    stateField: 'targetStateIndex',
+                createFigureFilterArrayFieldConfig('targetFigures', {
                     allowAny: true,
                     title: 'target (любая = ?)',
+                    className: styles.figureFilterArray,
+                    itemClassName: styles.figureFilterArrayItem,
                 }),
                 {
                     name: 'cause',
@@ -281,13 +301,47 @@ function getEventParamsConfig(
             ]
         case FigureEventType.enterFigureArea:
             return [
-                createFigureStateFieldConfig('figureId', {
-                    showStatePicker: false,
-                    allowAny: false,
-                    title: 'figure',
+                createFigureFilterArrayFieldConfig('anchorFigures', {
+                    allowAny: true,
+                    title: 'anchor (любая = ?)',
+                    className: styles.figureFilterArray,
+                    itemClassName: styles.figureFilterArrayItem,
                 }),
-                { name: 'halfWidth', type: ParameterTypes.NumberInput, props: { placeholder: 'half w', ...nonNegative, ...eventNumberInputProps } },
-                { name: 'halfHeight', type: ParameterTypes.NumberInput, props: { placeholder: 'half h', ...nonNegative, ...eventNumberInputProps } },
+                createFigureAreaGridFieldConfig('cells', {
+                    className: styles.figureAreaGridField,
+                }),
+                {
+                    name: 'includePassive',
+                    Component: SvgManualDimensionCheckbox,
+                    props: { text: 'триггер если стояла / вошли в область' },
+                },
+            ]
+        case FigureEventType.areaEnteredBy:
+            return [
+                createFigureFilterArrayFieldConfig('entererFigures', {
+                    allowAny: true,
+                    title: 'enterer (любая = ?)',
+                    className: styles.figureFilterArray,
+                    itemClassName: styles.figureFilterArrayItem,
+                }),
+                createFigureAreaGridFieldConfig('cells', {
+                    className: styles.figureAreaGridField,
+                    previewFigureId: ownerFigureId,
+                }),
+                {
+                    name: 'includePassive',
+                    Component: SvgManualDimensionCheckbox,
+                    props: { text: 'триггер если стояла / вошли в область' },
+                },
+                {
+                    name: 'cause',
+                    type: ParameterTypes.SelectArray,
+                    props: {
+                        className: styles.eventTypeSelect,
+                        options: stepCauseOptions,
+                        title: 'cause',
+                    },
+                },
             ]
         default:
             return []
@@ -307,6 +361,7 @@ function getActionParamsConfig(type: GameActionType) {
             return [
                 createFigureStateFieldConfig('figureId', {
                     stateField: 'stateIndex',
+                    showStatePicker: true,
                     title: 'figure',
                 }),
                 { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne, ...eventNumberInputProps } },
@@ -334,6 +389,75 @@ function getActionParamsConfig(type: GameActionType) {
     }
 }
 
+function sanitizeEventActions(
+    actions: GameAction[],
+    options: { defaultFigureId?: FigureId; figureOptions?: FigureId[] } = {},
+): GameAction[] {
+    const fallbackFigureId = options.defaultFigureId ?? options.figureOptions?.[0]
+
+    return actions.map(action => {
+        if (action.type === GameActionType.setOtherState) {
+            const params = (action.params ?? { stateIndex: 0, target: 'steppedOn' }) as SetOtherStateActionParams
+
+            return {
+                type: action.type,
+                params: {
+                    stateIndex: Math.max(0, Math.trunc(params.stateIndex ?? 0)),
+                    target: params.target && VALID_ACTION_TARGETS.has(params.target)
+                        ? params.target
+                        : 'steppedOn',
+                },
+            }
+        }
+
+        if (action.type === GameActionType.spawnFigure) {
+            const params = (action.params ?? {}) as Partial<SpawnFigureActionParams>
+            const figureId = typeof params.figureId === 'string' && params.figureId.trim()
+                ? params.figureId.trim()
+                : (fallbackFigureId ?? '')
+
+            const rawX = params.x
+            const rawY = params.y
+            const x = rawX !== undefined && Number.isFinite(rawX) && Math.trunc(rawX) >= 1
+                ? Math.trunc(rawX)
+                : 1
+            const y = rawY !== undefined && Number.isFinite(rawY) && Math.trunc(rawY) >= 1
+                ? Math.trunc(rawY)
+                : 1
+
+            return {
+                type: action.type,
+                params: {
+                    figureId,
+                    x,
+                    y,
+                    stateIndex: params.stateIndex === undefined
+                        ? 0
+                        : Math.max(0, Math.trunc(params.stateIndex)),
+                },
+            }
+        }
+
+        if (action.type === GameActionType.displaceFigure) {
+            const params = (action.params ?? {}) as Partial<DisplaceFigureActionParams>
+            let dx = Number.isFinite(params.dx) ? Math.trunc(params.dx!) : 1
+            let dy = Number.isFinite(params.dy) ? Math.trunc(params.dy!) : 0
+
+            if (dx === 0 && dy === 0) {
+                dx = 1
+                dy = 0
+            }
+
+            return {
+                type: action.type,
+                params: { dx, dy },
+            }
+        }
+
+        return action
+    })
+}
+
 function createEventActionsArrayProps(
     figureOptions: FigureId[],
     defaultAction: GameActionType = GameActionType.setSelfState,
@@ -345,6 +469,15 @@ function createEventActionsArrayProps(
                 return {}
             case GameActionType.displaceFigure:
                 return { dx: 1, dy: 0 }
+            case GameActionType.setOtherState:
+                return { stateIndex: 0, target: 'steppedOn' as GameActionTarget }
+            case GameActionType.spawnFigure:
+                return {
+                    figureId: figureOptions[0] ?? '',
+                    x: 1,
+                    y: 1,
+                    stateIndex: 0,
+                }
             default:
                 return { stateIndex: 0 }
         }
@@ -391,8 +524,9 @@ function createEventActionsArrayProps(
 
 function getEventRuleEventFields(
     rule: FigureEventRule,
+    ownerFigureId?: FigureId,
 ): Form1FieldConfig<FigureEventRule>[] {
-    const paramsConfig = getEventParamsConfig(rule.type)
+    const paramsConfig = getEventParamsConfig(rule.type, ownerFigureId)
     const fields: Form1FieldConfig<FigureEventRule>[] = [
         {
             name: 'type',
@@ -437,6 +571,7 @@ function getEventRuleActionsArrayProps(
 interface EventRuleRowProps {
     rule: FigureEventRule
     index: number
+    figureId?: FigureId
     figureOptions: FigureId[]
     onChange: (rule: FigureEventRule, index: number) => void
     onRemove: (index: number) => void
@@ -445,13 +580,14 @@ interface EventRuleRowProps {
 const EventRuleRow: FC<EventRuleRowProps> = ({
     rule,
     index,
+    figureId,
     figureOptions,
     onChange,
     onRemove,
 }) => {
     const eventFields = useMemo(
-        () => getEventRuleEventFields(rule),
-        [rule],
+        () => getEventRuleEventFields(rule, figureId),
+        [rule, figureId],
     )
 
     const actionsArrayProps = useMemo(
@@ -460,12 +596,32 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
     )
 
     const handleRuleChange = useCallback((nextRule: FigureEventRule) => {
+        logFigureEventRulesDebug('rule-change', {
+            figureId,
+            ruleId: rule.id,
+            ruleIndex: index,
+            before: { type: rule.type, params: rule.params, actions: rule.actions },
+            after: { type: nextRule.type, params: nextRule.params, actions: nextRule.actions },
+        })
         onChange(nextRule, index)
-    }, [index, onChange])
+    }, [figureId, index, onChange, rule])
 
     const handleActionsChange = useCallback((actions: GameAction[]) => {
-        onChange({ ...rule, actions }, index)
-    }, [rule, index, onChange])
+        const sanitized = sanitizeEventActions(actions, {
+            defaultFigureId: figureId,
+            figureOptions,
+        })
+
+        logFigureEventActionsChange({
+            figureId,
+            rule,
+            ruleIndex: index,
+            before: rule.actions,
+            after: sanitized,
+        })
+
+        onChange({ ...rule, actions: sanitized }, index)
+    }, [figureId, figureOptions, rule, index, onChange])
 
     const handleRemove = useCallback(() => {
         onRemove(index)
@@ -567,6 +723,12 @@ export const FigureParametersForm: FC = () => {
         }
     }, [activeStateIndex, stateCount])
 
+    useEffect(() => {
+        if (import.meta.env.DEV) {
+            setProfilerPanelChannel(activeSection === 'events' ? 'gameplay' : 'scroll')
+        }
+    }, [activeSection])
+
     const activeFigureState = useMemo(() => {
         if (!figureDefinition) {
             return null
@@ -605,7 +767,7 @@ export const FigureParametersForm: FC = () => {
         id: crypto.randomUUID(),
         type: FigureEventType.stepOnFigure,
         params: {
-            targetFigureId: FIGURE_FILTER_ANY,
+            targetFigures: [{ figureId: FIGURE_FILTER_ANY }],
             cause: 'any',
         },
         actions: [{
@@ -619,22 +781,24 @@ export const FigureParametersForm: FC = () => {
             return
         }
 
+        logFigureEventRulesBatchChange({
+            figureId: activeFigure,
+            phase: 'before-normalize',
+            rules: nextRules,
+        })
+
         const patched = nextRules.map(rule => {
             if (rule.type === FigureEventType.steppedOnBy) {
-                const params = (rule.params ?? {}) as {
-                    stepperFigureId?: FigureId
-                    stepperStateIndex?: number
+                const params = rule.params as {
+                    stepperFigures?: Array<{ figureId?: FigureId; stateIndex?: number }>
                     cause?: StepCause
-                }
+                } | undefined
 
                 return {
                     ...rule,
                     params: {
-                        cause: params.cause ?? 'any',
-                        ...(params.stepperFigureId ? { stepperFigureId: params.stepperFigureId } : {}),
-                        ...(params.stepperStateIndex !== undefined
-                            ? { stepperStateIndex: params.stepperStateIndex }
-                            : {}),
+                        cause: params?.cause ?? 'any',
+                        stepperFigures: canonicalizeFigureFilterArray(params?.stepperFigures),
                     },
                     actions: rule.actions?.length
                         ? rule.actions
@@ -652,28 +816,83 @@ export const FigureParametersForm: FC = () => {
             }
 
             if (rule.type === FigureEventType.stepOnFigure) {
-                const params = (rule.params ?? {}) as {
-                    targetFigureId?: FigureId
-                    targetStateIndex?: number
+                const params = rule.params as {
+                    targetFigures?: Array<{ figureId?: FigureId; stateIndex?: number }>
                     cause?: StepCause
-                }
+                } | undefined
 
                 return {
                     ...rule,
                     params: {
-                        cause: params.cause ?? 'any',
-                        ...(params.targetFigureId ? { targetFigureId: params.targetFigureId } : {}),
-                        ...(params.targetStateIndex !== undefined
-                            ? { targetStateIndex: params.targetStateIndex }
-                            : {}),
+                        cause: params?.cause ?? 'any',
+                        targetFigures: canonicalizeFigureFilterArray(params?.targetFigures),
                     },
+                }
+            }
+
+            if (rule.type === FigureEventType.enterFigureArea) {
+                return {
+                    ...rule,
+                    params: normalizeFigureEventParamsEnterFigureArea(
+                        rule.params as Parameters<typeof normalizeFigureEventParamsEnterFigureArea>[0],
+                    ),
+                }
+            }
+
+            if (rule.type === FigureEventType.areaEnteredBy) {
+                return {
+                    ...rule,
+                    params: normalizeFigureEventParamsAreaEnteredBy(
+                        rule.params as Parameters<typeof normalizeFigureEventParamsAreaEnteredBy>[0],
+                    ),
                 }
             }
 
             return rule
         })
 
-        setFigureEventRules(activeFigure, patched.map(rule => normalizeFigureEventRule(rule) ?? rule))
+        const normalizeDropped: Array<{ ruleId: string; index: number; reason: string }> = []
+
+        const saved = patched.map((rule, index) => {
+            const normalized = normalizeFigureEventRule(rule)
+
+            if (!normalized) {
+                const actionResults = (rule.actions ?? []).map(action => ({
+                    type: action.type,
+                    params: action.params,
+                    normalized: normalizeGameAction(action),
+                }))
+
+                normalizeDropped.push({
+                    ruleId: rule.id,
+                    index,
+                    reason: actionResults.every(result => result.normalized == null)
+                        ? 'all actions rejected by normalizeGameAction'
+                        : 'normalizeFigureEventRule returned null',
+                })
+
+                logFigureEventRulesDebug('normalize-rejected', {
+                    figureId: activeFigure,
+                    ruleId: rule.id,
+                    ruleIndex: index,
+                    before: rule,
+                    detail: { actionResults },
+                })
+
+                return rule
+            }
+
+            return normalized
+        })
+
+        logFigureEventRulesBatchChange({
+            figureId: activeFigure,
+            phase: 'after-save',
+            rules: saved,
+            normalizeDropped: normalizeDropped.length > 0 ? normalizeDropped : undefined,
+        })
+
+        setFigureEventRules(activeFigure, saved)
     }, [activeFigure, setFigureEventRules])
 
     const handleEventRuleChange = useCallback((rule: FigureEventRule, index: number) => {
@@ -683,14 +902,26 @@ export const FigureParametersForm: FC = () => {
     }, [eventRules, handleEventRulesChange])
 
     const handleEventRuleRemove = useCallback((index: number) => {
+        logFigureEventRulesDebug('rule-remove', {
+            figureId: activeFigure,
+            ruleId: eventRules[index]?.id,
+            ruleIndex: index,
+            before: eventRules[index],
+        })
         const nextRules = [...eventRules]
         nextRules.splice(index, 1)
         handleEventRulesChange(nextRules)
-    }, [eventRules, handleEventRulesChange])
+    }, [activeFigure, eventRules, handleEventRulesChange])
 
     const handleAddEventRule = useCallback(() => {
-        handleEventRulesChange([...eventRules, getEventRuleInitialValue()])
-    }, [eventRules, handleEventRulesChange, getEventRuleInitialValue])
+        const nextRule = getEventRuleInitialValue()
+        logFigureEventRulesDebug('rule-add', {
+            figureId: activeFigure,
+            ruleId: nextRule.id,
+            after: nextRule,
+        })
+        handleEventRulesChange([...eventRules, nextRule])
+    }, [activeFigure, eventRules, handleEventRulesChange, getEventRuleInitialValue])
 
     const handleChange = useCallback((nextValue: FigureViewParams) => {
         if (!activeFigure) {
@@ -851,6 +1082,7 @@ export const FigureParametersForm: FC = () => {
                                     key={rule.id}
                                     rule={rule}
                                     index={index}
+                                    figureId={activeFigure}
                                     figureOptions={figureOptions}
                                     onChange={handleEventRuleChange}
                                     onRemove={handleEventRuleRemove}

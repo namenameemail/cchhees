@@ -191,6 +191,8 @@
 
 .moveRulesSection {
     padding: 4px 6px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .moveRulesHeader {
@@ -289,6 +291,29 @@
     gap: 4px;
     align-items: center;
     overflow: visible;
+}
+
+.figureFilterArray {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    flex: 1 1 100%;
+    min-width: 0;
+    overflow: visible;
+}
+
+.figureFilterArrayItem {
+    flex: 0 0 auto;
+    min-width: 0;
+    overflow: visible;
+}
+
+.figureAreaGridField {
+    flex: 1 1 100%;
+    min-width: 0;
+    width: 100%;
 }
 
 .eventActionItemForm {

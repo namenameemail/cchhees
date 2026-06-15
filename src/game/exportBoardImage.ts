@@ -270,7 +270,7 @@ export async function renderBoardImageDataUrl(
     const clone = svg.cloneNode(true) as SVGSVGElement
 
     clone.querySelectorAll('[data-board-handler]').forEach(element => element.remove())
-    clone.querySelectorAll('radialGradient').forEach(element => element.remove())
+    clone.querySelectorAll('[data-board-mark="cursor"]').forEach(element => element.remove())
 
     const borderRadius = options.borderRadius ?? getBoardBorderRadiusFromSvg(clone)
     const shouldFill = shouldFillCanvasBackground(background)

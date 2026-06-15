@@ -144,7 +144,7 @@ export const inputComponentsByParameterType: {
         return (
             <FormArray
                 name={name}
-                value={value}
+                value={value ?? []}
                 onChange={handleChange}
                 itemConfig={props.itemConfig}
                 getItemInitialValue={props.getItemInitialValue}
@@ -156,9 +156,10 @@ export const inputComponentsByParameterType: {
         const handleChange = React.useCallback((newValue) => {
             onChange(name, newValue)
         }, [onChange, name])
+        const resolvedValue = value ?? props.initialValue ?? {}
         return (
             <Form1
-                value={value}
+                value={resolvedValue}
                 onChange={handleChange}
                 {...props}
             />

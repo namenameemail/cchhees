@@ -8,6 +8,7 @@ import {
     isFigureFilterSentinel,
 } from '../../figureFilter'
 import { FigureStateSelect } from './FigureStateSelect'
+import { FigureFilterArrayField, FigureFilterArrayFieldProps } from './FigureFilterArrayField'
 
 export interface FigureStateSelectFieldProps {
     figureField: string
@@ -110,6 +111,33 @@ export function createFigureStateFieldConfig<StateType extends Record<string, un
         props: {
             figureField,
             ...fieldProps,
+        },
+    }
+}
+
+export type { FigureFilterArrayFieldProps } from './FigureFilterArrayField'
+
+export function createFigureFilterArrayFieldConfig<StateType extends Record<string, unknown>>(
+    name: keyof StateType & string,
+    options: FigureFilterArrayFieldProps = {},
+): Form1FieldConfig<StateType> {
+    const {
+        allowAny = true,
+        showStatePicker = true,
+        className,
+        itemClassName,
+        title,
+    } = options
+
+    return {
+        name,
+        Component: FigureFilterArrayField,
+        props: {
+            allowAny,
+            showStatePicker,
+            className,
+            itemClassName,
+            title,
         },
     }
 }

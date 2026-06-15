@@ -2,8 +2,8 @@ import { FigureMoveRule } from '../../types/figures'
 
 export const MAX_MOVE_GRID_N = 12
 export const MOVE_GRID_AREA_SIZE = 200
-export const MOVE_GRID_GAP = 2
-export const MOVE_GRID_PADDING = 4
+export const MOVE_GRID_GAP = 0
+export const MOVE_GRID_PADDING = 0
 export const MIN_MOVE_RULE_N = 0
 export const MAX_MOVE_RULE_N = 100
 
@@ -122,9 +122,9 @@ export function getMoveGridSize(gridN: number): number {
     return gridN * 2 + 1
 }
 
-export function getMoveGridCellSize(gridN: number): number {
+export function getMoveGridCellSize(gridN: number, areaSize: number = MOVE_GRID_AREA_SIZE): number {
     const gridSize = getMoveGridSize(gridN)
-    const inner = MOVE_GRID_AREA_SIZE - MOVE_GRID_PADDING * 2
+    const inner = areaSize - MOVE_GRID_PADDING * 2
     const gaps = (gridSize - 1) * MOVE_GRID_GAP
 
     return (inner - gaps) / gridSize

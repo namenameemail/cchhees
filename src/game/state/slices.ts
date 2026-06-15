@@ -1,6 +1,6 @@
 import { Cell, CellParameters } from '../types/cells'
 import { FigureCatalog, FigureId, FigurePlacement, FigurePlacementInput } from '../types/figures'
-import { cloneFigureState, cloneFigurePlacement, normalizeFigurePlacement } from '../figureView'
+import { cloneFigureState, cloneFigurePlacement, normalizeFigurePlacement, normalizeFigureCatalog } from '../figureView'
 import { GameState } from '../types/gameState'
 import { BoardParameters } from '../types/boardParameters'
 import { BoardStyleRule } from '../types/styleRules'
@@ -57,11 +57,11 @@ export function splitGameState(state: GameState): { figures: FiguresSlice; board
     return {
         figures: normalizeFiguresSlice({
             figuresByCoord,
-            tray: [...state.tray],
+            tray: [...(state.tray ?? [])],
         }),
         board: {
             boardParameters: { ...state.boardParameters },
-            styleRules: [...state.styleRules],
+            styleRules: [...(state.styleRules ?? [])],
             cellParametersByCoord,
         },
     }
@@ -122,7 +122,7 @@ export function createInitialBoardSlice(): BoardSlice {
 }
 
 export function cloneFigureCatalog(catalog: FigureCatalog): FigureCatalog {
-    return catalog.map(entry => ({
+    return normalizeFigureCatalog(catalog).map(entry => ({
         id: entry.id,
         states: entry.states.map(state => cloneFigureState(state)),
         eventRules: entry.eventRules?.map(rule => ({

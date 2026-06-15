@@ -160,3 +160,66 @@ div.boardParametersForm {
 .axisSideSelect:disabled {
     opacity: 0.5;
 }
+
+.boardMarksForm {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 6px;
+    max-width: 320px;
+    box-sizing: border-box;
+}
+
+.markSection {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.markSection:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.markSectionTitle {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #333;
+}
+
+.markAppearanceForm,
+.markNestedForm {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: row;
+    width: 100%;
+    gap: 0;
+}
+
+.markAppearanceForm > *,
+.markNestedForm > * {
+    width: 50%;
+    box-sizing: border-box;
+}
+
+.markAppearanceForm > .fullWidth,
+.markNestedForm > .fullWidth,
+.markAppearanceForm > select.fullWidth,
+.markNestedForm > select.fullWidth {
+    width: 100%;
+    flex: 0 0 100%;
+    max-width: 100%;
+}
+
+.markStopItem {
+    width: 100%;
+}
+
+.markStopForm {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+}

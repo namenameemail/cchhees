@@ -12,6 +12,13 @@ export function historyInit<T>(): SliceHistory<T> {
     }
 }
 
+export function normalizeSliceHistory<T>(history?: SliceHistory<T> | null): SliceHistory<T> {
+    return {
+        before: Array.isArray(history?.before) ? history.before : [],
+        after: Array.isArray(history?.after) ? history.after : [],
+    }
+}
+
 export interface HistoryResult<T> {
     history: SliceHistory<T>
     current: T

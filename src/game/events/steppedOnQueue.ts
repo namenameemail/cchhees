@@ -11,8 +11,8 @@ import {
 } from '../types/events'
 import { FigureCatalog, FigureId, FigurePlacement } from '../types/figures'
 import { FiguresSlice } from '../state/slices'
-import { cloneFigurePlacement, placementsMatch, placementMatchesAt, resolvePlacementStateIndex } from '../figureView'
-import { matchesFigureFilter, normalizeStoredFigureFilterId } from '../figureFilter'
+import { cloneFigurePlacement, placementsMatch, placementMatchesAt, resolvePlacementStateIndex, normalizeFigureEventParamsSteppedOnBy } from '../figureView'
+import { matchesFigureFilterList } from '../figureFilter'
 import { applyLeaveBoardAction, applySteppedOnAction } from './execute'
 import { gameMovesDebugLog } from '../gameMovesDebugLog'
 import { runFigureEvents } from './runFigureEvents'
@@ -137,15 +137,12 @@ export function matchesSteppedOnBy(
 
     const params = normalizeSteppedOnParams(rule.params as FigureEventParamsSteppedOnBy | undefined)
 
-    if (!matchesFigureFilter(params.stepperFigureId, event.stepperPlacement.figureId)) {
+    if (!matchesFigureFilterList(
+        params.stepperFigures,
+        event.stepperPlacement.figureId,
+        resolvePlacementStateIndex(event.stepperPlacement),
+    )) {
         return false
-    }
-
-    if (params.stepperStateIndex !== undefined) {
-        const stepperState = resolvePlacementStateIndex(event.stepperPlacement)
-        if (stepperState !== params.stepperStateIndex) {
-            return false
-        }
     }
 
     const cause = params.cause ?? 'any'
@@ -159,21 +156,9 @@ export function matchesSteppedOnBy(
 function normalizeSteppedOnParams(
     params?: FigureEventParamsSteppedOnBy,
 ): FigureEventParamsSteppedOnBy {
-    const normalized: FigureEventParamsSteppedOnBy = {}
+    const normalized = normalizeFigureEventParamsSteppedOnBy(params)
 
-    const filterId = normalizeStoredFigureFilterId(params?.stepperFigureId)
-
-    if (filterId !== undefined) {
-        normalized.stepperFigureId = filterId
-    }
-
-    if (params?.stepperStateIndex !== undefined && Number.isFinite(params.stepperStateIndex)) {
-        normalized.stepperStateIndex = Math.max(0, Math.trunc(params.stepperStateIndex))
-    }
-
-    if (params?.cause === 'manual' || params?.cause === 'displacement') {
-        normalized.cause = params.cause
-    } else {
+    if (normalized.cause !== 'manual' && normalized.cause !== 'displacement') {
         normalized.cause = 'any'
     }
 
@@ -225,6 +210,13 @@ function applyStepOnFigureEventsForStepper(
         return figures
     }
 
+    const figuresBeforeMove = Object.fromEntries(
+        Object.entries(figures.figuresByCoord).map(([key, placement]) => [
+            key,
+            cloneFigurePlacement(placement),
+        ]),
+    )
+
     return runFigureEvents(figures, {
         from: event.stepperCoord,
         to: event.targetCoord,
@@ -235,6 +227,7 @@ function applyStepOnFigureEventsForStepper(
         stepCause: 'displacement',
         stepperPlacement: event.stepperPlacement,
         stepperCoord: event.stepperCoord,
+        figuresBeforeMove,
     })
 }
 
@@ -379,13 +372,17 @@ function processPlaceItem(
     }
 }
 
-export function resolveSteppedOnQueue(
+export function resolveActionQueue(
     figures: FiguresSlice,
-    initialQueue: SteppedOnEvent[],
+    initialQueue: QueueItem[],
     catalog: FigureCatalog,
     boardParameters: BoardParameters,
 ): FiguresSlice {
-    const queue: QueueItem[] = initialQueue.map(event => ({ ...event }))
+    const queue: QueueItem[] = initialQueue.map(item => (
+        'kind' in item
+            ? { ...item }
+            : { ...item }
+    ))
 
     let nextFigures: FiguresSlice = {
         figuresByCoord: Object.fromEntries(
@@ -453,4 +450,18 @@ export function resolveSteppedOnQueue(
     }
 
     return nextFigures
+}
+
+export function resolveSteppedOnQueue(
+    figures: FiguresSlice,
+    initialQueue: SteppedOnEvent[],
+    catalog: FigureCatalog,
+    boardParameters: BoardParameters,
+): FiguresSlice {
+    return resolveActionQueue(
+        figures,
+        initialQueue.map(event => ({ ...event })),
+        catalog,
+        boardParameters,
+    )
 }

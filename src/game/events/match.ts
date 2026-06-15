@@ -1,15 +1,24 @@
-import { coordKey } from '../types/coords'
+import { CellCoord, coordKey } from '../types/coords'
 import {
+    FigureEventAreaCell,
+    FigureEventParamsAreaEnteredBy,
     FigureEventParamsEnterCell,
     FigureEventParamsEnterFigureArea,
     FigureEventParamsEnterRect,
     FigureEventParamsStepOnFigure,
     FigureEventRule,
     FigureEventType,
+    StepCause,
 } from '../types/events'
-import { FigureId } from '../types/figures'
-import { resolvePlacementStateIndex } from '../figureView'
-import { matchesFigureFilter } from '../figureFilter'
+import { FigureId, FigurePlacement } from '../types/figures'
+import {
+    normalizeFigureEventParamsAreaEnteredBy,
+    normalizeFigureEventParamsEnterFigureArea,
+    normalizeFigureEventParamsStepOnFigure,
+    resolvePlacementStateIndex,
+} from '../figureView'
+import { hasFigureAreaCell } from '../figureAreaCells'
+import { matchesFigureFilterList } from '../figureFilter'
 import { MoveEventContext, TriggeredFigureEvent } from './types'
 
 function toOneBased(coord: { i: number; j: number }) {
@@ -41,15 +50,242 @@ function isInsideRect(
 function isInsideFigureArea(
     coord: { i: number; j: number },
     anchor: { i: number; j: number },
-    params: FigureEventParamsEnterFigureArea,
+    cells: FigureEventAreaCell[],
 ) {
-    const halfWidth = Math.max(0, Math.trunc(params.halfWidth ?? 0))
-    const halfHeight = Math.max(0, Math.trunc(params.halfHeight ?? 0))
+    const dx = coord.i - anchor.i
+    const dy = coord.j - anchor.j
 
-    return coord.i >= anchor.i - halfWidth
-        && coord.i <= anchor.i + halfWidth
-        && coord.j >= anchor.j - halfHeight
-        && coord.j <= anchor.j + halfHeight
+    return hasFigureAreaCell(cells, dx, dy)
+}
+
+function parseCoordKey(key: string): CellCoord {
+    const [i, j] = key.split(',').map(Number)
+    return { i, j }
+}
+
+function resolvePlacementCoordBefore(
+    placement: FigurePlacement,
+    beforeBoard: Record<string, FigurePlacement> | undefined,
+): CellCoord | undefined {
+    if (!beforeBoard) {
+        return undefined
+    }
+
+    for (const [key, candidate] of Object.entries(beforeBoard)) {
+        if (candidate.instanceId === placement.instanceId) {
+            return parseCoordKey(key)
+        }
+    }
+
+    return undefined
+}
+
+function isNewlyInArea(
+    subjectAfter: CellCoord,
+    subjectBefore: CellCoord | undefined,
+    anchorAfter: CellCoord,
+    anchorBefore: CellCoord | undefined,
+    cells: FigureEventAreaCell[],
+): boolean {
+    if (!isInsideFigureArea(subjectAfter, anchorAfter, cells)) {
+        return false
+    }
+
+    const beforeCoord = subjectBefore ?? subjectAfter
+    const anchorForBefore = anchorBefore ?? anchorAfter
+
+    return !isInsideFigureArea(beforeCoord, anchorForBefore, cells)
+}
+
+function matchesStepCause(cause: StepCause | undefined, stepCause: StepCause | undefined): boolean {
+    const resolvedCause = cause ?? 'any'
+    const resolvedStepCause = stepCause ?? 'manual'
+
+    return resolvedCause === 'any' || resolvedCause === resolvedStepCause
+}
+
+function collectFigureAreaAnchors(
+    params: FigureEventParamsEnterFigureArea,
+    figuresByCoord: Record<string, FigurePlacement>,
+): Array<{ coord: CellCoord; placement: FigurePlacement }> {
+    const normalized = normalizeFigureEventParamsEnterFigureArea(params)
+    const anchors: Array<{ coord: CellCoord; placement: FigurePlacement }> = []
+
+    for (const [key, placement] of Object.entries(figuresByCoord)) {
+        if (!matchesFigureFilterList(
+            normalized.anchorFigures,
+            placement.figureId,
+            resolvePlacementStateIndex(placement),
+        )) {
+            continue
+        }
+
+        anchors.push({
+            coord: parseCoordKey(key),
+            placement,
+        })
+    }
+
+    return anchors
+}
+
+function collectEnterFigureAreaTriggers(
+    rule: FigureEventRule,
+    ownerFigureId: FigureId,
+    ctx: MoveEventContext,
+    afterBoard: Record<string, FigurePlacement>,
+    beforeBoard: Record<string, FigurePlacement> | undefined,
+): TriggeredFigureEvent[] {
+    const params = normalizeFigureEventParamsEnterFigureArea(
+        rule.params as FigureEventParamsEnterFigureArea | undefined,
+    )
+
+    if (!params.cells?.length) {
+        return []
+    }
+
+    const triggered: TriggeredFigureEvent[] = []
+    const seen = new Set<string>()
+
+    const push = (
+        anchorCoord: CellCoord,
+        subjectCoord: CellCoord,
+        subjectPlacement: FigurePlacement,
+        triggerMode: 'active' | 'passive',
+    ) => {
+        const key = `${ownerFigureId}:${rule.id}:${coordKey(anchorCoord)}:${subjectPlacement.instanceId}`
+        if (seen.has(key)) {
+            return
+        }
+        seen.add(key)
+        triggered.push({
+            ownerFigureId,
+            ruleId: rule.id,
+            areaAnchor: anchorCoord,
+            subjectCoord,
+            subjectPlacement,
+            triggerMode,
+            includePassive: params.includePassive,
+        })
+    }
+
+    for (const { coord: anchorAfter, placement: anchorPlacement } of collectFigureAreaAnchors(params, afterBoard)) {
+        const anchorBefore = resolvePlacementCoordBefore(anchorPlacement, beforeBoard)
+
+        if (ctx.actorPlacement.figureId === ownerFigureId
+            && isNewlyInArea(ctx.to, ctx.from, anchorAfter, anchorBefore, params.cells)) {
+            push(anchorAfter, ctx.to, ctx.actorPlacement, 'active')
+        }
+
+        if (!params.includePassive) {
+            continue
+        }
+
+        for (const [key, placement] of Object.entries(afterBoard)) {
+            if (placement.figureId !== ownerFigureId) {
+                continue
+            }
+
+            const subjectCoord = parseCoordKey(key)
+            const subjectBefore = resolvePlacementCoordBefore(placement, beforeBoard)
+
+            if (!isNewlyInArea(subjectCoord, subjectBefore, anchorAfter, anchorBefore, params.cells)) {
+                continue
+            }
+
+            push(anchorAfter, subjectCoord, placement, 'passive')
+        }
+    }
+
+    return triggered
+}
+
+function collectAreaEnteredByTriggers(
+    rule: FigureEventRule,
+    ownerFigureId: FigureId,
+    ctx: MoveEventContext,
+    afterBoard: Record<string, FigurePlacement>,
+    beforeBoard: Record<string, FigurePlacement> | undefined,
+): TriggeredFigureEvent[] {
+    const params = normalizeFigureEventParamsAreaEnteredBy(
+        rule.params as FigureEventParamsAreaEnteredBy | undefined,
+    )
+
+    if (!params.cells?.length) {
+        return []
+    }
+
+    if (!matchesStepCause(params.cause, ctx.stepCause)) {
+        return []
+    }
+
+    const triggered: TriggeredFigureEvent[] = []
+    const seen = new Set<string>()
+
+    const push = (
+        ownerCoord: CellCoord,
+        subjectCoord: CellCoord,
+        subjectPlacement: FigurePlacement,
+        triggerMode: 'active' | 'passive',
+    ) => {
+        const key = `${ownerFigureId}:${rule.id}:${coordKey(ownerCoord)}:${subjectPlacement.instanceId}`
+        if (seen.has(key)) {
+            return
+        }
+        seen.add(key)
+        triggered.push({
+            ownerFigureId,
+            ruleId: rule.id,
+            areaAnchor: ownerCoord,
+            subjectCoord,
+            subjectPlacement,
+            triggerMode,
+            includePassive: params.includePassive,
+        })
+    }
+
+    for (const [ownerKey, ownerPlacement] of Object.entries(afterBoard)) {
+        if (ownerPlacement.figureId !== ownerFigureId) {
+            continue
+        }
+
+        const ownerAfter = parseCoordKey(ownerKey)
+        const ownerBefore = resolvePlacementCoordBefore(ownerPlacement, beforeBoard)
+
+        if (matchesFigureFilterList(
+            params.entererFigures,
+            ctx.actorPlacement.figureId,
+            resolvePlacementStateIndex(ctx.actorPlacement),
+        )
+            && isNewlyInArea(ctx.to, ctx.from, ownerAfter, ownerBefore, params.cells)) {
+            push(ownerAfter, ctx.to, ctx.actorPlacement, 'active')
+        }
+
+        if (!params.includePassive) {
+            continue
+        }
+
+        for (const [subjectKey, subjectPlacement] of Object.entries(afterBoard)) {
+            if (!matchesFigureFilterList(
+                params.entererFigures,
+                subjectPlacement.figureId,
+                resolvePlacementStateIndex(subjectPlacement),
+            )) {
+                continue
+            }
+
+            const subjectCoord = parseCoordKey(subjectKey)
+            const subjectBefore = resolvePlacementCoordBefore(subjectPlacement, beforeBoard)
+
+            if (!isNewlyInArea(subjectCoord, subjectBefore, ownerAfter, ownerBefore, params.cells)) {
+                continue
+            }
+
+            push(ownerAfter, subjectCoord, subjectPlacement, 'passive')
+        }
+    }
+
+    return triggered
 }
 
 export function matchesFigureEvent(
@@ -61,13 +297,17 @@ export function matchesFigureEvent(
     switch (rule.type) {
         case FigureEventType.steppedOnBy:
         case FigureEventType.leaveBoard:
+        case FigureEventType.enterFigureArea:
+        case FigureEventType.areaEnteredBy:
             return false
         case FigureEventType.stepOnFigure: {
             if (ctx.actorPlacement.figureId !== ownerFigureId || ctx.targetAtTo == null) {
                 return false
             }
 
-            const params = rule.params as FigureEventParamsStepOnFigure | undefined
+            const params = normalizeFigureEventParamsStepOnFigure(
+                rule.params as FigureEventParamsStepOnFigure | undefined,
+            )
             const cause = params?.cause ?? 'any'
             const stepCause = ctx.stepCause ?? 'manual'
 
@@ -75,15 +315,12 @@ export function matchesFigureEvent(
                 return false
             }
 
-            if (!matchesFigureFilter(params?.targetFigureId, ctx.targetAtTo.figureId)) {
+            if (!matchesFigureFilterList(
+                params?.targetFigures,
+                ctx.targetAtTo.figureId,
+                resolvePlacementStateIndex(ctx.targetAtTo),
+            )) {
                 return false
-            }
-
-            if (params?.targetStateIndex !== undefined) {
-                const targetState = resolvePlacementStateIndex(ctx.targetAtTo)
-                if (targetState !== params.targetStateIndex) {
-                    return false
-                }
             }
 
             return true
@@ -115,56 +352,28 @@ export function matchesFigureEvent(
             return ctx.actorPlacement.figureId === ownerFigureId
                 && isInsideRect(ctx.to, params)
         }
-        case FigureEventType.enterFigureArea: {
-            const params = rule.params as FigureEventParamsEnterFigureArea | undefined
-            if (!params || !anchorCoord) {
-                return false
-            }
-
-            return ctx.actorPlacement.figureId === ownerFigureId
-                && isInsideFigureArea(ctx.to, anchorCoord, params)
-        }
         default:
             return false
     }
 }
 
-export function collectFigureAreaAnchors(
-    params: FigureEventParamsEnterFigureArea,
-    figuresByCoord: Record<string, { figureId: FigureId }>,
-): Array<{ i: number; j: number }> {
-    const anchors: Array<{ i: number; j: number }> = []
-
-    for (const [key, placement] of Object.entries(figuresByCoord)) {
-        if (placement.figureId !== params.figureId) {
-            continue
-        }
-
-        const [i, j] = key.split(',').map(Number)
-        anchors.push({ i, j })
-    }
-
-    return anchors
-}
-
 export function collectTriggeredFigureEvents(
     ctx: MoveEventContext,
-    figuresByCoord: Record<string, { figureId: FigureId }>,
+    figuresByCoord: Record<string, FigurePlacement>,
 ): TriggeredFigureEvent[] {
     const triggered: TriggeredFigureEvent[] = []
     const seen = new Set<string>()
+    const beforeBoard = ctx.figuresBeforeMove
 
-    const push = (ownerFigureId: FigureId, rule: FigureEventRule, areaAnchor?: { i: number; j: number }) => {
-        const key = `${ownerFigureId}:${rule.id}:${areaAnchor ? coordKey(areaAnchor) : ''}`
+    const push = (event: TriggeredFigureEvent) => {
+        const anchorPart = event.areaAnchor ? coordKey(event.areaAnchor) : ''
+        const subjectPart = event.subjectPlacement?.instanceId ?? ''
+        const key = `${event.ownerFigureId}:${event.ruleId}:${anchorPart}:${subjectPart}`
         if (seen.has(key)) {
             return
         }
         seen.add(key)
-        triggered.push({
-            ownerFigureId,
-            ruleId: rule.id,
-            areaAnchor,
-        })
+        triggered.push(event)
     }
 
     for (const entry of ctx.catalog) {
@@ -176,22 +385,36 @@ export function collectTriggeredFigureEvents(
             }
 
             if (rule.type === FigureEventType.enterFigureArea) {
-                const params = rule.params as FigureEventParamsEnterFigureArea | undefined
-                if (!params) {
-                    continue
+                for (const event of collectEnterFigureAreaTriggers(
+                    rule,
+                    entry.id,
+                    ctx,
+                    figuresByCoord,
+                    beforeBoard,
+                )) {
+                    push(event)
                 }
+                continue
+            }
 
-                const anchors = collectFigureAreaAnchors(params, figuresByCoord)
-                for (const anchor of anchors) {
-                    if (matchesFigureEvent(rule, entry.id, ctx, anchor)) {
-                        push(entry.id, rule, anchor)
-                    }
+            if (rule.type === FigureEventType.areaEnteredBy) {
+                for (const event of collectAreaEnteredByTriggers(
+                    rule,
+                    entry.id,
+                    ctx,
+                    figuresByCoord,
+                    beforeBoard,
+                )) {
+                    push(event)
                 }
                 continue
             }
 
             if (matchesFigureEvent(rule, entry.id, ctx)) {
-                push(entry.id, rule)
+                push({
+                    ownerFigureId: entry.id,
+                    ruleId: rule.id,
+                })
             }
         }
     }

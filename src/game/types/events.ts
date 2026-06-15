@@ -5,6 +5,11 @@ export type EventOwnerKind = 'board' | 'cell' | 'figure'
 
 export type StepCause = 'any' | 'manual' | 'displacement'
 
+export interface FigureEventFigureFilter {
+    figureId?: FigureId
+    stateIndex?: number
+}
+
 export enum FigureEventType {
     steppedOnBy = 'steppedOnBy',
     stepOnFigure = 'stepOnFigure',
@@ -12,6 +17,7 @@ export enum FigureEventType {
     leaveCell = 'leaveCell',
     enterRect = 'enterRect',
     enterFigureArea = 'enterFigureArea',
+    areaEnteredBy = 'areaEnteredBy',
     leaveBoard = 'leaveBoard',
 }
 
@@ -26,13 +32,19 @@ export enum GameActionType {
 export type GameActionTarget = 'steppedOn' | 'steppedBy' | 'areaAnchor'
 
 export interface FigureEventParamsSteppedOnBy {
+    stepperFigures?: FigureEventFigureFilter[]
+    /** @deprecated migrated to stepperFigures */
     stepperFigureId?: FigureId
+    /** @deprecated migrated to stepperFigures */
     stepperStateIndex?: number
     cause?: StepCause
 }
 
 export interface FigureEventParamsStepOnFigure {
+    targetFigures?: FigureEventFigureFilter[]
+    /** @deprecated migrated to targetFigures */
     targetFigureId?: FigureId
+    /** @deprecated migrated to targetFigures */
     targetStateIndex?: number
     cause?: StepCause
 }
@@ -49,10 +61,30 @@ export interface FigureEventParamsEnterRect {
     y2: number
 }
 
+export interface FigureEventAreaCell {
+    x: number
+    y: number
+}
+
 export interface FigureEventParamsEnterFigureArea {
-    figureId: FigureId
+    anchorFigures?: FigureEventFigureFilter[]
+    cells?: FigureEventAreaCell[]
+    /** When true (default), also trigger if a figure stood in a cell and the area engulfed it */
+    includePassive?: boolean
+    /** @deprecated migrated to anchorFigures */
+    figureId?: FigureId
+    /** @deprecated migrated to cells */
     halfWidth?: number
+    /** @deprecated migrated to cells */
     halfHeight?: number
+}
+
+export interface FigureEventParamsAreaEnteredBy {
+    entererFigures?: FigureEventFigureFilter[]
+    cells?: FigureEventAreaCell[]
+    cause?: StepCause
+    /** When true (default), also trigger if enterer stood and owner/anchor moved */
+    includePassive?: boolean
 }
 
 export type FigureEventParams =
@@ -61,6 +93,7 @@ export type FigureEventParams =
     | FigureEventParamsEnterCell
     | FigureEventParamsEnterRect
     | FigureEventParamsEnterFigureArea
+    | FigureEventParamsAreaEnteredBy
     | Record<string, never>
 
 export interface SpawnFigureActionParams {

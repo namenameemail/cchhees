@@ -99,6 +99,8 @@ function append(text: string, meta?: Record<string, unknown>, nested = false): v
     const prefix = nested ? `  #${moveSeq} ` : `#${moveSeq} `
     const line = `${CONSOLE_PREFIX}${time}  ${prefix}${text}`
 
+    console.log(line)
+
     if (isProfilerPanelChannel('moves')) {
         profiler.appendPanelText('console', line)
         trimConsoleLines()

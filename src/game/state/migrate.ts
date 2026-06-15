@@ -3,7 +3,7 @@ import { CellParameters } from '../types/cells'
 import { BoardConditionItem } from '../types/conditions'
 import { BoardConnectionsConditionItem } from '../types/connections'
 import { FigureCatalog, FigureId, FigurePlacement, FigurePlacementInput } from '../types/figures'
-import { SliceHistory } from '../types/history'
+import { SliceHistory, normalizeSliceHistory } from '../types/history'
 import { createDefaultFigureCatalog, migrateToFigureCatalog } from '../figureView'
 import { migrateBoardSliceStyleRules } from '../styleRules/migrateStyleRules'
 import { FiguresSlice, BoardSlice, composeGameState, splitGameState, normalizeFiguresSlice } from './slices'
@@ -95,18 +95,22 @@ export function migrateFiguresHistory(
     history: SliceHistory<LegacyFiguresSlice>,
     fallbackN: number,
 ): SliceHistory<FiguresSlice> {
+    const normalized = normalizeSliceHistory(history)
+
     return {
-        before: history.before.map(snapshot => migrateFiguresSlice(snapshot, fallbackN)),
-        after: history.after.map(snapshot => migrateFiguresSlice(snapshot, fallbackN)),
+        before: normalized.before.map(snapshot => migrateFiguresSlice(snapshot, fallbackN)),
+        after: normalized.after.map(snapshot => migrateFiguresSlice(snapshot, fallbackN)),
     }
 }
 
 export function migrateBoardHistory(
     history: SliceHistory<LegacyBoardSlice>,
 ): SliceHistory<BoardSlice> {
+    const normalized = normalizeSliceHistory(history)
+
     return {
-        before: history.before.map(migrateBoardSlice),
-        after: history.after.map(snapshot => migrateBoardSlice(snapshot)),
+        before: normalized.before.map(migrateBoardSlice),
+        after: normalized.after.map(snapshot => migrateBoardSlice(snapshot)),
     }
 }
 

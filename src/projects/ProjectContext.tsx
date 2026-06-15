@@ -443,7 +443,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                     try {
                         loaded.push(migrateProject(project))
                     } catch (error) {
-                        console.error('[ProjectProvider] migrateProject failed:', project.id, error)
+                        const detail = error instanceof Error
+                            ? `${error.name}: ${error.message}`
+                            : String(error)
+                        console.error('[ProjectProvider] migrateProject failed:', project.id, detail, error)
                     }
                 }
 

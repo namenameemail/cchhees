@@ -4,6 +4,7 @@ import { Cell, CellShape } from './types/cells'
 import { BoardBackgroundImageFit } from './types/boardParameters'
 import { getDefaultSvgCellParams } from './cellSvgSize'
 import { createDefaultFigureCatalog } from './figureView'
+import { DEFAULT_BOARD_MARKS } from './boardMarks'
 import { GameState } from './types/gameState'
 import { Mode } from './types'
 
@@ -48,6 +49,7 @@ export const initialGameState: GameState = {
         borderRadius: 0,
         borderWidth: 0,
         borderColor: 'black',
+        boardMarks: DEFAULT_BOARD_MARKS,
         axisNumberings: [],
     },
 

@@ -3,6 +3,7 @@
     display: inline-flex;
     flex: 0 0 auto;
     overflow: visible;
+    outline: none;
 }
 
 .previewTile {
@@ -32,6 +33,18 @@
 .trigger {
     position: relative;
     z-index: 1;
+}
+
+.rootDisabled {
+    pointer-events: none;
+}
+
+.previewTileDisabled,
+.previewTileDisabled:hover {
+    cursor: default;
+    opacity: 0.38;
+    filter: grayscale(1);
+    background: #e8e8e8;
 }
 
 .anyPlaceholder,
@@ -83,6 +96,7 @@
     overflow-y: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    user-select: none;
 }
 
 .figuresPanelScroll::-webkit-scrollbar {
@@ -114,6 +128,8 @@
     overflow-y: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    user-select: none;
+    outline: none;
 }
 
 .statesPanel::-webkit-scrollbar {

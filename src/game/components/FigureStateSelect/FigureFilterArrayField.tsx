@@ -11,30 +11,34 @@ import React, {
     type MouseEvent,
 } from 'react'
 import cn from 'classnames'
+import { ParameterInputComponentProps } from '../../../components/Form1'
 import { useGameContext } from '../../context'
-import {
-    FIGURE_FILTER_ANY,
-    FIGURE_FILTER_NONE,
-    isConcreteFigureFilter,
-    resolveFigureFilterDisplayMode,
-} from '../../figureFilter'
+import { FigureEventFigureFilter } from '../../types/events'
 import { FigureId } from '../../types/figures'
+import {
+    canonicalizeFigureFilterArray,
+    getFigureFilterEntryKey,
+    isConcreteFigureFilter,
+    isFigureFilterAny,
+    removeFigureFromFilterArray,
+    setFigureFilterArrayAll,
+    toggleFigureStateInFilterArray,
+} from '../../figureFilter'
 import { FigureSVG } from '../FigureSVG'
-import styles from './FigureStateSelect.module.css'
+import { logFigureFilterDebug } from './figureFilterArrayDebug'
+import selectStyles from './FigureStateSelect.module.css'
+import styles from './FigureFilterArrayField.module.css'
 
 const FIGURES_PER_ROW = 5
 const FIGURES_PANEL_SCROLL_PADDING = 0
 const FIGURES_GRID_GAP = 0
 const FIGURES_PANEL_SCROLL_MAX_HEIGHT = 240
 
-export interface FigureStateSelectProps {
-    figureId?: FigureId
-    stateIndex?: number
+export interface FigureFilterArrayFieldProps {
     allowAny?: boolean
     showStatePicker?: boolean
-    disabled?: boolean
-    onChange: (figureId: FigureId | undefined, stateIndex?: number) => void
     className?: string
+    itemClassName?: string
     title?: string
 }
 
@@ -49,17 +53,69 @@ function isRelatedTargetInside(
     return containers.some(container => container?.contains(related))
 }
 
-export const FigureStateSelect: FC<FigureStateSelectProps> = ({
-    figureId,
-    stateIndex = 0,
-    allowAny = false,
-    showStatePicker = true,
-    disabled = false,
+function resolveEntryStateIndex(
+    entry: FigureEventFigureFilter,
+    stateCount: number,
+): number {
+    const maxIndex = Math.max(0, stateCount - 1)
+    const index = Number.isFinite(entry.stateIndex) ? Math.trunc(entry.stateIndex!) : 0
+
+    return Math.min(Math.max(0, index), maxIndex)
+}
+
+export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
+    name,
+    value,
     onChange,
-    className,
-    title,
+    props,
 }) => {
+    const {
+        allowAny = true,
+        showStatePicker = true,
+        className,
+        itemClassName,
+        title,
+    } = props as FigureFilterArrayFieldProps
+
     const { state } = useGameContext()
+    const {
+        boardParameters: { cellXDistance, cellYDistance },
+        figureCatalog,
+    } = state
+
+    const entries = useMemo(
+        () => canonicalizeFigureFilterArray(value as FigureEventFigureFilter[] | undefined),
+        [value],
+    )
+
+    useEffect(() => {
+        logFigureFilterDebug('value-prop', {
+            field: name,
+            after: value,
+            detail: {
+                entries,
+                isAllMode: entries.length === 1 && isFigureFilterAny(entries[0].figureId),
+            },
+        })
+    }, [name, value, entries])
+
+    const isAllMode = useMemo(
+        () => entries.length === 1 && isFigureFilterAny(entries[0].figureId),
+        [entries],
+    )
+
+    const selectedFigureIds = useMemo(() => {
+        if (isAllMode) {
+            return new Set<FigureId>()
+        }
+
+        return new Set(
+            entries
+                .filter(entry => isConcreteFigureFilter(entry.figureId))
+                .map(entry => entry.figureId),
+        )
+    }, [entries, isAllMode])
+
     const [rootHovered, setRootHovered] = useState(false)
     const [figuresPanelHovered, setFiguresPanelHovered] = useState(false)
     const [statesFigureId, setStatesFigureId] = useState<FigureId | null>(null)
@@ -72,11 +128,6 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
     const figuresScrollRef = useRef<HTMLDivElement>(null)
     const statesPanelRef = useRef<HTMLDivElement>(null)
     const statesTileRef = useRef<HTMLDivElement | null>(null)
-
-    const {
-        boardParameters: { cellXDistance, cellYDistance },
-        figureCatalog,
-    } = state
 
     const previewSize = useMemo(
         () => Math.min(cellXDistance, cellYDistance),
@@ -94,6 +145,29 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
 
     const isFiguresOpen = rootHovered || figuresPanelHovered
 
+    const statesEntry = useMemo(
+        () => (statesFigureId
+            ? figureCatalog.find(entry => entry.id === statesFigureId)
+            : undefined),
+        [figureCatalog, statesFigureId],
+    )
+
+    const showStatesOverlay = showStatePicker
+        && statesEntry != null
+        && statesEntry.states.length > 1
+
+    const selectedStateIndicesForHover = useMemo(() => {
+        if (!statesFigureId || !statesEntry) {
+            return new Set<number>()
+        }
+
+        return new Set(
+            entries
+                .filter(entry => entry.figureId === statesFigureId)
+                .map(entry => resolveEntryStateIndex(entry, statesEntry.states.length)),
+        )
+    }, [entries, statesEntry, statesFigureId])
+
     const closeStatesPanel = useCallback(() => {
         setStatesFigureId(null)
         setStatesPanelHovered(false)
@@ -106,8 +180,43 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
         closeStatesPanel()
     }, [closeStatesPanel])
 
+    const commitEntries = useCallback((next: FigureEventFigureFilter[], action: string, detail?: Record<string, unknown>) => {
+        logFigureFilterDebug(action, {
+            field: name,
+            before: entries,
+            after: next,
+            detail,
+        })
+        onChange(name, next)
+    }, [entries, name, onChange])
+
+    const handleSelectAll = useCallback((event: MouseEvent) => {
+        event.preventDefault()
+        event.stopPropagation()
+        commitEntries(setFigureFilterArrayAll(), 'select-all')
+        closeStatesPanel()
+    }, [closeStatesPanel, commitEntries])
+
+    const handleToggleFigureState = useCallback((
+        figureId: FigureId,
+        stateIndex: number,
+        options?: { keepStatesOpen?: boolean },
+    ) => {
+        const next = toggleFigureStateInFilterArray(entries, figureId, stateIndex)
+        commitEntries(next, 'toggle-state', { figureId, stateIndex })
+
+        if (!options?.keepStatesOpen) {
+            closeStatesPanel()
+        }
+    }, [closeStatesPanel, commitEntries, entries])
+
+    const handleRemoveFigureStates = useCallback((figureId: FigureId) => {
+        const next = removeFigureFromFilterArray(entries, figureId)
+        commitEntries(next, 'remove-figure', { figureId })
+    }, [commitEntries, entries])
+
     const estimatePanelHeight = useCallback(() => {
-        const itemCount = figureCatalog.length + (allowAny ? 2 : 0)
+        const itemCount = figureCatalog.length + (allowAny ? 1 : 0)
         const rows = Math.max(1, Math.ceil(itemCount / FIGURES_PER_ROW))
         const gridHeight = rows * previewSize + Math.max(0, rows - 1) * FIGURES_GRID_GAP
 
@@ -145,42 +254,6 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
             window.removeEventListener('scroll', updatePanelPlacement, true)
         }
     }, [isFiguresOpen, updatePanelPlacement, figureCatalog.length, previewSize, allowAny])
-
-    const selectedEntry = useMemo(
-        () => (isConcreteFigureFilter(figureId)
-            ? figureCatalog.find(entry => entry.id === figureId)
-            : undefined),
-        [figureCatalog, figureId],
-    )
-
-    const resolvedFigureId = selectedEntry ? figureId : undefined
-
-    const filterMode = useMemo(
-        () => resolveFigureFilterDisplayMode(figureId, allowAny, selectedEntry != null),
-        [figureId, allowAny, selectedEntry],
-    )
-
-    const statesEntry = useMemo(
-        () => (statesFigureId
-            ? figureCatalog.find(entry => entry.id === statesFigureId)
-            : undefined),
-        [figureCatalog, statesFigureId],
-    )
-
-    const resolvedStateIndex = useMemo(() => {
-        if (!selectedEntry) {
-            return 0
-        }
-
-        const maxIndex = selectedEntry.states.length - 1
-        const index = Number.isFinite(stateIndex) ? Math.trunc(stateIndex!) : 0
-
-        return Math.min(Math.max(0, index), maxIndex)
-    }, [selectedEntry, stateIndex])
-
-    const showStatesOverlay = showStatePicker
-        && statesEntry != null
-        && statesEntry.states.length > 1
 
     const updateStatesOverlayPosition = useCallback(() => {
         const panel = figuresPanelRef.current
@@ -243,12 +316,8 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
     }, [statesFigureId])
 
     const handleRootMouseEnter = useCallback(() => {
-        if (disabled) {
-            return
-        }
-
         setRootHovered(true)
-    }, [disabled])
+    }, [])
 
     const handleRootMouseLeave = useCallback((event: MouseEvent<HTMLDivElement>) => {
         if (isRelatedTargetInside(
@@ -308,19 +377,21 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
         closeStatesPanel()
     }, [closeStatesPanel])
 
-    const handleSelectAny = useCallback((event: MouseEvent) => {
-        event.preventDefault()
-        event.stopPropagation()
-        onChange(FIGURE_FILTER_ANY, undefined)
-        closeFiguresPanel()
-    }, [closeFiguresPanel, onChange])
+    const handleUnselectedFigureClick = useCallback((
+        event: MouseEvent<HTMLDivElement>,
+        id: FigureId,
+        stateCount: number,
+    ) => {
+        logFigureFilterDebug('figure-click', {
+            field: name,
+            figureId: id,
+            detail: { stateCount, showStatePicker },
+        })
 
-    const handleSelectNone = useCallback((event: MouseEvent) => {
         event.preventDefault()
         event.stopPropagation()
-        onChange(FIGURE_FILTER_NONE, undefined)
-        closeFiguresPanel()
-    }, [closeFiguresPanel, onChange])
+        handleToggleFigureState(id, 0, { keepStatesOpen: true })
+    }, [handleToggleFigureState, name])
 
     const handleFigureMouseEnter = useCallback((
         event: MouseEvent<HTMLDivElement>,
@@ -369,77 +440,91 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
         closeStatesPanel()
     }, [closeStatesPanel])
 
-    const handleFigureClick = useCallback((
-        event: MouseEvent<HTMLDivElement>,
-        id: FigureId,
-        stateCount: number,
-    ) => {
-        event.preventDefault()
-        event.stopPropagation()
-
-        if (showStatePicker && stateCount > 1) {
-            onChange(id, 0)
-            closeFiguresPanel()
-            return
-        }
-
-        onChange(id, 0)
-        closeFiguresPanel()
-    }, [closeFiguresPanel, onChange, showStatePicker])
-
     const handleStateSelect = useCallback((
         event: MouseEvent,
         id: FigureId,
         index: number,
     ) => {
+        logFigureFilterDebug('state-select', {
+            field: name,
+            figureId: id,
+            detail: { stateIndex: index },
+        })
         event.preventDefault()
         event.stopPropagation()
-        onChange(id, index)
-        closeFiguresPanel()
-    }, [closeFiguresPanel, onChange])
+        handleToggleFigureState(id, index, { keepStatesOpen: true })
+    }, [handleToggleFigureState, name])
 
-    const triggerTitle = title
-        ?? (filterMode === 'figure' && resolvedFigureId
-            ? `${resolvedFigureId}${showStatePicker ? ` #${resolvedStateIndex}` : ''}`
-            : (filterMode === 'any' ? 'любая' : 'никакая'))
+    const handleSelectedFigureClick = useCallback((
+        event: MouseEvent<HTMLDivElement>,
+        id: FigureId,
+    ) => {
+        logFigureFilterDebug('selected-click', {
+            field: name,
+            figureId: id,
+        })
+        event.preventDefault()
+        event.stopPropagation()
+        handleRemoveFigureStates(id)
+        closeStatesPanel()
+    }, [closeStatesPanel, handleRemoveFigureStates, name])
+
+    const triggerTitle = title ?? 'фильтр фигур'
 
     return (
         <div
             ref={rootRef}
-            className={cn(styles.root, disabled && styles.rootDisabled, className)}
+            className={cn(styles.root, className)}
             onMouseEnter={handleRootMouseEnter}
             onMouseLeave={handleRootMouseLeave}
         >
-            <button
-                type="button"
+            <div
                 className={cn(
-                    styles.previewTile,
                     styles.trigger,
-                    !isFiguresOpen && styles.previewTileActive,
-                    disabled && styles.previewTileDisabled,
+                    !isFiguresOpen && styles.triggerActive,
                 )}
-                style={{ width: previewSize, height: previewSize }}
                 title={triggerTitle}
-                disabled={disabled}
             >
-                {filterMode === 'figure' && resolvedFigureId ? (
-                    <FigureSVG
-                        figureId={resolvedFigureId}
-                        stateIndex={resolvedStateIndex}
-                        width={previewSize}
-                        height={previewSize}
-                    />
+                {isAllMode ? (
+                    <div
+                        className={cn(selectStyles.previewTile, styles.triggerTile, itemClassName)}
+                        style={{ width: previewSize, height: previewSize }}
+                    >
+                        <span className={selectStyles.filterPlaceholder}>all</span>
+                    </div>
                 ) : (
-                    <span className={styles.filterPlaceholder}>
-                        {filterMode === 'any' ? 'all' : '?'}
-                    </span>
-                )}
-            </button>
+                    entries.map((entry, index) => {
+                        const catalogEntry = figureCatalog.find(item => item.id === entry.figureId)
 
-            {isFiguresOpen && !disabled && (
+                        if (!catalogEntry) {
+                            return null
+                        }
+
+                        const stateIndex = resolveEntryStateIndex(entry, catalogEntry.states.length)
+
+                        return (
+                            <div
+                                key={`${getFigureFilterEntryKey(entry)}-${index}`}
+                                className={cn(selectStyles.previewTile, styles.triggerTile, itemClassName)}
+                                style={{ width: previewSize, height: previewSize }}
+                                title={`${catalogEntry.id}${catalogEntry.states.length > 1 ? ` #${stateIndex}` : ''}`}
+                            >
+                                <FigureSVG
+                                    figureId={catalogEntry.id}
+                                    stateIndex={stateIndex}
+                                    width={previewSize}
+                                    height={previewSize}
+                                />
+                            </div>
+                        )
+                    })
+                )}
+            </div>
+
+            {isFiguresOpen && (
                 <div
                     ref={figuresPanelRef}
-                    className={cn(styles.figuresPanel, openUpward && styles.figuresPanelUp)}
+                    className={cn(selectStyles.figuresPanel, openUpward && selectStyles.figuresPanelUp)}
                     style={{ width: figuresPanelWidth }}
                     tabIndex={-1}
                     onMouseEnter={handleFiguresPanelMouseEnter}
@@ -448,67 +533,68 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
                 >
                     <div
                         ref={figuresScrollRef}
-                        className={styles.figuresPanelScroll}
+                        className={selectStyles.figuresPanelScroll}
                         style={{ gridTemplateColumns: `repeat(${FIGURES_PER_ROW}, ${previewSize}px)` }}
                     >
                         {allowAny && (
-                            <>
-                                <div
-                                    className={cn(
-                                        styles.previewTile,
-                                        styles.figureTile,
-                                        filterMode === 'any' && styles.previewTileActive,
-                                    )}
-                                    style={{ width: previewSize, height: previewSize }}
-                                    title="любая"
-                                    onClick={handleSelectAny}
-                                >
-                                    <span className={styles.filterPlaceholder}>all</span>
-                                </div>
-                                <div
-                                    className={cn(
-                                        styles.previewTile,
-                                        styles.figureTile,
-                                        filterMode === 'none' && styles.previewTileActive,
-                                    )}
-                                    style={{ width: previewSize, height: previewSize }}
-                                    title="никакая"
-                                    onClick={handleSelectNone}
-                                >
-                                    <span className={styles.filterPlaceholder}>?</span>
-                                </div>
-                            </>
+                            <div
+                                className={cn(
+                                    selectStyles.previewTile,
+                                    selectStyles.figureTile,
+                                    isAllMode && selectStyles.previewTileActive,
+                                )}
+                                style={{ width: previewSize, height: previewSize }}
+                                title="любая"
+                                onClick={handleSelectAll}
+                            >
+                                <span className={selectStyles.filterPlaceholder}>all</span>
+                            </div>
                         )}
 
                         {figureCatalog.map(entry => {
                             const stateCount = entry.states.length
+                            const figureEntries = isAllMode
+                                ? []
+                                : entries.filter(item => item.figureId === entry.id)
+                            const isSelected = selectedFigureIds.has(entry.id)
                             const isStatesOpen = statesFigureId === entry.id
-                            const tileStateIndex = resolvedFigureId === entry.id
-                                ? resolvedStateIndex
+                            const previewEntry = figureEntries[0]
+                            const tileStateIndex = previewEntry
+                                ? resolveEntryStateIndex(previewEntry, stateCount)
                                 : 0
 
                             return (
                                 <div
                                     key={entry.id}
                                     className={cn(
-                                        styles.previewTile,
-                                        styles.figureTile,
-                                        resolvedFigureId === entry.id && styles.previewTileActive,
-                                        isStatesOpen && showStatePicker && stateCount > 1 && styles.figureTileStatesOpen,
+                                        selectStyles.previewTile,
+                                        selectStyles.figureTile,
+                                        isSelected && styles.figureTileSelected,
+                                        isStatesOpen && showStatePicker && stateCount > 1 && selectStyles.figureTileStatesOpen,
                                     )}
                                     style={{ width: previewSize, height: previewSize }}
-                                    title={showStatePicker && stateCount > 1
-                                        ? `${entry.id} — наведите для выбора стейта`
-                                        : entry.id}
-                                    onMouseEnter={(event) => handleFigureMouseEnter(event, entry.id, stateCount)}
+                                    title={isSelected ? `${entry.id} — убрать все состояния` : entry.id}
+                                    onMouseEnter={(event) => handleFigureMouseEnter(
+                                        event,
+                                        entry.id,
+                                        stateCount,
+                                    )}
                                     onMouseLeave={handleFigureMouseLeave}
-                                    onClick={(event) => handleFigureClick(event, entry.id, stateCount)}
+                                    onClick={(event) => {
+                                        if (isSelected) {
+                                            handleSelectedFigureClick(event, entry.id)
+                                            return
+                                        }
+
+                                        handleUnselectedFigureClick(event, entry.id, stateCount)
+                                    }}
                                 >
                                     <FigureSVG
                                         figureId={entry.id}
                                         stateIndex={tileStateIndex}
                                         width={previewSize}
                                         height={previewSize}
+                                        highlighted={isSelected}
                                     />
                                 </div>
                             )
@@ -518,26 +604,27 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
                     {showStatesOverlay && statesEntry && statesOverlayStyle && (
                         <div
                             ref={statesPanelRef}
-                            className={styles.statesPanel}
+                            className={styles.statesPanelRight}
                             style={statesOverlayStyle}
                             tabIndex={-1}
                             onMouseEnter={handleStatesPanelMouseEnter}
                             onMouseLeave={handleStatesPanelMouseLeave}
                             onBlur={handleStatesPanelBlur}
                         >
-                            {statesEntry.states.map((_, index) => (
+                            {statesEntry.states.map((_, index) => {
+                                const isStateSelected = selectedStateIndicesForHover.has(index)
+
+                                return (
                                 <button
                                     key={index}
                                     type="button"
                                     className={cn(
-                                        styles.previewTile,
-                                        styles.stateOption,
-                                        resolvedFigureId === statesEntry.id
-                                        && resolvedStateIndex === index
-                                        && styles.previewTileActive,
+                                        selectStyles.previewTile,
+                                        selectStyles.stateOption,
+                                        isStateSelected && styles.stateOptionSelected,
                                     )}
                                     style={{ width: previewSize, height: previewSize }}
-                                    title={`${statesEntry.id} #${index}`}
+                                    title={`${statesEntry.id} #${index}${isStateSelected ? ' — убрать' : ''}`}
                                     onClick={(event) => handleStateSelect(
                                         event,
                                         statesEntry.id,
@@ -549,9 +636,11 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
                                         stateIndex={index}
                                         width={previewSize}
                                         height={previewSize}
+                                        highlighted={isStateSelected}
                                     />
                                 </button>
-                            ))}
+                                )
+                            })}
                         </div>
                     )}
                 </div>

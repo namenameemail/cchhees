@@ -16,9 +16,13 @@ import {
     LegacyFigureDefinition,
 } from './types/figures'
 import { CellCoord, coordKey } from './types/coords'
-import { normalizeStoredFigureFilterId } from './figureFilter'
+import { resolveFigureFilterList } from './figureFilter'
+import { migrateLegacyFigureAreaCells, normalizeFigureAreaCells } from './figureAreaCells'
 import {
     DisplaceFigureActionParams,
+    FigureEventAreaCell,
+    FigureEventParamsAreaEnteredBy,
+    FigureEventParamsEnterFigureArea,
     FigureEventParamsStepOnFigure,
     FigureEventParamsSteppedOnBy,
     FigureEventRule,
@@ -173,15 +177,13 @@ export function normalizeFigureEventParamsStepOnFigure(
     const normalized: FigureEventParamsStepOnFigure = {}
     const cause = params?.cause
 
-    const filterId = normalizeStoredFigureFilterId(params?.targetFigureId)
+    const targetFigures = resolveFigureFilterList(
+        params?.targetFigures,
+        params?.targetFigureId,
+        params?.targetStateIndex,
+    )
 
-    if (filterId !== undefined) {
-        normalized.targetFigureId = filterId
-    }
-
-    if (params?.targetStateIndex !== undefined && Number.isFinite(params.targetStateIndex)) {
-        normalized.targetStateIndex = Math.max(0, Math.trunc(params.targetStateIndex))
-    }
+    normalized.targetFigures = targetFigures
 
     if (cause && VALID_STEP_CAUSES.has(cause)) {
         normalized.cause = cause
@@ -195,20 +197,58 @@ export function normalizeFigureEventParamsSteppedOnBy(
 ): FigureEventParamsSteppedOnBy {
     const normalized: FigureEventParamsSteppedOnBy = {}
 
-    const filterId = normalizeStoredFigureFilterId(params?.stepperFigureId)
+    const stepperFigures = resolveFigureFilterList(
+        params?.stepperFigures,
+        params?.stepperFigureId,
+        params?.stepperStateIndex,
+    )
 
-    if (filterId !== undefined) {
-        normalized.stepperFigureId = filterId
-    }
-
-    if (params?.stepperStateIndex !== undefined && Number.isFinite(params.stepperStateIndex)) {
-        normalized.stepperStateIndex = Math.max(0, Math.trunc(params.stepperStateIndex))
-    }
+    normalized.stepperFigures = stepperFigures
 
     const cause = params?.cause
     if (cause && VALID_STEP_CAUSES.has(cause)) {
         normalized.cause = cause
     }
+
+    return normalized
+}
+
+export function normalizeFigureEventParamsEnterFigureArea(
+    params?: FigureEventParamsEnterFigureArea,
+): FigureEventParamsEnterFigureArea {
+    const anchorFigures = resolveFigureFilterList(
+        params?.anchorFigures,
+        params?.figureId,
+    )
+
+    let cells = normalizeFigureAreaCells(params?.cells)
+
+    if (cells.length === 0 && (params?.halfWidth !== undefined || params?.halfHeight !== undefined)) {
+        cells = migrateLegacyFigureAreaCells(params?.halfWidth, params?.halfHeight)
+    }
+
+    return {
+        anchorFigures,
+        cells,
+        includePassive: params?.includePassive !== false,
+    }
+}
+
+export function normalizeFigureEventParamsAreaEnteredBy(
+    params?: FigureEventParamsAreaEnteredBy,
+): FigureEventParamsAreaEnteredBy {
+    const normalized: FigureEventParamsAreaEnteredBy = {}
+
+    const entererFigures = resolveFigureFilterList(params?.entererFigures)
+    normalized.entererFigures = entererFigures
+    normalized.cells = normalizeFigureAreaCells(params?.cells)
+
+    const cause = params?.cause
+    if (cause && VALID_STEP_CAUSES.has(cause)) {
+        normalized.cause = cause
+    }
+
+    normalized.includePassive = params?.includePassive !== false
 
     return normalized
 }
@@ -238,9 +278,7 @@ export function normalizeGameAction(action: GameAction): GameAction | null {
                     figureId: params.figureId.trim(),
                     x,
                     y,
-                    stateIndex: params.stateIndex === undefined
-                        ? undefined
-                        : Math.max(0, Math.trunc(params.stateIndex)),
+                    stateIndex: Math.max(0, Math.trunc(params.stateIndex ?? 0)),
                 },
             }
         }
@@ -256,16 +294,15 @@ export function normalizeGameAction(action: GameAction): GameAction | null {
         case GameActionType.setOtherState: {
             const params = action.params as SetOtherStateActionParams
             const target = params?.target
-
-            if (!params || !VALID_ACTION_TARGETS.has(target)) {
-                return null
-            }
+            const resolvedTarget = target && VALID_ACTION_TARGETS.has(target)
+                ? target
+                : 'steppedOn'
 
             return {
                 type: GameActionType.setOtherState,
                 params: {
-                    stateIndex: Math.max(0, Math.trunc(params.stateIndex)),
-                    target,
+                    stateIndex: Math.max(0, Math.trunc(params?.stateIndex ?? 0)),
+                    target: resolvedTarget,
                 },
             }
         }
@@ -307,6 +344,14 @@ function normalizeFigureEventParams(
 
     if (type === FigureEventType.stepOnFigure) {
         return normalizeFigureEventParamsStepOnFigure(params as FigureEventParamsStepOnFigure | undefined)
+    }
+
+    if (type === FigureEventType.enterFigureArea) {
+        return normalizeFigureEventParamsEnterFigureArea(params as FigureEventParamsEnterFigureArea | undefined)
+    }
+
+    if (type === FigureEventType.areaEnteredBy) {
+        return normalizeFigureEventParamsAreaEnteredBy(params as FigureEventParamsAreaEnteredBy | undefined)
     }
 
     return params
@@ -359,7 +404,7 @@ export function normalizeFigureDefinition(
 }
 
 export function normalizeFigureCatalog(catalog?: FigureCatalog): FigureCatalog {
-    if (!catalog?.length) {
+    if (!Array.isArray(catalog) || !catalog.length) {
         return createDefaultFigureCatalog()
     }
 

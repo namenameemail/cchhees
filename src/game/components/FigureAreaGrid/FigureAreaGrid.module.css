@@ -1,4 +1,4 @@
-.moveRulesGrid {
+.areaGrid {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -118,6 +118,10 @@
     background: #f0f8ff;
 }
 
+.cellActive {
+    background: #e8f0ff;
+}
+
 .cellCenter {
     position: relative;
     min-width: 0;
@@ -146,10 +150,6 @@
     z-index: 0;
 }
 
-.cellRule {
-    background: #e8f0ff;
-}
-
 .figurePreview {
     position: relative;
     z-index: 1;
@@ -159,21 +159,15 @@
     pointer-events: none;
 }
 
-.ruleDragArea {
-    position: absolute;
-    inset: 0;
+.anchorPlaceholder {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: ns-resize;
-}
-
-.ruleMarker {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    color: #446;
+    width: 100%;
+    height: 100%;
+    font-size: 11px;
+    color: #888;
     pointer-events: none;
-    user-select: none;
 }

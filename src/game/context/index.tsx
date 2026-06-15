@@ -57,6 +57,7 @@ import {
     resolveCollabOpBoardId,
 } from '../../collab/ops'
 import { selectionDebugLog } from '../selectionDebugLog'
+import { setProfilerPanelChannel } from '../../profiler'
 
 export const GameContext = React.createContext<GameContextValue>(defaultGameContextValue)
 
@@ -141,6 +142,12 @@ export function GameProvider({
 
     const [mode, setMode] = useState<Mode>(Mode.Game)
     const [activeCell, setActiveCellState] = useState<CellCoord | undefined>(undefined)
+
+    useEffect(() => {
+        if (import.meta.env.DEV) {
+            setProfilerPanelChannel(mode === Mode.Game ? 'gameplay' : 'scroll')
+        }
+    }, [mode])
     const [activeFigure, setActiveFigure] = useState<FigureId | undefined>(undefined)
     const [previewCellStyleRuleIndex, setPreviewCellStyleRuleIndex] = useState<number | undefined>(undefined)
 

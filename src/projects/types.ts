@@ -1,5 +1,5 @@
 import { GameState } from '../game/types/gameState'
-import { SliceHistory, historyInit } from '../game/types/history'
+import { SliceHistory, historyInit, normalizeSliceHistory } from '../game/types/history'
 import { FigureCatalog } from '../game/types/figures'
 import {
     FiguresSlice,
@@ -97,16 +97,26 @@ function migrateLegacySingleBoard(project: LegacySingleBoardProject): Project {
     let figuresHistory: SliceHistory<FiguresSlice>
     let boardHistory: SliceHistory<BoardSlice>
 
-    if (!project.figuresHistory || !project.boardHistory) {
+    if (!project.figuresHistory && !project.boardHistory) {
         figuresHistory = historyInit()
         boardHistory = historyInit()
-    } else if (needsCoordMigration({ figuresHistory: project.figuresHistory, boardHistory: project.boardHistory })) {
+    } else if (needsCoordMigration({
+        figuresHistory: normalizeSliceHistory(project.figuresHistory as SliceHistory<unknown>),
+        boardHistory: normalizeSliceHistory(project.boardHistory as SliceHistory<unknown>),
+    })) {
         const n = project.gameState.boardParameters.n
-        figuresHistory = migrateFiguresHistory(project.figuresHistory as SliceHistory<LegacyFiguresSlice>, n)
-        boardHistory = migrateBoardHistory(project.boardHistory as SliceHistory<LegacyBoardSlice>)
+        figuresHistory = migrateFiguresHistory(
+            normalizeSliceHistory(project.figuresHistory as SliceHistory<LegacyFiguresSlice>),
+            n,
+        )
+        boardHistory = migrateBoardHistory(
+            normalizeSliceHistory(project.boardHistory as SliceHistory<LegacyBoardSlice>),
+        )
     } else {
-        figuresHistory = project.figuresHistory as SliceHistory<FiguresSlice>
-        boardHistory = migrateBoardHistory(project.boardHistory as SliceHistory<LegacyBoardSlice>)
+        figuresHistory = normalizeSliceHistory(project.figuresHistory as SliceHistory<FiguresSlice>) as SliceHistory<FiguresSlice>
+        boardHistory = migrateBoardHistory(
+            normalizeSliceHistory(project.boardHistory as SliceHistory<LegacyBoardSlice>),
+        )
     }
 
     const styledState = migrateGameStateStyleRules(project.gameState as Parameters<typeof migrateGameStateStyleRules>[0])
@@ -147,10 +157,12 @@ export function migrateProject(project: LegacySingleBoardProject | Project): Pro
             const { figuresHistory, boardHistory } = migrateBoardDocumentHistories(
                 styledState,
                 migrateFiguresHistory(
-                    item.figuresHistory as SliceHistory<LegacyFiguresSlice>,
+                    normalizeSliceHistory(item.figuresHistory as SliceHistory<LegacyFiguresSlice>),
                     styledState.boardParameters.n,
                 ),
-                migrateBoardHistory(item.boardHistory as SliceHistory<LegacyBoardSlice>),
+                migrateBoardHistory(
+                    normalizeSliceHistory(item.boardHistory as SliceHistory<LegacyBoardSlice>),
+                ),
             )
 
             return {

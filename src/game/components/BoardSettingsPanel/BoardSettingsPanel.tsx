@@ -10,15 +10,17 @@ import { atLeastOne, nonNegative } from '../../../components/Form1/numberInputCo
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
 import { BoardStyleRules } from '../BoardStyleRules'
 import { BoardAxisNumberingsForm } from './BoardAxisNumberingsForm'
+import { BoardMarksForm } from './BoardMarksForm'
 import { normalizeAxisNumberingForBoard, resolveAxisNumberings } from '../../boardAxisLabels'
 import styles from './styles.module.css'
 
-type BoardSectionTab = 'view' | 'cells' | 'numbering'
+type BoardSectionTab = 'view' | 'cells' | 'numbering' | 'marks'
 
 const BOARD_SECTION_TABS: Array<{ id: BoardSectionTab; label: string }> = [
     { id: 'view', label: 'вид' },
     { id: 'cells', label: 'клетки' },
     { id: 'numbering', label: 'нумерация' },
+    { id: 'marks', label: 'отметки' },
 ]
 
 const BackgroundAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
@@ -188,6 +190,11 @@ export const BoardSettingsPanel: FC = () => {
             {activeSection === 'numbering' && (
                 <div className={styles.sectionPanel}>
                     <BoardAxisNumberingsForm />
+                </div>
+            )}
+            {activeSection === 'marks' && (
+                <div className={styles.sectionPanel}>
+                    <BoardMarksForm />
                 </div>
             )}
         </div>
