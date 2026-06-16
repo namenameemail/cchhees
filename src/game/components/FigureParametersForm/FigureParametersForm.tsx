@@ -15,6 +15,8 @@ import {
     SetOtherStateActionParams,
     SpawnFigureActionParams,
     StepCause,
+    StackPositionMode,
+    StackTargetMode,
 } from '../../types/events'
 import { FigureSVG } from '../FigureSVG'
 import {
@@ -230,6 +232,8 @@ const gameActionTargetOptions = Object.values<GameActionTarget>([
 ])
 const VALID_ACTION_TARGETS = new Set<GameActionTarget>(gameActionTargetOptions)
 const stepCauseOptions: StepCause[] = ['any', 'manual', 'displacement']
+const stackPositionOptions: StackPositionMode[] = ['any', 'top', 'bottom', 'fromTop', 'fromBottom']
+const stackTargetOptions: StackTargetMode[] = ['all', 'top', 'bottom', 'fromTop', 'fromBottom']
 const boundaryActionTypeOptions = [
     GameActionType.moveToTray,
     GameActionType.displaceFigure,
@@ -267,6 +271,20 @@ function getEventParamsConfig(
                         title: 'cause',
                     },
                 },
+                {
+                    name: 'stackPosition',
+                    type: ParameterTypes.SelectArray,
+                    props: {
+                        className: styles.eventTypeSelect,
+                        options: stackPositionOptions,
+                        title: 'stack position',
+                    },
+                },
+                {
+                    name: 'stackIndex',
+                    type: ParameterTypes.NumberInput,
+                    props: { placeholder: 'stack index', ...nonNegative, ...integerStep, ...eventNumberInputProps },
+                },
             ]
         case FigureEventType.stepOnFigure:
             return [
@@ -284,6 +302,20 @@ function getEventParamsConfig(
                         options: stepCauseOptions,
                         title: 'cause',
                     },
+                },
+                {
+                    name: 'stackTarget',
+                    type: ParameterTypes.SelectArray,
+                    props: {
+                        className: styles.eventTypeSelect,
+                        options: stackTargetOptions,
+                        title: 'stack target',
+                    },
+                },
+                {
+                    name: 'stackIndex',
+                    type: ParameterTypes.NumberInput,
+                    props: { placeholder: 'stack index', ...nonNegative, ...integerStep, ...eventNumberInputProps },
                 },
             ]
         case FigureEventType.enterCell:
@@ -792,6 +824,8 @@ export const FigureParametersForm: FC = () => {
                 const params = rule.params as {
                     stepperFigures?: Array<{ figureId?: FigureId; stateIndex?: number }>
                     cause?: StepCause
+                    stackPosition?: StackPositionMode
+                    stackIndex?: number
                 } | undefined
 
                 return {
@@ -799,6 +833,8 @@ export const FigureParametersForm: FC = () => {
                     params: {
                         cause: params?.cause ?? 'any',
                         stepperFigures: canonicalizeFigureFilterArray(params?.stepperFigures),
+                        stackPosition: params?.stackPosition ?? 'any',
+                        ...(params?.stackIndex !== undefined ? { stackIndex: params.stackIndex } : {}),
                     },
                     actions: rule.actions?.length
                         ? rule.actions
@@ -819,6 +855,8 @@ export const FigureParametersForm: FC = () => {
                 const params = rule.params as {
                     targetFigures?: Array<{ figureId?: FigureId; stateIndex?: number }>
                     cause?: StepCause
+                    stackTarget?: StackTargetMode
+                    stackIndex?: number
                 } | undefined
 
                 return {
@@ -826,6 +864,8 @@ export const FigureParametersForm: FC = () => {
                     params: {
                         cause: params?.cause ?? 'any',
                         targetFigures: canonicalizeFigureFilterArray(params?.targetFigures),
+                        stackTarget: params?.stackTarget ?? 'all',
+                        ...(params?.stackIndex !== undefined ? { stackIndex: params.stackIndex } : {}),
                     },
                 }
             }

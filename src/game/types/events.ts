@@ -5,6 +5,10 @@ export type EventOwnerKind = 'board' | 'cell' | 'figure'
 
 export type StepCause = 'any' | 'manual' | 'displacement'
 
+export type StackPositionMode = 'any' | 'top' | 'bottom' | 'fromTop' | 'fromBottom'
+
+export type StackTargetMode = StackPositionMode | 'all'
+
 export interface FigureEventFigureFilter {
     figureId?: FigureId
     stateIndex?: number
@@ -38,6 +42,8 @@ export interface FigureEventParamsSteppedOnBy {
     /** @deprecated migrated to stepperFigures */
     stepperStateIndex?: number
     cause?: StepCause
+    stackPosition?: StackPositionMode
+    stackIndex?: number
 }
 
 export interface FigureEventParamsStepOnFigure {
@@ -47,6 +53,8 @@ export interface FigureEventParamsStepOnFigure {
     /** @deprecated migrated to targetFigures */
     targetStateIndex?: number
     cause?: StepCause
+    stackTarget?: StackTargetMode
+    stackIndex?: number
 }
 
 export interface FigureEventParamsEnterCell {

@@ -33,8 +33,18 @@ import {
     SetOtherStateActionParams,
     SetSelfStateActionParams,
     SpawnFigureActionParams,
+    StackPositionMode,
+    StackTargetMode,
     StepCause,
 } from './types/events'
+
+const VALID_STACK_POSITION_MODES = new Set<StackPositionMode>([
+    'any', 'top', 'bottom', 'fromTop', 'fromBottom',
+])
+
+const VALID_STACK_TARGET_MODES = new Set<StackTargetMode>([
+    'any', 'top', 'bottom', 'fromTop', 'fromBottom', 'all',
+])
 
 export const DEFAULT_FIGURE_FONT_SIZE = 26
 export const DEFAULT_PAWN_SYMBOL = '♙'
@@ -189,6 +199,17 @@ export function normalizeFigureEventParamsStepOnFigure(
         normalized.cause = cause
     }
 
+    const stackTarget = params?.stackTarget
+    if (stackTarget && VALID_STACK_TARGET_MODES.has(stackTarget)) {
+        normalized.stackTarget = stackTarget
+    } else {
+        normalized.stackTarget = 'all'
+    }
+
+    if (params?.stackIndex !== undefined && Number.isFinite(params.stackIndex)) {
+        normalized.stackIndex = Math.max(0, Math.trunc(params.stackIndex))
+    }
+
     return normalized
 }
 
@@ -208,6 +229,17 @@ export function normalizeFigureEventParamsSteppedOnBy(
     const cause = params?.cause
     if (cause && VALID_STEP_CAUSES.has(cause)) {
         normalized.cause = cause
+    }
+
+    const stackPosition = params?.stackPosition
+    if (stackPosition && VALID_STACK_POSITION_MODES.has(stackPosition)) {
+        normalized.stackPosition = stackPosition
+    } else {
+        normalized.stackPosition = 'any'
+    }
+
+    if (params?.stackIndex !== undefined && Number.isFinite(params.stackIndex)) {
+        normalized.stackIndex = Math.max(0, Math.trunc(params.stackIndex))
     }
 
     return normalized
@@ -530,16 +562,6 @@ export function ensurePlacementInstanceId(
         figureId: placement.figureId,
         ...(placement.stateIndex !== undefined ? { stateIndex: placement.stateIndex } : {}),
     }
-}
-
-export function placementMatchesAt(
-    figuresByCoord: Record<string, FigurePlacement>,
-    coord: CellCoord,
-    placement: FigurePlacement,
-): boolean {
-    const occupant = figuresByCoord[coordKey(coord)]
-
-    return occupant != null && placementsMatch(occupant, placement)
 }
 
 export function normalizeFigurePlacement(raw: FigureId | FigurePlacementInput): FigurePlacement {

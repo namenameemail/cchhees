@@ -4,6 +4,7 @@ import {
     DisplaceFigureActionParams,
     GameAction,
     GameActionType,
+    FigureEventType,
     SetOtherStateActionParams,
     SetSelfStateActionParams,
     SpawnFigureActionParams,
@@ -12,9 +13,20 @@ import { FigurePlacement } from './types/figures'
 import { resolvePlacementStateIndex } from './figureView'
 
 const MAX_CONSOLE_LINES = 200
+const MAX_MOVE_EVENTS = 200
 const CONSOLE_PREFIX = '[moves] '
 
 let moveSeq = 0
+
+export type GameMovesDebugEvent = {
+    at: number
+    moveSeq: number
+    text: string
+    nested: boolean
+    data?: Record<string, unknown>
+}
+
+const moveEvents: GameMovesDebugEvent[] = []
 
 function enabled(): boolean {
     return import.meta.env.DEV
@@ -98,6 +110,18 @@ function append(text: string, meta?: Record<string, unknown>, nested = false): v
 
     const prefix = nested ? `  #${moveSeq} ` : `#${moveSeq} `
     const line = `${CONSOLE_PREFIX}${time}  ${prefix}${text}`
+
+    moveEvents.push({
+        at: Date.now(),
+        moveSeq,
+        text,
+        nested,
+        data: meta,
+    })
+
+    if (moveEvents.length > MAX_MOVE_EVENTS) {
+        moveEvents.splice(0, moveEvents.length - MAX_MOVE_EVENTS)
+    }
 
     console.log(line)
 
@@ -227,6 +251,8 @@ export const gameMovesDebugLog = {
         wrapped?: boolean
         blocked?: boolean
         offBoard?: boolean
+        ownerFigureId?: string
+        eventType?: FigureEventType
     }): void {
         const modePart = input.wrapped ? ' wrap' : ''
         const blockedPart = input.blocked ? ' blocked→queue' : ''
@@ -257,4 +283,12 @@ export const gameMovesDebugLog = {
             true,
         )
     },
+}
+
+export function getGameMovesDebugEvents(): GameMovesDebugEvent[] {
+    return [...moveEvents]
+}
+
+export function getGameMovesDebugMoveSeq(): number {
+    return moveSeq
 }

@@ -18,9 +18,10 @@ export interface MoveEventContext {
     stepCause?: StepCause
     stepperPlacement?: FigurePlacement
     stepperCoord?: CellCoord
-    figuresBeforeMove?: Record<string, FigurePlacement>
+    figuresBeforeMove?: Record<string, FigurePlacement[]>
     areaSubjectCoord?: CellCoord
     areaSubjectPlacement?: FigurePlacement
+    ownerFigureId?: FigureId
     onStep?: FigureStepRecorder
 }
 
@@ -30,6 +31,7 @@ export interface TriggeredFigureEvent {
     areaAnchor?: CellCoord
     subjectCoord?: CellCoord
     subjectPlacement?: FigurePlacement
+    stepOnTarget?: FigurePlacement
     triggerMode?: 'active' | 'passive'
     includePassive?: boolean
 }

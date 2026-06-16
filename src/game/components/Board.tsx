@@ -1,10 +1,10 @@
-import React, { forwardRef, useId, useMemo } from 'react'
+import React, { forwardRef, useCallback, useId, useMemo, useState } from 'react'
 import { useGameContext } from '../context'
 import { BoardCell } from './BoardCell'
 import { getConnections } from '../context/connections'
 import { ConnectionSVGGroup } from './ConnectionSVGGroup'
 import { CellSVGGroup } from './CellSVGGroup'
-import { coordKey, iterGridCoords, coordToIndex, indexToCoord } from '../types/coords'
+import { CellCoord, coordKey, coordsEqual, iterGridCoords, coordToIndex, indexToCoord } from '../types/coords'
 import { FigureId } from '../types/figures'
 import { FiguresSlice } from '../state/slices'
 import {
@@ -36,6 +36,7 @@ import { BoardAxisNumberingClipDefs,
     BoardAxisNumberingItemsLayer,
 } from './BoardAxisLabels'
 import { BoardFigureAnimationsLayer } from './BoardFigureAnimationsLayer'
+import { BoardAboveMarksLayer } from './BoardAboveMarksLayer'
 
 export interface BoardProps {
     className?: string
@@ -169,7 +170,13 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
         }
 
         const cellIndex = coordToIndex(activeCell, n)
-        const placement = state.cells[cellIndex]?.figure
+        const cell = state.cells[cellIndex]
+        const stack = cell?.figures?.length
+            ? cell.figures
+            : cell?.figure
+                ? [cell.figure]
+                : []
+        const placement = stack[stack.length - 1]
 
         if (!placement) {
             return new Set<string>()
@@ -178,9 +185,15 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
         const definition = resolveFigureDefinition(placement.figureId, figureCatalog ?? state.figureCatalog)
 
         const figuresByCoord: FiguresSlice['figuresByCoord'] = {}
-        for (const [index, cell] of state.cells.entries()) {
-            if (cell.figure) {
-                figuresByCoord[coordKey(indexToCoord(index, n))] = cell.figure
+        for (const [index, boardCell] of state.cells.entries()) {
+            const boardStack = boardCell.figures?.length
+                ? boardCell.figures
+                : boardCell.figure
+                    ? [boardCell.figure]
+                    : []
+
+            if (boardStack.length > 0) {
+                figuresByCoord[coordKey(indexToCoord(index, n))] = boardStack
             }
         }
 
@@ -207,6 +220,12 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
         () => isAnyAxisNumberingEnabled(resolveAxisNumberings(boardParameters)),
         [boardParameters],
     )
+
+    const [hoveredCoord, setHoveredCoord] = useState<CellCoord | undefined>()
+
+    const handleCellHoverChange = useCallback((coord: CellCoord, hovered: boolean) => {
+        setHoveredCoord(hovered ? coord : undefined)
+    }, [])
 
     return (
         <svg ref={ref} style={boardStyle} className={className}>
@@ -316,10 +335,23 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                         boardMarks={boardMarks}
                         gradientIds={markGradientIds}
                         isLegalMove={legalMoveKeys.has(coordKey(coord))}
+                        isHovered={hoveredCoord !== undefined && coordsEqual(hoveredCoord, coord)}
+                        onHoverChange={(hovered) => handleCellHoverChange(coord, hovered)}
                         hiddenFigureInstanceIds={figureBoardAnimations.hiddenInstanceIds}
                     />
                 )
             })}
+            <BoardAboveMarksLayer
+                n={n}
+                m={m}
+                cellXDistance={cellXDistance}
+                cellYDistance={cellYDistance}
+                boardMarks={boardMarks}
+                gradientIds={markGradientIds}
+                activeCell={activeCell}
+                legalMoveKeys={legalMoveKeys}
+                hoveredCoord={hoveredCoord}
+            />
             <BoardFigureAnimationsLayer items={figureBoardAnimations.overlayItems} />
             </g>
             {hasNumberings && (

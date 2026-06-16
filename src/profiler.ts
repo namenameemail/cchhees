@@ -9,9 +9,10 @@ export type ProfilerPanelChannel =
     | 'export'
     | 'events'
     | 'actions'
+    | 'moveDebug'
     | 'gameplay'
 
-const GAMEPLAY_PANEL_CHANNELS: ProfilerPanelChannel[] = ['moves', 'events', 'actions']
+const GAMEPLAY_PANEL_CHANNELS: ProfilerPanelChannel[] = ['moves', 'events', 'actions', 'moveDebug']
 
 let activeProfilerPanelChannel: ProfilerPanelChannel = 'scroll'
 

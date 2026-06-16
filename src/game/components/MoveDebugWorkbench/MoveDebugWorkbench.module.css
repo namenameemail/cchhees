@@ -1,0 +1,185 @@
+.workbench {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+}
+
+.header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.headerTitle {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0;
+    flex: 1 1 100%;
+}
+
+.sizeInputs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+}
+
+.sizeInput {
+    width: 36px;
+    padding: 2px 4px;
+    font-size: 12px;
+    border: 1px solid #999;
+    border-radius: 2px;
+}
+
+.resetButton {
+    padding: 4px 8px;
+    font-size: 12px;
+    border: 1px solid #666;
+    border-radius: 3px;
+    background: #fff;
+    cursor: pointer;
+}
+
+.resetButton:hover {
+    background: #eee;
+}
+
+.boardBlock {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.boardHeader {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.confirmButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid #888;
+    border-radius: 3px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.confirmButton:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.confirmButtonActive:not(:disabled):hover {
+    background: #e8ffe8;
+    border-color: #2a8;
+}
+
+.phaseHint {
+    font-size: 11px;
+    color: #555;
+    margin: 0;
+}
+
+.miniBoardSvg {
+    display: block;
+    border: 1px solid #aaa;
+    border-radius: 2px;
+}
+
+.logSection {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+}
+
+.logTitle {
+    font-size: 12px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.logScroll {
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    background: #fafafa;
+    padding: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 10px;
+    line-height: 1.35;
+}
+
+.logEntry {
+    margin: 0 0 4px;
+    word-break: break-word;
+}
+
+.logEntrySnapshot {
+    color: #036;
+}
+
+.logEntryProfiler {
+    color: #630;
+}
+
+.logEntryCompare {
+    color: #060;
+}
+
+.logEntryCompareFail {
+    color: #900;
+}
+
+.logEntrySave {
+    color: #604;
+}
+
+.logEntryChain {
+    color: #333;
+}
+
+.logDetail {
+    margin: 2px 0 0 12px;
+    white-space: pre-wrap;
+}
+
+.compareBlock {
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    padding: 8px;
+    font-size: 11px;
+    background: #fff;
+}
+
+.compareMatch {
+    color: #080;
+    font-weight: 600;
+}
+
+.compareMismatch {
+    color: #c00;
+    font-weight: 600;
+}
+
+.mismatchList {
+    margin: 6px 0 0;
+    padding-left: 16px;
+}
+
+.mismatchItem {
+    margin-bottom: 2px;
+}

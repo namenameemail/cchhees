@@ -4,21 +4,32 @@ import {
     normalizeFigurePlacement,
     placementsMatch,
 } from '../src/game/figureView'
+import { getTopOfStack } from '../src/game/figureStack'
 import { normalizeFiguresSlice } from '../src/game/state/slices'
 import { FigureEventType, GameActionType } from '../src/game/types/events'
 import { FigurePlacement } from '../src/game/types/figures'
 import { coordKey } from '../src/game/types/coords'
+import { FiguresSlice } from '../src/game/state/slices'
 
 const board = { n: 8, m: 8 }
-const queen = createFigurePlacement('ChessQueenBlack')
-const pawn = createFigurePlacement('ChessPawnWhite')
 
-function atCoord(
-    figures: { figuresByCoord: Record<string, FigurePlacement> },
-    i: number,
-    j: number,
-) {
-    return figures.figuresByCoord[coordKey({ i, j })]?.figureId ?? null
+function stack(figures: Record<string, FigurePlacement | FigurePlacement[]>): FiguresSlice {
+    return normalizeFiguresSlice({
+        figuresByCoord: figures,
+        tray: [],
+    })
+}
+
+function topAt(figures: FiguresSlice, i: number, j: number): FigurePlacement | undefined {
+    return getTopOfStack(figures, { i, j })
+}
+
+function topFigureId(figures: FiguresSlice, i: number, j: number): string | null {
+    return topAt(figures, i, j)?.figureId ?? null
+}
+
+function allBoardPlacements(figures: FiguresSlice): FigurePlacement[] {
+    return Object.values(figures.figuresByCoord).flat()
 }
 
 function assertUniqueInstanceIds(
@@ -38,16 +49,16 @@ function assertUniqueInstanceIds(
     }
 }
 
-const figures = {
-    figuresByCoord: {
-        [coordKey({ i: 2, j: 1 })]: queen,
-        [coordKey({ i: 2, j: 2 })]: pawn,
-        [coordKey({ i: 3, j: 3 })]: createFigurePlacement('ChessQueenBlack'),
-        [coordKey({ i: 0, j: 0 })]: createFigurePlacement('ChessPawnWhite'),
-        [coordKey({ i: 7, j: 7 })]: createFigurePlacement('ChessPawnWhite'),
-    },
-    tray: [],
-}
+const queen = createFigurePlacement('ChessQueenBlack')
+const pawn = createFigurePlacement('ChessPawnWhite')
+
+const figures = stack({
+    [coordKey({ i: 2, j: 1 })]: queen,
+    [coordKey({ i: 2, j: 2 })]: pawn,
+    [coordKey({ i: 3, j: 3 })]: createFigurePlacement('ChessQueenBlack'),
+    [coordKey({ i: 0, j: 0 })]: createFigurePlacement('ChessPawnWhite'),
+    [coordKey({ i: 7, j: 7 })]: createFigurePlacement('ChessPawnWhite'),
+})
 
 const catalog = [
     {
@@ -80,14 +91,13 @@ const result = applyFigureMove(figures, {
     catalog,
 })
 
-const at = (i: number, j: number) => atCoord(result, i, j)
 const errors: string[] = []
 
-if (at(2, 2) !== 'ChessQueenBlack') {
-    errors.push('moving queen should be at (2,2)')
+if (topFigureId(result, 2, 2) !== 'ChessQueenBlack') {
+    errors.push('moving queen should be on top at (2,2)')
 }
 
-if (at(3, 3) !== 'ChessPawnWhite') {
+if (topFigureId(result, 3, 3) !== 'ChessPawnWhite') {
     errors.push('pawn should land at (3,3)')
 }
 
@@ -95,17 +105,16 @@ if (result.tray.length !== 1 || result.tray[0].figureId !== 'ChessQueenBlack') {
     errors.push('blocked queen should be in tray')
 }
 
-if (at(0, 0) !== 'ChessPawnWhite' || at(7, 7) !== 'ChessPawnWhite') {
+if (topFigureId(result, 0, 0) !== 'ChessPawnWhite' || topFigureId(result, 7, 7) !== 'ChessPawnWhite') {
     errors.push('other pawns on board should remain')
 }
 
-const pawnCount = Object.values(result.figuresByCoord).filter(p => p.figureId === 'ChessPawnWhite').length
+const pawnCount = allBoardPlacements(result).filter(p => p.figureId === 'ChessPawnWhite').length
 if (pawnCount !== 3) {
     errors.push(`expected 3 pawns on board, got ${pawnCount}`)
 }
 
-const boardPawns = Object.values(result.figuresByCoord).filter(p => p.figureId === 'ChessPawnWhite')
-assertUniqueInstanceIds(boardPawns, 'board pawns after queen move', errors)
+assertUniqueInstanceIds(allBoardPlacements(result), 'board after queen move', errors)
 
 if (errors.length > 0) {
     console.error('FAIL:', errors.join('; '))
@@ -117,14 +126,11 @@ console.log('OK displacement chain: queen@(2,2), pawn@(3,3), queen in tray')
 
 const pawn2 = createFigurePlacement('ChessPawnWhite')
 const queen2 = createFigurePlacement('ChessQueenBlack')
-const figures2 = {
-    figuresByCoord: {
-        [coordKey({ i: 4, j: 3 })]: queen2,
-        [coordKey({ i: 5, j: 4 })]: pawn,
-        [coordKey({ i: 6, j: 5 })]: pawn2,
-    },
-    tray: [],
-}
+const figures2 = stack({
+    [coordKey({ i: 4, j: 3 })]: queen2,
+    [coordKey({ i: 5, j: 4 })]: pawn,
+    [coordKey({ i: 6, j: 5 })]: pawn2,
+})
 
 const result2 = applyFigureMove(figures2, {
     from: { i: 4, j: 3 },
@@ -137,29 +143,116 @@ const result2 = applyFigureMove(figures2, {
 })
 
 const errors2: string[] = []
-if (atCoord(result2, 5, 4) !== 'ChessQueenBlack') {
+if (topFigureId(result2, 5, 4) !== 'ChessQueenBlack') {
     errors2.push('queen should be at (5,4)')
 }
-if (atCoord(result2, 6, 5) !== 'ChessPawnWhite') {
+if (topFigureId(result2, 6, 5) !== 'ChessPawnWhite') {
     errors2.push('first pawn should land at (6,5)')
 }
-if (atCoord(result2, 7, 6) !== 'ChessPawnWhite') {
+if (topFigureId(result2, 7, 6) !== 'ChessPawnWhite') {
     errors2.push('second pawn should chain-displace to (7,6)')
 }
 
-const chainPawns = Object.values(result2.figuresByCoord).filter(p => p.figureId === 'ChessPawnWhite')
-assertUniqueInstanceIds(chainPawns, 'pawn chain board', errors2)
+assertUniqueInstanceIds(
+    allBoardPlacements(result2).filter(p => p.figureId === 'ChessPawnWhite'),
+    'pawn chain board',
+    errors2,
+)
 
 if (errors2.length > 0) {
     console.error('FAIL pawn chain:', errors2.join('; '))
     console.error('board:', Object.fromEntries(
-        Object.entries(result2.figuresByCoord).map(([k, v]) => [k, v.figureId]),
+        Object.entries(result2.figuresByCoord).map(([k, v]) => [k, v.map(item => item.figureId)]),
     ))
     console.error('tray:', result2.tray.map(t => t.figureId))
     process.exit(1)
 }
 
 console.log('OK pawn-on-pawn chain: pawns at (6,5) and (7,6)')
+
+const knight = createFigurePlacement('ChessKnightBlack')
+const rook = createFigurePlacement('ChessRookBlack')
+
+const knightRookCatalog = [
+    {
+        id: 'ChessKnightBlack',
+        states: [{ viewParams: {} }],
+        eventRules: [
+            {
+                id: 'knight-area',
+                type: FigureEventType.enterFigureArea,
+                params: {
+                    anchorFigures: [{ figureId: 'ChessRookBlack' }],
+                    cells: [{ x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 }, { x: -1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 1 }],
+                    includePassive: true,
+                },
+                actions: [{
+                    type: GameActionType.displaceFigure,
+                    params: { dx: 1, dy: 0 },
+                }],
+            },
+            {
+                id: 'knight-step-on',
+                type: FigureEventType.stepOnFigure,
+                params: {
+                    targetFigures: [{ figureId: 'ChessRookBlack' }],
+                    cause: 'any',
+                    stackTarget: 'all',
+                },
+                actions: [{
+                    type: GameActionType.displaceFigure,
+                    params: { dx: 1, dy: 1 },
+                }],
+            },
+        ],
+    },
+    {
+        id: 'ChessRookBlack',
+        states: [{ viewParams: {} }],
+        eventRules: [],
+    },
+]
+
+const knightBoard = { n: 5, m: 5 }
+const knightFigures = stack({
+    [coordKey({ i: 0, j: 0 })]: knight,
+    [coordKey({ i: 2, j: 2 })]: rook,
+})
+
+const knightResult = applyFigureMove(knightFigures, {
+    from: { i: 0, j: 0 },
+    to: { i: 1, j: 2 },
+    actorPlacement: knight,
+    swapOnEat: false,
+    boardParameters: knightBoard,
+    catalog: knightRookCatalog,
+})
+
+const knightErrors: string[] = []
+
+assertUniqueInstanceIds(allBoardPlacements(knightResult), 'knight/rook board', knightErrors)
+
+if (knightResult.tray.length !== 1 || knightResult.tray[0].figureId !== 'ChessRookBlack') {
+    knightErrors.push(`rook should be in tray, got tray=${knightResult.tray.map(item => item.figureId).join(',')}`)
+}
+
+const knightPlacements = allBoardPlacements(knightResult).filter(item => item.instanceId === knight.instanceId)
+if (knightPlacements.length !== 1) {
+    knightErrors.push(`knight instance should appear once on board, got ${knightPlacements.length}`)
+}
+
+        if (topFigureId(knightResult, 3, 3) !== 'ChessKnightBlack') {
+    knightErrors.push(`knight should finish at (3,3), top=${topFigureId(knightResult, 3, 3)}`)
+}
+
+if (knightErrors.length > 0) {
+    console.error('FAIL knight/rook:', knightErrors.join('; '))
+    console.error('board:', knightResult.figuresByCoord)
+    console.error('tray:', knightResult.tray)
+    process.exit(1)
+}
+
+console.log('OK knight/rook: rook in tray, knight@(3,3), no duplicate instance')
 
 const legacyNormalized = normalizeFiguresSlice({
     figuresByCoord: {
@@ -174,7 +267,7 @@ const legacyNormalized = normalizeFiguresSlice({
 
 const legacyErrors: string[] = []
 const allLegacy = [
-    ...Object.values(legacyNormalized.figuresByCoord),
+    ...Object.values(legacyNormalized.figuresByCoord).flat(),
     ...legacyNormalized.tray,
 ]
 

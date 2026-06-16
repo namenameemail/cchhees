@@ -24,6 +24,12 @@ import {
     resolveFigureAnimationSettings,
 } from '../figureAnimation/resolveFigureAnimationSettings'
 import { removeFigureFromBoard, removeFigureReferencesFromCatalog } from '../state/figureReferences'
+import {
+    getTopOfStack,
+    isStackOccupied,
+    pushToStack,
+    removePlacementFromBoard,
+} from '../figureStack'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
 import { SliceHistory } from '../types/history'
@@ -543,55 +549,39 @@ export function GameProvider({
     }, [boardSlice, applyBoardChange])
 
     const toTray = useCallback((coord: CellCoord) => {
-        const key = coordKey(coord)
-        const oldFigure = figuresSlice.figuresByCoord[key]
-        if (!oldFigure) {
+        const topFigure = getTopOfStack(figuresSlice, coord)
+        if (!topFigure) {
             return
         }
 
-        const figuresByCoord = { ...figuresSlice.figuresByCoord }
-        delete figuresByCoord[key]
-
         pushFiguresChange({
-            figuresByCoord,
-            tray: [oldFigure, ...figuresSlice.tray],
+            ...removePlacementFromBoard(figuresSlice, topFigure, coord),
+            tray: [topFigure, ...figuresSlice.tray],
         })
     }, [figuresSlice, pushFiguresChange])
 
     const replace = useCallback((coord: CellCoord, figure: FigureId) => {
-        const key = coordKey(coord)
-        const oldFigure = figuresSlice.figuresByCoord[key]
-        if (!oldFigure) {
+        const topFigure = getTopOfStack(figuresSlice, coord)
+        if (!topFigure) {
             return
         }
 
+        const withoutTop = removePlacementFromBoard(figuresSlice, topFigure, coord)
+
         pushFiguresChange({
-            figuresByCoord: {
-                ...figuresSlice.figuresByCoord,
-                [key]: createFigurePlacement(figure),
-            },
-            tray: [oldFigure, ...figuresSlice.tray],
+            ...pushToStack(withoutTop, coord, createFigurePlacement(figure)),
+            tray: [topFigure, ...figuresSlice.tray],
         })
     }, [figuresSlice, pushFiguresChange])
 
     const setFigure = useCallback((coord: CellCoord, figure: FigureId) => {
-        const key = coordKey(coord)
-        if (figuresSlice.figuresByCoord[key]) {
-            return
-        }
-
-        pushFiguresChange({
-            figuresByCoord: {
-                ...figuresSlice.figuresByCoord,
-                [key]: createFigurePlacement(figure),
-            },
-            tray: figuresSlice.tray,
-        })
+        pushFiguresChange(
+            pushToStack(figuresSlice, coord, createFigurePlacement(figure)),
+        )
     }, [figuresSlice, pushFiguresChange])
 
     const setCellFigure = useCallback((coord: CellCoord, figure: FigureId) => {
-        const key = coordKey(coord)
-        if (figuresSlice.figuresByCoord[key]) {
+        if (isStackOccupied(figuresSlice, coord)) {
             replace(coord, figure)
         } else {
             setFigure(coord, figure)
@@ -613,9 +603,7 @@ export function GameProvider({
         }
 
         const from = activeCell
-        const fromKey = coordKey(from)
-        const toKey = coordKey(to)
-        const fromPlacement = figuresSlice.figuresByCoord[fromKey]
+        const fromPlacement = getTopOfStack(figuresSlice, from)
         if (!fromPlacement) {
             return
         }
@@ -635,7 +623,7 @@ export function GameProvider({
 
         setActiveCell(undefined, 'figure move start')
 
-        const targetAtTo = figuresSlice.figuresByCoord[toKey]
+        const targetAtTo = getTopOfStack(figuresSlice, to)
         const moveInput = {
             from,
             to,
@@ -838,10 +826,16 @@ export function GameProvider({
 
     const setCells = useCallback((value: GameState['cells']) => {
         const { n } = state.boardParameters
-        const figuresByCoord: Record<string, FigurePlacement> = {}
+        const figuresByCoord: FiguresSlice['figuresByCoord'] = {}
         value.forEach((cell, index) => {
-            if (cell.figure) {
-                figuresByCoord[coordKey(indexToCoord(index, n))] = normalizeFigurePlacement(cell.figure)
+            const stack = cell.figures?.length
+                ? cell.figures.map(item => normalizeFigurePlacement(item))
+                : cell.figure
+                    ? [normalizeFigurePlacement(cell.figure)]
+                    : []
+
+            if (stack.length > 0) {
+                figuresByCoord[coordKey(indexToCoord(index, n))] = stack
             }
         })
         pushFiguresChange({

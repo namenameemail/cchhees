@@ -1,6 +1,7 @@
 import { FigureCatalog } from '../types/figures'
 import { FiguresSlice } from '../state/slices'
 import { cloneFigurePlacement } from '../figureView'
+import { cloneFiguresByCoord } from '../figureStack'
 import { collectTriggeredFigureEvents } from './match'
 import { applyGameActions } from './execute'
 import { MoveEventContext } from './types'
@@ -36,12 +37,7 @@ export function runFigureEvents(
     })
 
     let nextFigures: FiguresSlice = {
-        figuresByCoord: Object.fromEntries(
-            Object.entries(figures.figuresByCoord).map(([key, placement]) => [
-                key,
-                cloneFigurePlacement(placement),
-            ]),
-        ),
+        figuresByCoord: cloneFiguresByCoord(figures.figuresByCoord),
         tray: figures.tray.map(cloneFigurePlacement),
     }
 
@@ -86,6 +82,8 @@ export function runFigureEvents(
             eventType: rule.type,
             areaSubjectCoord: event.subjectCoord,
             areaSubjectPlacement: event.subjectPlacement,
+            ownerFigureId: event.ownerFigureId,
+            targetAtTo: event.stepOnTarget ?? ctx.targetAtTo,
         }
 
         logFigureEventRuntime({

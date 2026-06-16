@@ -11,7 +11,7 @@ import { GameState } from '../types/gameState'
 
 export interface LegacyFiguresSlice {
     figuresByIndex?: Record<number, FigureId>
-    figuresByCoord?: Record<string, FigureId | FigurePlacementInput>
+    figuresByCoord?: Record<string, FigureId | FigurePlacementInput | FigurePlacement[]>
     tray?: Array<FigureId | FigurePlacementInput>
 }
 
@@ -48,7 +48,7 @@ export function migrateFiguresSlice(slice: LegacyFiguresSlice, n: number): Figur
         } as FiguresSlice)
     }
 
-    const figuresByCoord: Record<string, FigurePlacementInput> = {}
+    const figuresByCoord: Record<string, FigurePlacementInput | FigurePlacementInput[]> = {}
 
     for (const [indexStr, figure] of Object.entries(slice.figuresByIndex ?? {})) {
         figuresByCoord[coordKey(indexToCoord(+indexStr, n))] = figure

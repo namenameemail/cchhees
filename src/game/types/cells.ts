@@ -47,5 +47,7 @@ export interface CellParameters {
 
 export interface Cell {
     parameters?: CellParameters
+    /** @deprecated use figures; top of stack mirror for legacy readers */
     figure?: FigurePlacement
+    figures?: FigurePlacement[]
 }

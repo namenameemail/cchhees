@@ -5,19 +5,11 @@ import { Mode } from '../types'
 import { FigureSVGGroup } from './FigureSVGGroup'
 import { CellCoord, coordsEqual, coordToIndex } from '../types/coords'
 import { selectionDebugLog } from '../selectionDebugLog'
-import { BoardMarkCircle } from './BoardMarkCircle'
-import { ResolvedBoardMarks, isMarkLayer } from '../boardMarks'
-import { BoardMarkKind } from '../types/boardMarks'
+import { ResolvedBoardMarks } from '../boardMarks'
+import { BoardMarkGradientIds, renderBoardMark } from './boardMarkRender'
 import { ARRANGE_FIGURE_DELETE_MS, ArrangeDeleteProgressRing } from './ArrangeDeleteProgressRing'
 
-export interface BoardMarkGradientIds {
-    selection?: string
-    selectionOverlay?: string
-    legalMove?: string
-    legalMoveOverlay?: string
-    cursor?: string
-    cursorOverlay?: string
-}
+export type { BoardMarkGradientIds } from './boardMarkRender'
 
 export interface CellProps {
     cell: Cell
@@ -25,38 +17,9 @@ export interface CellProps {
     boardMarks: ResolvedBoardMarks
     gradientIds: BoardMarkGradientIds
     isLegalMove: boolean
+    isHovered: boolean
+    onHoverChange: (hovered: boolean) => void
     hiddenFigureInstanceIds?: ReadonlySet<string>
-}
-
-function renderMark(
-    kind: BoardMarkKind,
-    boardMarks: ResolvedBoardMarks,
-    gradientIds: BoardMarkGradientIds,
-    layer: 'belowFigures' | 'aboveFigures',
-    visible: boolean,
-    cx: number,
-    cy: number,
-    r: number,
-) {
-    const appearance = boardMarks[kind]
-
-    if (!isMarkLayer(appearance, layer) || !visible) {
-        return null
-    }
-
-    return (
-        <BoardMarkCircle
-            key={kind}
-            kind={kind}
-            appearance={appearance}
-            gradientId={gradientIds[kind]}
-            overlayGradientId={gradientIds[`${kind}Overlay` as keyof BoardMarkGradientIds]}
-            cx={cx}
-            cy={cy}
-            r={r}
-            visible
-        />
-    )
 }
 
 export const BoardCell: FC<CellProps> = (props) => {
@@ -86,16 +49,27 @@ export const BoardCell: FC<CellProps> = (props) => {
         boardMarks,
         gradientIds,
         isLegalMove,
+        isHovered,
+        onHoverChange,
         hiddenFigureInstanceIds,
     } = props
 
     const { i, j } = coord
-    const [isHovered, setIsHovered] = useState(false)
     const [isHoldingDelete, setIsHoldingDelete] = useState(false)
     const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const suppressClickRef = useRef(false)
 
-    const canHoldDelete = mode === Mode.FiguresArrange && Boolean(cell.figure)
+    const stack = useMemo(
+        () => cell.figures?.length
+            ? cell.figures
+            : cell.figure
+                ? [cell.figure]
+                : [],
+        [cell.figure, cell.figures],
+    )
+
+    const topFigure = stack[stack.length - 1]
+    const canHoldDelete = mode === Mode.FiguresArrange && Boolean(topFigure)
 
     const clearHoldDelete = useCallback(() => {
         if (holdTimerRef.current) {
@@ -108,10 +82,10 @@ export const BoardCell: FC<CellProps> = (props) => {
     useEffect(() => () => clearHoldDelete(), [clearHoldDelete])
 
     useEffect(() => {
-        if (!cell.figure || mode !== Mode.FiguresArrange) {
+        if (!topFigure || mode !== Mode.FiguresArrange) {
             clearHoldDelete()
         }
-    }, [cell.figure, mode, clearHoldDelete])
+    }, [topFigure, mode, clearHoldDelete])
 
     const handleArrangeDeletePointerDown = useCallback((event: React.PointerEvent<SVGCircleElement>) => {
         if (!canHoldDelete) {
@@ -146,17 +120,9 @@ export const BoardCell: FC<CellProps> = (props) => {
 
     const belowMarks = useMemo(() => (
         <>
-            {renderMark('selection', boardMarks, gradientIds, 'belowFigures', showSelection, cx, cy, r)}
-            {renderMark('legalMove', boardMarks, gradientIds, 'belowFigures', showLegalMove, cx, cy, r)}
-            {renderMark('cursor', boardMarks, gradientIds, 'belowFigures', showCursor, cx, cy, r)}
-        </>
-    ), [boardMarks, gradientIds, showSelection, showLegalMove, showCursor, cx, cy, r])
-
-    const aboveMarks = useMemo(() => (
-        <>
-            {renderMark('selection', boardMarks, gradientIds, 'aboveFigures', showSelection, cx, cy, r)}
-            {renderMark('legalMove', boardMarks, gradientIds, 'aboveFigures', showLegalMove, cx, cy, r)}
-            {renderMark('cursor', boardMarks, gradientIds, 'aboveFigures', showCursor, cx, cy, r)}
+            {renderBoardMark('selection', boardMarks, gradientIds, 'belowFigures', showSelection, cx, cy, r)}
+            {renderBoardMark('legalMove', boardMarks, gradientIds, 'belowFigures', showLegalMove, cx, cy, r)}
+            {renderBoardMark('cursor', boardMarks, gradientIds, 'belowFigures', showCursor, cx, cy, r)}
         </>
     ), [boardMarks, gradientIds, showSelection, showLegalMove, showCursor, cx, cy, r])
 
@@ -170,7 +136,7 @@ export const BoardCell: FC<CellProps> = (props) => {
             return
         }
 
-        const hasFigure = Boolean(cell.figure)
+        const hasFigure = Boolean(topFigure)
         selectionDebugLog.cellClick(coord, Mode[mode] ?? String(mode), activeCell, hasFigure)
 
         if (mode === Mode.FiguresArrange) {
@@ -195,36 +161,36 @@ export const BoardCell: FC<CellProps> = (props) => {
         } else if (mode === Mode.PaintTheBoard) {
             setCellParameters(coord)
         }
-    }, [mode, coord, cell.figure, activeFigure, activeCell, state.boardParameters, state.cells, setActiveCell, moveActiveCellFigureTo, setCellParameters, setCellFigure, isFigureAnimating])
+    }, [mode, coord, topFigure, activeFigure, activeCell, state.boardParameters, state.cells, setActiveCell, moveActiveCellFigureTo, setCellParameters, setCellFigure, isFigureAnimating])
 
-    const showFigure = cell.figure
-        && !hiddenFigureInstanceIds?.has(cell.figure.instanceId)
+    const visibleStack = stack.filter(placement => !hiddenFigureInstanceIds?.has(placement.instanceId))
+    const stackOffset = Math.min(cellXDistance, cellYDistance) * 0.08
 
     const handleMouseEnter = useCallback(() => {
-        setIsHovered(true)
-    }, [])
+        onHoverChange(true)
+    }, [onHoverChange])
 
     const handleMouseLeave = useCallback(() => {
-        setIsHovered(false)
-    }, [])
+        onHoverChange(false)
+    }, [onHoverChange])
 
     return (
         <g>
             {!isDisabled && (
                 <>
                     {belowMarks}
-                    {showFigure && (
+                    {visibleStack.map((placement, index) => (
                         <FigureSVGGroup
-                            figureId={cell.figure!.figureId}
-                            stateIndex={cell.figure!.stateIndex}
-                            x={cx}
-                            y={cy}
+                            key={placement.instanceId}
+                            figureId={placement.figureId}
+                            stateIndex={placement.stateIndex}
+                            x={cx + index * stackOffset}
+                            y={cy - index * stackOffset}
                         />
-                    )}
+                    ))}
                     {isHoldingDelete && (
                         <ArrangeDeleteProgressRing cx={cx} cy={cy} r={r} />
                     )}
-                    {aboveMarks}
                     <circle
                         data-board-handler
                         cx={cx}

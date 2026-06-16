@@ -11,8 +11,17 @@ import {
 } from '../types/events'
 import { FigureCatalog, FigureId, FigurePlacement } from '../types/figures'
 import { FiguresSlice } from '../state/slices'
-import { cloneFigurePlacement, placementsMatch, placementMatchesAt, resolvePlacementStateIndex, normalizeFigureEventParamsSteppedOnBy } from '../figureView'
+import { cloneFigurePlacement, resolvePlacementStateIndex, normalizeFigureEventParamsSteppedOnBy } from '../figureView'
 import { matchesFigureFilterList } from '../figureFilter'
+import {
+    cloneFiguresByCoord,
+    findInstance,
+    getTopOfStack,
+    matchesStackPosition,
+    placementMatchesAt,
+    pushToStack,
+    removePlacementFromBoard,
+} from '../figureStack'
 import { applyLeaveBoardAction, applySteppedOnAction } from './execute'
 import { gameMovesDebugLog } from '../gameMovesDebugLog'
 import { runFigureEvents } from './runFigureEvents'
@@ -42,11 +51,6 @@ export interface SteppedOnActionContext {
     stepCause: Exclude<StepCause, 'any'>
     boardParameters: BoardParameters
     catalog: FigureCatalog
-}
-
-export interface DeferredPlacement {
-    placement: FigurePlacement
-    coord: CellCoord
 }
 
 export type PlaceQueueItem = {
@@ -127,6 +131,7 @@ export function matchesSteppedOnBy(
     rule: FigureEventRule,
     ownerFigureId: FigureId,
     event: SteppedOnEvent,
+    figures?: FiguresSlice,
 ): boolean {
     if (rule.type !== FigureEventType.steppedOnBy) {
         return false
@@ -151,6 +156,19 @@ export function matchesSteppedOnBy(
         return false
     }
 
+    if (figures && params.stackPosition && params.stackPosition !== 'any') {
+        const stack = figures.figuresByCoord[coordKey(event.targetCoord)] ?? []
+        const targetIndex = stack.findIndex(item => item.instanceId === event.targetPlacement.instanceId)
+
+        if (targetIndex < 0) {
+            return false
+        }
+
+        if (!matchesStackPosition(stack.length, targetIndex, params.stackPosition, params.stackIndex)) {
+            return false
+        }
+    }
+
     return true
 }
 
@@ -169,12 +187,13 @@ function normalizeSteppedOnParams(
 function findMatchingSteppedOnRules(
     event: SteppedOnEvent,
     catalog: FigureCatalog,
+    figures: FiguresSlice,
 ): Array<{ ownerFigureId: FigureId; rule: FigureEventRule }> {
     const matched: Array<{ ownerFigureId: FigureId; rule: FigureEventRule }> = []
 
     for (const entry of catalog) {
         for (const rule of entry.eventRules ?? []) {
-            if (matchesSteppedOnBy(rule, entry.id, event)) {
+            if (matchesSteppedOnBy(rule, entry.id, event, figures)) {
                 matched.push({ ownerFigureId: entry.id, rule })
             }
         }
@@ -201,6 +220,10 @@ function applySteppedOnActions(
     }, figures)
 }
 
+function cloneFiguresBeforeMove(figures: FiguresSlice): Record<string, FigurePlacement[]> {
+    return cloneFiguresByCoord(figures.figuresByCoord)
+}
+
 function applyStepOnFigureEventsForStepper(
     figures: FiguresSlice,
     event: SteppedOnEvent,
@@ -208,16 +231,9 @@ function applyStepOnFigureEventsForStepper(
     boardParameters: BoardParameters,
     onStep?: FigureStepRecorder,
 ): FiguresSlice {
-    if (event.cause !== 'displacement') {
+    if (event.cause !== 'manual' && event.cause !== 'displacement') {
         return figures
     }
-
-    const figuresBeforeMove = Object.fromEntries(
-        Object.entries(figures.figuresByCoord).map(([key, placement]) => [
-            key,
-            cloneFigurePlacement(placement),
-        ]),
-    )
 
     return runFigureEvents(figures, {
         from: event.stepperCoord,
@@ -226,12 +242,26 @@ function applyStepOnFigureEventsForStepper(
         targetAtTo: event.targetPlacement,
         boardParameters,
         catalog,
-        stepCause: 'displacement',
+        stepCause: event.cause,
         stepperPlacement: event.stepperPlacement,
-        stepperCoord: event.stepperCoord,
-        figuresBeforeMove,
+        stepperCoord: event.targetCoord,
+        figuresBeforeMove: cloneFiguresBeforeMove(figures),
         onStep,
     })
+}
+
+function ensureStepperOnTarget(figures: FiguresSlice, event: SteppedOnEvent): FiguresSlice {
+    if (placementMatchesAt(figures, event.targetCoord, event.stepperPlacement)) {
+        return figures
+    }
+
+    const located = findInstance(figures, event.stepperPlacement.instanceId)
+
+    if (!located) {
+        return pushToStack(figures, event.targetCoord, event.stepperPlacement)
+    }
+
+    return figures
 }
 
 function processSteppedOnEvent(
@@ -242,18 +272,18 @@ function processSteppedOnEvent(
     queue: QueueItem[],
     onStep?: FigureStepRecorder,
 ): FiguresSlice {
-    const matched = findMatchingSteppedOnRules(event, catalog)
+    let nextFigures = ensureStepperOnTarget(figures, event)
+
+    const matched = findMatchingSteppedOnRules(event, catalog, nextFigures)
     const ctx: SteppedOnActionContext = {
         stepperPlacement: event.stepperPlacement,
-        stepperCoord: event.stepperCoord,
+        stepperCoord: event.targetCoord,
         targetPlacement: event.targetPlacement,
         targetCoord: event.targetCoord,
         stepCause: event.cause,
         boardParameters,
         catalog,
     }
-
-    let nextFigures = figures
 
     if (matched.length === 0) {
         if (event.cause === 'manual' || event.cause === 'displacement') {
@@ -266,7 +296,7 @@ function processSteppedOnEvent(
                 fallback: true,
                 context: `stepper=${event.stepperPlacement.figureId} cause=${event.cause}`,
             })
-            nextFigures = applySteppedOnActions(figures, actions, ctx, queue)
+            nextFigures = applySteppedOnActions(nextFigures, actions, ctx, queue)
         }
     } else {
         gameMovesDebugLog.eventMatched({
@@ -277,12 +307,15 @@ function processSteppedOnEvent(
             context: `stepper=${event.stepperPlacement.figureId} cause=${event.cause}`,
         })
 
-        nextFigures = applySteppedOnActions(figures, matched[0].rule.actions, ctx, queue)
+        nextFigures = applySteppedOnActions(nextFigures, matched[0].rule.actions, ctx, queue)
     }
 
     recordFigureStep(onStep, nextFigures)
 
-    return applyStepOnFigureEventsForStepper(nextFigures, event, catalog, boardParameters, onStep)
+    return applyStepOnFigureEventsForStepper(nextFigures, {
+        ...event,
+        stepperCoord: event.targetCoord,
+    }, catalog, boardParameters, onStep)
 }
 
 function processLeaveBoardEvent(
@@ -351,36 +384,27 @@ function processPlaceItem(
     fromCoord: CellCoord | undefined,
     queue: QueueItem[],
 ): FiguresSlice {
-    const landingKey = coordKey(coord)
-    const occupant = figures.figuresByCoord[landingKey]
+    const topOccupant = getTopOfStack(figures, coord)
 
-    if (occupant) {
+    if (topOccupant && topOccupant.instanceId !== placement.instanceId) {
         queue.unshift({
             stepperPlacement: cloneFigurePlacement(placement),
             stepperCoord: coord,
-            targetPlacement: cloneFigurePlacement(occupant),
+            targetPlacement: cloneFigurePlacement(topOccupant),
             targetCoord: coord,
             cause: 'displacement',
         })
-        return figures
     }
 
-    const figuresByCoord = { ...figures.figuresByCoord }
-
-    if (fromCoord) {
-        const fromKey = coordKey(fromCoord)
-
-        if (placementMatchesAt(figuresByCoord, fromCoord, placement)) {
-            delete figuresByCoord[fromKey]
-        }
+    if (fromCoord && placementMatchesAt(figures, fromCoord, placement)) {
+        return pushToStack(
+            removePlacementFromBoard(figures, placement, fromCoord),
+            coord,
+            placement,
+        )
     }
 
-    figuresByCoord[landingKey] = cloneFigurePlacement(placement)
-
-    return {
-        ...figures,
-        figuresByCoord,
-    }
+    return pushToStack(figures, coord, placement)
 }
 
 export function resolveActionQueue(
@@ -397,12 +421,7 @@ export function resolveActionQueue(
     ))
 
     let nextFigures: FiguresSlice = {
-        figuresByCoord: Object.fromEntries(
-            Object.entries(figures.figuresByCoord).map(([key, placement]) => [
-                key,
-                cloneFigurePlacement(placement),
-            ]),
-        ),
+        figuresByCoord: cloneFiguresByCoord(figures.figuresByCoord),
         tray: figures.tray.map(cloneFigurePlacement),
     }
 

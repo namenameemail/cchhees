@@ -11,7 +11,18 @@ import {
 import { FiguresSlice } from '../state/slices'
 import { cloneFiguresSlice } from '../state/reconcile'
 import { cloneFigurePlacement, createFigurePlacement, placementsMatch } from '../figureView'
-import { FigurePlacement } from '../types/figures'
+import { FigurePlacement, FigureId } from '../types/figures'
+import {
+    findBoardCoordForPlacement,
+    findInstance,
+    getTopOfStack,
+    isStackOccupied,
+    placementMatchesAt,
+    pushToStack,
+    removePlacementFromBoard,
+    replaceStackAtIndex,
+    resolvePlacementSnapshot,
+} from '../figureStack'
 import {
     computeDisplaceLanding,
     computeWrappedDisplaceLanding,
@@ -24,62 +35,124 @@ import { MoveEventContext } from './types'
 import { gameMovesDebugLog } from '../gameMovesDebugLog'
 import { logFigureActionApply, logFigureDisplaceDebug } from '../figureActionsDebugLog'
 
-function resolveDisplaceTarget(
+function placementMatchesOwner(placement: FigurePlacement, ownerFigureId: FigureId): boolean {
+    return placement.figureId === ownerFigureId
+}
+
+function resolveOwnerDisplaceTarget(
     figures: FiguresSlice,
     ctx: MoveEventContext,
+    ownerFigureId: FigureId,
 ): { fromCoord: CellCoord; placement: FigurePlacement } | null {
-    if (ctx.eventType === FigureEventType.enterFigureArea && ctx.areaSubjectCoord && ctx.areaSubjectPlacement) {
-        const key = coordKey(ctx.areaSubjectCoord)
-        const placement = figures.figuresByCoord[key]
+    switch (ctx.eventType) {
+        case FigureEventType.steppedOnBy: {
+            if (!ctx.targetAtTo || !placementMatchesOwner(ctx.targetAtTo, ownerFigureId)) {
+                return null
+            }
 
-        if (placement && placement.instanceId === ctx.areaSubjectPlacement.instanceId) {
             return {
-                fromCoord: ctx.areaSubjectCoord,
-                placement,
+                fromCoord: ctx.to,
+                placement: resolvePlacementSnapshot(figures, ctx.to, ctx.targetAtTo),
             }
         }
+        case FigureEventType.stepOnFigure: {
+            const ownerPlacement = ctx.stepperPlacement
+                && placementMatchesOwner(ctx.stepperPlacement, ownerFigureId)
+                ? ctx.stepperPlacement
+                : ctx.actorPlacement
 
-        return {
-            fromCoord: ctx.areaSubjectCoord,
-            placement: ctx.areaSubjectPlacement,
+            if (!placementMatchesOwner(ownerPlacement, ownerFigureId)) {
+                return null
+            }
+
+            return {
+                fromCoord: ctx.to,
+                placement: resolvePlacementSnapshot(figures, ctx.to, ownerPlacement),
+            }
         }
-    }
+        case FigureEventType.enterFigureArea: {
+            if (!ctx.areaSubjectCoord || !ctx.areaSubjectPlacement) {
+                return null
+            }
 
-    if (ctx.eventType === FigureEventType.areaEnteredBy && ctx.areaAnchor) {
-        const key = coordKey(ctx.areaAnchor)
-        const placement = figures.figuresByCoord[key]
+            if (!placementMatchesOwner(ctx.areaSubjectPlacement, ownerFigureId)) {
+                return null
+            }
 
-        if (placement) {
+            return {
+                fromCoord: ctx.areaSubjectCoord,
+                placement: resolvePlacementSnapshot(
+                    figures,
+                    ctx.areaSubjectCoord,
+                    ctx.areaSubjectPlacement,
+                ),
+            }
+        }
+        case FigureEventType.areaEnteredBy: {
+            if (!ctx.areaAnchor) {
+                return null
+            }
+
+            const stack = figures.figuresByCoord[coordKey(ctx.areaAnchor)] ?? []
+            const placement = stack.find(item => placementMatchesOwner(item, ownerFigureId))
+
+            if (!placement) {
+                return null
+            }
+
             return {
                 fromCoord: ctx.areaAnchor,
                 placement,
             }
         }
+        default: {
+            if (!placementMatchesOwner(ctx.actorPlacement, ownerFigureId)) {
+                return null
+            }
 
-        return null
-    }
-
-    const actorKey = coordKey(ctx.to)
-    const actorAtTo = figures.figuresByCoord[actorKey]
-
-    if (actorAtTo && actorAtTo.instanceId === ctx.actorPlacement.instanceId) {
-        return {
-            fromCoord: ctx.to,
-            placement: actorAtTo,
+            return {
+                fromCoord: ctx.to,
+                placement: resolvePlacementSnapshot(figures, ctx.to, ctx.actorPlacement),
+            }
         }
     }
+}
 
-    if (ctx.targetAtTo) {
-        return {
-            fromCoord: ctx.to,
-            placement: ctx.targetAtTo,
-        }
+function enqueueSteppedOnForOccupiedLanding(
+    figures: FiguresSlice,
+    displaced: FigurePlacement,
+    fromCoord: CellCoord,
+    landing: CellCoord,
+    queue: SteppedOnQueueItem[],
+): FiguresSlice {
+    const topOccupant = getTopOfStack(figures, landing)
+
+    if (!topOccupant) {
+        return figures
     }
 
-    return {
-        fromCoord: ctx.to,
-        placement: ctx.actorPlacement,
-    }
+    let nextFigures = removePlacementFromBoard(figures, displaced, fromCoord)
+    nextFigures = pushToStack(nextFigures, landing, displaced)
+
+    queue.unshift({
+        stepperPlacement: cloneFigurePlacement(displaced),
+        stepperCoord: landing,
+        targetPlacement: cloneFigurePlacement(topOccupant),
+        targetCoord: landing,
+        cause: 'displacement',
+    })
+
+    return nextFigures
+}
+
+function movePlacementToCoord(
+    figures: FiguresSlice,
+    placement: FigurePlacement,
+    fromCoord: CellCoord,
+    toCoord: CellCoord,
+): FiguresSlice {
+    const withoutBoard = removePlacementFromBoard(figures, placement, fromCoord)
+    return pushToStack(withoutBoard, toCoord, placement)
 }
 
 function applyMoveEventDisplaceFigure(
@@ -88,20 +161,38 @@ function applyMoveEventDisplaceFigure(
     ctx: MoveEventContext,
     queue: SteppedOnQueueItem[],
 ): FiguresSlice {
-    const target = resolveDisplaceTarget(figures, ctx)
+    const ownerFigureId = ctx.ownerFigureId
 
-    if (!target) {
+    if (!ownerFigureId) {
         logFigureActionApply({
             context: 'applyMoveEventDisplaceFigure',
             gameAction: { type: GameActionType.displaceFigure, params },
             subject: ctx.actorPlacement.figureId,
             result: 'skipped',
-            reason: 'no figure to displace for event context',
+            reason: 'missing ownerFigureId in event context',
             detail: {
                 eventType: ctx.eventType,
+                actor: ctx.actorPlacement.figureId,
+            },
+        })
+        return figures
+    }
+
+    const target = resolveOwnerDisplaceTarget(figures, ctx, ownerFigureId)
+
+    if (!target) {
+        logFigureActionApply({
+            context: 'applyMoveEventDisplaceFigure',
+            gameAction: { type: GameActionType.displaceFigure, params },
+            subject: ownerFigureId,
+            result: 'skipped',
+            reason: 'owner figure not found for displace',
+            detail: {
+                eventType: ctx.eventType,
+                ownerFigureId,
                 areaAnchor: ctx.areaAnchor,
                 to: ctx.to,
-                actor: ctx.actorPlacement.figureId,
+                from: ctx.from,
             },
         })
         return figures
@@ -109,6 +200,10 @@ function applyMoveEventDisplaceFigure(
 
     const { fromCoord, placement } = target
     const displaced = resolvePlacementSnapshot(figures, fromCoord, placement)
+    const displaceLogDetail = {
+        ownerFigureId,
+        eventType: ctx.eventType,
+    }
 
     if (isDisplaceLeavingBoard(fromCoord, params, ctx.boardParameters)) {
         gameMovesDebugLog.displace({
@@ -118,6 +213,8 @@ function applyMoveEventDisplaceFigure(
             params,
             offBoard: true,
             blocked: true,
+            ownerFigureId,
+            eventType: ctx.eventType,
         })
         logFigureDisplaceDebug({
             context: 'applyMoveEventDisplaceFigure',
@@ -126,6 +223,7 @@ function applyMoveEventDisplaceFigure(
             params,
             result: 'off-board',
             reason: 'landing leaves board; queued leaveBoard',
+            detail: displaceLogDetail,
         })
         queue.unshift({
             kind: 'leaveBoard',
@@ -143,15 +241,18 @@ function applyMoveEventDisplaceFigure(
         ctx.boardParameters,
     )
     const landingKey = coordKey(landing)
-    const occupant = figures.figuresByCoord[landingKey]
+    const landingOccupied = isStackOccupied(figures, landing)
+    const topOccupant = getTopOfStack(figures, landing)
 
-    if (occupant && occupant.instanceId !== displaced.instanceId) {
+    if (landingOccupied && topOccupant && topOccupant.instanceId !== displaced.instanceId) {
         gameMovesDebugLog.displace({
             placement: displaced,
             from: fromCoord,
             to: landing,
             params,
             blocked: true,
+            ownerFigureId,
+            eventType: ctx.eventType,
         })
         logFigureDisplaceDebug({
             context: 'applyMoveEventDisplaceFigure',
@@ -161,31 +262,18 @@ function applyMoveEventDisplaceFigure(
             params,
             result: 'blocked',
             reason: 'landing occupied; queued displacement chain',
-            detail: { occupant: occupant.figureId },
+            detail: { occupant: topOccupant.figureId, ...displaceLogDetail },
         })
-        queue.unshift({
-            kind: 'place',
-            placement: displaced,
-            coord: landing,
-            fromCoord,
-        })
-        queue.unshift({
-            stepperPlacement: displaced,
-            stepperCoord: fromCoord,
-            targetPlacement: cloneFigurePlacement(occupant),
-            targetCoord: landing,
-            cause: 'displacement',
-        })
-        return removePlacementFromBoard(figures, displaced, coordKey(fromCoord))
+        return enqueueSteppedOnForOccupiedLanding(figures, displaced, fromCoord, landing, queue)
     }
-
-    const withoutBoard = removePlacementFromBoard(figures, displaced, coordKey(fromCoord))
 
     gameMovesDebugLog.displace({
         placement: displaced,
         from: fromCoord,
         to: landing,
         params,
+        ownerFigureId,
+        eventType: ctx.eventType,
     })
     logFigureDisplaceDebug({
         context: 'applyMoveEventDisplaceFigure',
@@ -194,6 +282,7 @@ function applyMoveEventDisplaceFigure(
         to: landing,
         params,
         result: 'moved',
+        detail: displaceLogDetail,
     })
     logFigureActionApply({
         context: 'applyGameAction',
@@ -203,13 +292,7 @@ function applyMoveEventDisplaceFigure(
         detail: { fromCoord, landing },
     })
 
-    return {
-        ...withoutBoard,
-        figuresByCoord: {
-            ...withoutBoard.figuresByCoord,
-            [landingKey]: displaced,
-        },
-    }
+    return movePlacementToCoord(figures, displaced, fromCoord, landing)
 }
 
 function steppedOnToMoveContext(ctx: SteppedOnActionContext): MoveEventContext {
@@ -222,7 +305,7 @@ function steppedOnToMoveContext(ctx: SteppedOnActionContext): MoveEventContext {
         catalog: ctx.catalog,
         stepCause: ctx.stepCause,
         stepperPlacement: ctx.stepperPlacement,
-        stepperCoord: ctx.stepperCoord,
+        stepperCoord: ctx.targetCoord,
     }
 }
 
@@ -234,10 +317,8 @@ function isSteppedOnTargetAlreadyReplaced(
         return false
     }
 
-    const occupant = figures.figuresByCoord[coordKey(ctx.targetCoord)]
-
-    return occupant != null
-        && occupant.instanceId === ctx.stepperPlacement.instanceId
+    return placementMatchesAt(figures, ctx.targetCoord, ctx.stepperPlacement)
+        && !placementMatchesAt(figures, ctx.targetCoord, ctx.targetPlacement)
 }
 
 function addPlacementToTray(figures: FiguresSlice, placement: FigurePlacement): FiguresSlice {
@@ -256,30 +337,7 @@ function removeSteppedOnTargetFromBoard(
         return figures
     }
 
-    return removePlacementFromBoard(figures, placement, coordKey(ctx.targetCoord))
-}
-
-function removePlacementFromBoard(
-    figures: FiguresSlice,
-    placement: FigurePlacement,
-    preferredCoord?: string,
-): FiguresSlice {
-    const figuresByCoord = { ...figures.figuresByCoord }
-
-    if (preferredCoord && figuresByCoord[preferredCoord]
-        && placementsMatch(figuresByCoord[preferredCoord], placement)) {
-        delete figuresByCoord[preferredCoord]
-        return { ...figures, figuresByCoord }
-    }
-
-    for (const [key, value] of Object.entries(figuresByCoord)) {
-        if (placementsMatch(value, placement)) {
-            delete figuresByCoord[key]
-            break
-        }
-    }
-
-    return { ...figures, figuresByCoord }
+    return removePlacementFromBoard(figures, placement, ctx.targetCoord)
 }
 
 function findTrayIndex(figures: FiguresSlice, placement: FigurePlacement): number {
@@ -288,24 +346,19 @@ function findTrayIndex(figures: FiguresSlice, placement: FigurePlacement): numbe
 
 function updatePlacementState(
     figures: FiguresSlice,
-    coordKeyValue: string,
+    placement: FigurePlacement,
     stateIndex: number,
 ): FiguresSlice {
-    const placement = figures.figuresByCoord[coordKeyValue]
-    if (!placement) {
-        return figures
+    const located = findInstance(figures, placement.instanceId)
+
+    if (!located) {
+        return updateTrayPlacementState(figures, placement, stateIndex)
     }
 
-    return {
-        ...figures,
-        figuresByCoord: {
-            ...figures.figuresByCoord,
-            [coordKeyValue]: {
-                ...placement,
-                stateIndex,
-            },
-        },
-    }
+    return replaceStackAtIndex(figures, located.coord, located.index, {
+        ...figures.figuresByCoord[coordKey(located.coord)][located.index],
+        stateIndex,
+    })
 }
 
 function updateTrayPlacementState(
@@ -331,39 +384,6 @@ function updateTrayPlacementState(
     }
 }
 
-function resolvePlacementSnapshot(
-    figures: FiguresSlice,
-    preferredCoord: CellCoord,
-    snapshot: FigurePlacement,
-): FigurePlacement {
-    const atPreferred = figures.figuresByCoord[coordKey(preferredCoord)]
-
-    if (atPreferred && placementsMatch(atPreferred, snapshot)) {
-        return cloneFigurePlacement(atPreferred)
-    }
-
-    const boardKey = findBoardCoordForPlacement(figures, snapshot)
-
-    if (boardKey) {
-        return cloneFigurePlacement(figures.figuresByCoord[boardKey])
-    }
-
-    return cloneFigurePlacement(snapshot)
-}
-
-function findBoardCoordForPlacement(
-    figures: FiguresSlice,
-    placement: FigurePlacement,
-): string | undefined {
-    for (const [key, value] of Object.entries(figures.figuresByCoord)) {
-        if (placementsMatch(value, placement)) {
-            return key
-        }
-    }
-
-    return undefined
-}
-
 function applyMoveToTrayFromCoord(
     figures: FiguresSlice,
     placement: FigurePlacement,
@@ -372,7 +392,7 @@ function applyMoveToTrayFromCoord(
     const withoutBoard = removePlacementFromBoard(
         figures,
         placement,
-        coordKey(fromCoord),
+        fromCoord,
     )
 
     return {
@@ -385,7 +405,7 @@ function applyMoveToTray(
     figures: FiguresSlice,
     ctx: SteppedOnActionContext,
 ): FiguresSlice {
-    if (isSteppedOnTargetAlreadyReplaced(figures, ctx)) {
+    if (!placementMatchesAt(figures, ctx.targetCoord, ctx.targetPlacement)) {
         return addPlacementToTray(figures, ctx.targetPlacement)
     }
 
@@ -399,6 +419,10 @@ function applyDisplaceFigure(
     queue: SteppedOnQueueItem[],
 ): FiguresSlice {
     const displaced = resolvePlacementSnapshot(figures, ctx.targetCoord, ctx.targetPlacement)
+    const displaceLogDetail = {
+        ownerFigureId: ctx.targetPlacement.figureId,
+        eventType: FigureEventType.steppedOnBy,
+    }
 
     if (isDisplaceLeavingBoard(ctx.targetCoord, params, ctx.boardParameters)) {
         gameMovesDebugLog.displace({
@@ -408,6 +432,8 @@ function applyDisplaceFigure(
             params,
             offBoard: true,
             blocked: true,
+            ownerFigureId: ctx.targetPlacement.figureId,
+            eventType: FigureEventType.steppedOnBy,
         })
         logFigureDisplaceDebug({
             context: 'applyDisplaceFigure',
@@ -416,6 +442,7 @@ function applyDisplaceFigure(
             params,
             result: 'off-board',
             reason: 'landing leaves board; queued leaveBoard',
+            detail: displaceLogDetail,
         })
         queue.unshift({
             kind: 'leaveBoard',
@@ -433,16 +460,17 @@ function applyDisplaceFigure(
         ctx.boardParameters,
     )
 
-    const landingKey = coordKey(landing)
-    const occupant = figures.figuresByCoord[landingKey]
+    const topOccupant = getTopOfStack(figures, landing)
 
-    if (occupant && occupant.instanceId !== displaced.instanceId) {
+    if (isStackOccupied(figures, landing) && topOccupant && topOccupant.instanceId !== displaced.instanceId) {
         gameMovesDebugLog.displace({
             placement: displaced,
             from: ctx.targetCoord,
             to: landing,
             params,
             blocked: true,
+            ownerFigureId: ctx.targetPlacement.figureId,
+            eventType: FigureEventType.steppedOnBy,
         })
         logFigureDisplaceDebug({
             context: 'applyDisplaceFigure',
@@ -452,31 +480,24 @@ function applyDisplaceFigure(
             params,
             result: 'blocked',
             reason: 'landing occupied; queued steppedOn displacement chain',
-            detail: { occupant: occupant.figureId },
+            detail: { occupant: topOccupant.figureId, ...displaceLogDetail },
         })
-        queue.unshift({
-            kind: 'place',
-            placement: displaced,
-            coord: landing,
-            fromCoord: ctx.targetCoord,
-        })
-        queue.unshift({
-            stepperPlacement: displaced,
-            stepperCoord: ctx.targetCoord,
-            targetPlacement: cloneFigurePlacement(occupant),
-            targetCoord: landing,
-            cause: 'displacement',
-        })
-        return removeSteppedOnTargetFromBoard(figures, ctx, displaced)
+        return enqueueSteppedOnForOccupiedLanding(
+            figures,
+            displaced,
+            ctx.targetCoord,
+            landing,
+            queue,
+        )
     }
-
-    const withoutBoard = removeSteppedOnTargetFromBoard(figures, ctx, displaced)
 
     gameMovesDebugLog.displace({
         placement: displaced,
         from: ctx.targetCoord,
         to: landing,
         params,
+        ownerFigureId: ctx.targetPlacement.figureId,
+        eventType: FigureEventType.steppedOnBy,
     })
     logFigureDisplaceDebug({
         context: 'applyDisplaceFigure',
@@ -485,15 +506,10 @@ function applyDisplaceFigure(
         to: landing,
         params,
         result: 'moved',
+        detail: displaceLogDetail,
     })
 
-    return {
-        ...withoutBoard,
-        figuresByCoord: {
-            ...withoutBoard.figuresByCoord,
-            [landingKey]: displaced,
-        },
-    }
+    return movePlacementToCoord(figures, displaced, ctx.targetCoord, landing)
 }
 
 function applyLeaveBoardDisplace(
@@ -510,10 +526,9 @@ function applyLeaveBoardDisplace(
         wrapParams.dy,
         ctx.boardParameters,
     )
-    const landingKey = coordKey(landing)
-    const occupant = figures.figuresByCoord[landingKey]
+    const topOccupant = getTopOfStack(figures, landing)
 
-    if (occupant && occupant.instanceId !== placement.instanceId) {
+    if (isStackOccupied(figures, landing) && topOccupant && topOccupant.instanceId !== placement.instanceId) {
         gameMovesDebugLog.displace({
             placement,
             from: ctx.fromCoord,
@@ -530,25 +545,16 @@ function applyLeaveBoardDisplace(
             params: wrapParams,
             result: 'blocked',
             reason: 'wrapped landing occupied; queued displacement chain',
-            detail: { occupant: occupant.figureId, wrapped: true },
+            detail: { occupant: topOccupant.figureId, wrapped: true },
         })
-        queue.unshift({
-            kind: 'place',
+        return enqueueSteppedOnForOccupiedLanding(
+            figures,
             placement,
-            coord: landing,
-            fromCoord: ctx.fromCoord,
-        })
-        queue.unshift({
-            stepperPlacement: placement,
-            stepperCoord: ctx.fromCoord,
-            targetPlacement: cloneFigurePlacement(occupant),
-            targetCoord: landing,
-            cause: 'displacement',
-        })
-        return removePlacementFromBoard(figures, placement, coordKey(ctx.fromCoord))
+            ctx.fromCoord,
+            landing,
+            queue,
+        )
     }
-
-    const withoutBoard = removePlacementFromBoard(figures, placement, coordKey(ctx.fromCoord))
 
     gameMovesDebugLog.displace({
         placement,
@@ -566,13 +572,7 @@ function applyLeaveBoardDisplace(
         result: 'wrapped',
     })
 
-    return {
-        ...withoutBoard,
-        figuresByCoord: {
-            ...withoutBoard.figuresByCoord,
-            [landingKey]: placement,
-        },
-    }
+    return movePlacementToCoord(figures, placement, ctx.fromCoord, landing)
 }
 
 export function applyLeaveBoardAction(
@@ -655,15 +655,11 @@ function applySpawnFigure(
         return figures
     }
 
-    const key = coordKey(coord)
-
-    return {
-        ...figures,
-        figuresByCoord: {
-            ...figures.figuresByCoord,
-            [key]: createFigurePlacement(params.figureId, params.stateIndex),
-        },
-    }
+    return pushToStack(
+        figures,
+        coord,
+        createFigurePlacement(params.figureId, params.stateIndex),
+    )
 }
 
 function applySetOtherState(
@@ -676,16 +672,11 @@ function applySetOtherState(
     switch (params.target) {
         case 'steppedOn': {
             if (ctx.swappedTargetCoord && ctx.targetAtTo) {
-                return updatePlacementState(figures, coordKey(ctx.swappedTargetCoord), stateIndex)
+                return updatePlacementState(figures, ctx.targetAtTo, stateIndex)
             }
 
             if (ctx.targetAtTo) {
-                const boardKey = findBoardCoordForPlacement(figures, ctx.targetAtTo)
-                if (boardKey) {
-                    return updatePlacementState(figures, boardKey, stateIndex)
-                }
-
-                return updateTrayPlacementState(figures, ctx.targetAtTo, stateIndex)
+                return updatePlacementState(figures, ctx.targetAtTo, stateIndex)
             }
 
             if (ctx.capturedPlacement) {
@@ -695,12 +686,25 @@ function applySetOtherState(
             return figures
         }
         case 'steppedBy':
-            return updatePlacementState(figures, coordKey(ctx.to), stateIndex)
+            if (ctx.stepperPlacement) {
+                return updatePlacementState(figures, ctx.stepperPlacement, stateIndex)
+            }
+            return figures
         case 'areaAnchor':
             if (!ctx.areaAnchor) {
                 return figures
             }
-            return updatePlacementState(figures, coordKey(ctx.areaAnchor), stateIndex)
+
+            {
+                const stack = figures.figuresByCoord[coordKey(ctx.areaAnchor)] ?? []
+                const anchorPlacement = stack.find(item => item.figureId === ctx.ownerFigureId)
+
+                if (anchorPlacement) {
+                    return updatePlacementState(figures, anchorPlacement, stateIndex)
+                }
+            }
+
+            return figures
         default:
             return figures
     }
@@ -739,13 +743,7 @@ export function applyGameAction(
                 result: 'applied',
             })
             const stateIndex = Math.max(0, Math.trunc((action.params as SetSelfStateActionParams).stateIndex))
-            const boardKey = findBoardCoordForPlacement(figures, ctx.actorPlacement)
-
-            if (boardKey) {
-                return updatePlacementState(figures, boardKey, stateIndex)
-            }
-
-            return updateTrayPlacementState(figures, ctx.actorPlacement, stateIndex)
+            return updatePlacementState(figures, ctx.actorPlacement, stateIndex)
         }
         case GameActionType.setOtherState:
             logFigureActionApply({

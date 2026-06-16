@@ -6,9 +6,10 @@ import { BoardParameters } from '../types/boardParameters'
 import { BoardStyleRule } from '../types/styleRules'
 import { coordKey, coordToIndex, indexToCoord, isCoordInGrid, iterGridCoords } from '../types/coords'
 import { initialGameState } from '../utils'
+import { cloneFiguresByCoord, getTopOfStack, isStackArray, normalizeStackEntry } from '../figureStack'
 
 export interface FiguresSlice {
-    figuresByCoord: Record<string, FigurePlacement>
+    figuresByCoord: Record<string, FigurePlacement[]>
     tray: FigurePlacement[]
 }
 
@@ -18,19 +19,36 @@ export interface BoardSlice {
     cellParametersByCoord: Record<string, CellParameters>
 }
 
-function normalizeCellFigure(raw: FigureId | FigurePlacementInput | undefined): FigurePlacement | undefined {
-    if (!raw) {
-        return undefined
+function normalizeCellFigures(cell: Cell | undefined): FigurePlacement[] {
+    if (!cell) {
+        return []
     }
 
-    return normalizeFigurePlacement(raw)
+    if (cell.figures && cell.figures.length > 0) {
+        return cell.figures.map(item => normalizeFigurePlacement(item))
+    }
+
+    if (cell.figure) {
+        return [normalizeFigurePlacement(cell.figure)]
+    }
+
+    return []
 }
 
-export function normalizeFiguresSlice(figures: FiguresSlice): FiguresSlice {
-    const figuresByCoord: Record<string, FigurePlacement> = {}
+export function normalizeFiguresSlice(figures: FiguresSlice | {
+    figuresByCoord: Record<string, FigurePlacement | FigurePlacement[]>
+    tray: Array<FigureId | FigurePlacementInput>
+}): FiguresSlice {
+    const figuresByCoord: Record<string, FigurePlacement[]> = {}
 
     for (const [key, raw] of Object.entries(figures.figuresByCoord)) {
-        figuresByCoord[key] = normalizeFigurePlacement(raw as FigureId | FigurePlacementInput)
+        const stack = isStackArray(raw)
+            ? raw.map(item => normalizeFigurePlacement(item as FigurePlacementInput))
+            : normalizeStackEntry(normalizeFigurePlacement(raw as FigureId | FigurePlacementInput))
+
+        if (stack.length > 0) {
+            figuresByCoord[key] = stack
+        }
     }
 
     return {
@@ -41,14 +59,17 @@ export function normalizeFiguresSlice(figures: FiguresSlice): FiguresSlice {
 
 export function splitGameState(state: GameState): { figures: FiguresSlice; board: BoardSlice } {
     const { n } = state.boardParameters
-    const figuresByCoord: Record<string, FigurePlacement> = {}
+    const figuresByCoord: Record<string, FigurePlacement[]> = {}
     const cellParametersByCoord: Record<string, CellParameters> = {}
 
     for (const [index, cell] of (state.cells ?? []).entries()) {
         const key = coordKey(indexToCoord(index, n))
-        if (cell.figure) {
-            figuresByCoord[key] = normalizeCellFigure(cell.figure)!
+        const stack = normalizeCellFigures(cell)
+
+        if (stack.length > 0) {
+            figuresByCoord[key] = stack
         }
+
         if (cell.parameters && Object.keys(cell.parameters).length > 0) {
             cellParametersByCoord[key] = cell.parameters
         }
@@ -76,11 +97,13 @@ export function composeGameState(
     const { n, m } = board.boardParameters
     const cells: Cell[] = iterGridCoords(n, m).map(({ i, j }) => {
         const key = coordKey({ i, j })
-        const placement = normalizedFigures.figuresByCoord[key]
+        const stack = normalizedFigures.figuresByCoord[key] ?? []
+        const top = getTopOfStack(normalizedFigures, { i, j })
 
         return {
             parameters: board.cellParametersByCoord[key],
-            figure: placement ? cloneFigurePlacement(placement) : undefined,
+            figures: stack.map(cloneFigurePlacement),
+            figure: top ? cloneFigurePlacement(top) : undefined,
         }
     })
 
@@ -135,3 +158,5 @@ export function cloneFigureCatalog(catalog: FigureCatalog): FigureCatalog {
         })),
     }))
 }
+
+export { cloneFiguresByCoord }

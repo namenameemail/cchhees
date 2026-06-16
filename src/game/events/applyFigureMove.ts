@@ -1,4 +1,4 @@
-import { CellCoord, coordKey } from '../types/coords'
+import { CellCoord } from '../types/coords'
 import { FigurePlacement } from '../types/figures'
 import { BoardParameters } from '../types/boardParameters'
 import { FigureCatalog } from '../types/figures'
@@ -9,6 +9,11 @@ import { runFigureEvents } from './runFigureEvents'
 import { resolveSteppedOnQueue, SteppedOnEvent } from './steppedOnQueue'
 import { MoveEventContext } from './types'
 import { gameMovesDebugLog } from '../gameMovesDebugLog'
+import {
+    cloneFiguresByCoord,
+    pushToStack,
+    removePlacementFromBoard,
+} from '../figureStack'
 
 export interface ApplyFigureMoveInput {
     from: CellCoord
@@ -33,52 +38,40 @@ export function applyFigureMove(
         swapOnEat: input.swapOnEat,
     })
 
-    const figuresBeforeMove = Object.fromEntries(
-        Object.entries(figures.figuresByCoord).map(([key, placement]) => [
-            key,
-            cloneFigurePlacement(placement),
-        ]),
-    )
-
-    const fromKey = coordKey(input.from)
-    const toKey = coordKey(input.to)
-    const figuresByCoord = { ...figures.figuresByCoord }
-    const tray = [...figures.tray]
+    const figuresBeforeMove = cloneFiguresByCoord(figures.figuresByCoord)
 
     let capturedPlacement: FigurePlacement | undefined
     let swappedTargetCoord: CellCoord | undefined
     const steppedOnQueue: SteppedOnEvent[] = []
-    let deferActorPlacement = false
+    let afterMove: FiguresSlice = {
+        figuresByCoord: cloneFiguresByCoord(figures.figuresByCoord),
+        tray: [...figures.tray],
+    }
 
     if (input.swapOnEat) {
-        figuresByCoord[toKey] = cloneFigurePlacement(input.actorPlacement)
+        afterMove = removePlacementFromBoard(afterMove, input.actorPlacement, input.from)
+        afterMove = removePlacementFromBoard(afterMove, input.targetAtTo!, input.to)
+        afterMove = pushToStack(afterMove, input.to, input.actorPlacement)
 
         if (input.targetAtTo) {
-            figuresByCoord[fromKey] = cloneFigurePlacement(input.targetAtTo)
+            afterMove = pushToStack(afterMove, input.from, input.targetAtTo)
             swappedTargetCoord = input.from
-        } else {
-            delete figuresByCoord[fromKey]
         }
     } else {
-        delete figuresByCoord[fromKey]
+        afterMove = removePlacementFromBoard(afterMove, input.actorPlacement, input.from)
 
         if (input.targetAtTo) {
-            deferActorPlacement = true
+            afterMove = pushToStack(afterMove, input.to, input.actorPlacement)
             steppedOnQueue.push({
                 stepperPlacement: cloneFigurePlacement(input.actorPlacement),
-                stepperCoord: input.from,
+                stepperCoord: input.to,
                 targetPlacement: cloneFigurePlacement(input.targetAtTo),
                 targetCoord: input.to,
                 cause: 'manual',
             })
         } else {
-            figuresByCoord[toKey] = cloneFigurePlacement(input.actorPlacement)
+            afterMove = pushToStack(afterMove, input.to, input.actorPlacement)
         }
-    }
-
-    let afterMove: FiguresSlice = {
-        figuresByCoord,
-        tray,
     }
 
     recordFigureStep(input.onStep, afterMove)
@@ -93,17 +86,6 @@ export function applyFigureMove(
         )
     }
 
-    if (deferActorPlacement) {
-        afterMove = {
-            ...afterMove,
-            figuresByCoord: {
-                ...afterMove.figuresByCoord,
-                [toKey]: cloneFigurePlacement(input.actorPlacement),
-            },
-        }
-        recordFigureStep(input.onStep, afterMove)
-    }
-
     const eventContext: MoveEventContext = {
         from: input.from,
         to: input.to,
@@ -115,7 +97,7 @@ export function applyFigureMove(
         catalog: input.catalog,
         stepCause: 'manual',
         stepperPlacement: input.actorPlacement,
-        stepperCoord: input.from,
+        stepperCoord: input.to,
         figuresBeforeMove,
         onStep: input.onStep,
     }

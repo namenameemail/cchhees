@@ -2,6 +2,7 @@ import { BoardParameters } from './types/boardParameters'
 import { CellCoord, coordKey, coordsEqual, isCoordInGrid } from './types/coords'
 import { FigureDefinition, FigureId, FigurePlacement, FigureState } from './types/figures'
 import { FiguresSlice } from './state/slices'
+import { getTopOfStack, isStackOccupied } from './figureStack'
 import {
     hasFigureMoveRules,
     normalizeFigureMoveRules,
@@ -118,7 +119,7 @@ export function isIntermediatePathClear(
 
     for (let step = 1; step < k; step += 1) {
         const coord = getCoordAlongRule(from, rule, step)
-        if (figuresByCoord[coordKey(coord)]) {
+        if (isStackOccupied({ figuresByCoord, tray: [] }, coord)) {
             return false
         }
     }
@@ -250,7 +251,7 @@ export function getLegalMoveDestinations(
 
                 addDestination(coord)
 
-                if (!jumpOverPieces && figuresByCoord[coordKey(coord)]) {
+                if (!jumpOverPieces && isStackOccupied({ figuresByCoord, tray: [] }, coord)) {
                     break
                 }
             }
@@ -279,7 +280,7 @@ export function getLegalMoveDestinationKeys(
     figuresSlice: FiguresSlice,
     boardParameters: BoardParameters,
 ): Set<string> {
-    const actorPlacement = figuresSlice.figuresByCoord[coordKey(from)]
+    const actorPlacement = getTopOfStack(figuresSlice, from)
 
     if (!actorPlacement || actorPlacement.figureId !== figureId) {
         return new Set()

@@ -47,12 +47,15 @@ export function buildBoardInstanceIndex(
 ): Map<string, BoardFigureEntry> {
     const index = new Map<string, BoardFigureEntry>()
 
-    for (const [key, placement] of Object.entries(figuresByCoord)) {
+    for (const [key, stack] of Object.entries(figuresByCoord)) {
         const [i, j] = key.split(',').map(Number)
-        index.set(placement.instanceId, {
-            coord: { i, j },
-            placement,
-        })
+
+        for (const placement of stack) {
+            index.set(placement.instanceId, {
+                coord: { i, j },
+                placement,
+            })
+        }
     }
 
     return index

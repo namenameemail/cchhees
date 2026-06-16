@@ -31,17 +31,29 @@ export interface FigureSVGGroupProps {
     x: number
     y: number
     stateIndex?: number
+    cellXDistance?: number
+    cellYDistance?: number
 }
 
-export const FigureSVGGroup: FC<FigureSVGGroupProps> = ({ figureId, x, y, stateIndex = 0 }) => {
+export const FigureSVGGroup: FC<FigureSVGGroupProps> = ({
+    figureId,
+    x,
+    y,
+    stateIndex = 0,
+    cellXDistance: cellXDistanceProp,
+    cellYDistance: cellYDistanceProp,
+}) => {
     const filterId = useId().replace(/:/g, '')
     const clipId = useId().replace(/:/g, '')
     const {
         state: {
-            boardParameters: { cellXDistance, cellYDistance },
+            boardParameters: { cellXDistance: contextCellX, cellYDistance: contextCellY },
             figureCatalog,
         },
     } = useGameContext()
+
+    const cellXDistance = cellXDistanceProp ?? contextCellX
+    const cellYDistance = cellYDistanceProp ?? contextCellY
 
     const viewParams = useMemo(
         () => resolveFigureViewParams(figureId, figureCatalog, stateIndex),

@@ -19,7 +19,10 @@ import {
 } from '../figureView'
 import { hasFigureAreaCell } from '../figureAreaCells'
 import { matchesFigureFilterList } from '../figureFilter'
+import { getStackPlacementsByFilter, matchesStackPosition } from '../figureStack'
 import { MoveEventContext, TriggeredFigureEvent } from './types'
+
+type BoardStacks = Record<string, FigurePlacement[]>
 
 function toOneBased(coord: { i: number; j: number }) {
     return { x: coord.i + 1, y: coord.j + 1 }
@@ -63,16 +66,48 @@ function parseCoordKey(key: string): CellCoord {
     return { i, j }
 }
 
+function normalizeBoardStacks(
+    board?: Record<string, FigurePlacement | FigurePlacement[]>,
+): BoardStacks {
+    if (!board) {
+        return {}
+    }
+
+    const normalized: BoardStacks = {}
+
+    for (const [key, value] of Object.entries(board)) {
+        normalized[key] = Array.isArray(value) ? value : [value]
+    }
+
+    return normalized
+}
+
+function iterBoardPlacements(
+    board: BoardStacks,
+): Array<{ coord: CellCoord; placement: FigurePlacement }> {
+    const items: Array<{ coord: CellCoord; placement: FigurePlacement }> = []
+
+    for (const [key, stack] of Object.entries(board)) {
+        const coord = parseCoordKey(key)
+
+        for (const placement of stack) {
+            items.push({ coord, placement })
+        }
+    }
+
+    return items
+}
+
 function resolvePlacementCoordBefore(
     placement: FigurePlacement,
-    beforeBoard: Record<string, FigurePlacement> | undefined,
+    beforeBoard: BoardStacks | undefined,
 ): CellCoord | undefined {
     if (!beforeBoard) {
         return undefined
     }
 
-    for (const [key, candidate] of Object.entries(beforeBoard)) {
-        if (candidate.instanceId === placement.instanceId) {
+    for (const [key, stack] of Object.entries(beforeBoard)) {
+        if (stack.some(candidate => candidate.instanceId === placement.instanceId)) {
             return parseCoordKey(key)
         }
     }
@@ -106,12 +141,12 @@ function matchesStepCause(cause: StepCause | undefined, stepCause: StepCause | u
 
 function collectFigureAreaAnchors(
     params: FigureEventParamsEnterFigureArea,
-    figuresByCoord: Record<string, FigurePlacement>,
+    figuresByCoord: BoardStacks,
 ): Array<{ coord: CellCoord; placement: FigurePlacement }> {
     const normalized = normalizeFigureEventParamsEnterFigureArea(params)
     const anchors: Array<{ coord: CellCoord; placement: FigurePlacement }> = []
 
-    for (const [key, placement] of Object.entries(figuresByCoord)) {
+    for (const { coord, placement } of iterBoardPlacements(figuresByCoord)) {
         if (!matchesFigureFilterList(
             normalized.anchorFigures,
             placement.figureId,
@@ -120,10 +155,7 @@ function collectFigureAreaAnchors(
             continue
         }
 
-        anchors.push({
-            coord: parseCoordKey(key),
-            placement,
-        })
+        anchors.push({ coord, placement })
     }
 
     return anchors
@@ -133,8 +165,8 @@ function collectEnterFigureAreaTriggers(
     rule: FigureEventRule,
     ownerFigureId: FigureId,
     ctx: MoveEventContext,
-    afterBoard: Record<string, FigurePlacement>,
-    beforeBoard: Record<string, FigurePlacement> | undefined,
+    afterBoard: BoardStacks,
+    beforeBoard: BoardStacks | undefined,
 ): TriggeredFigureEvent[] {
     const params = normalizeFigureEventParamsEnterFigureArea(
         rule.params as FigureEventParamsEnterFigureArea | undefined,
@@ -181,12 +213,11 @@ function collectEnterFigureAreaTriggers(
             continue
         }
 
-        for (const [key, placement] of Object.entries(afterBoard)) {
+        for (const { coord: subjectCoord, placement } of iterBoardPlacements(afterBoard)) {
             if (placement.figureId !== ownerFigureId) {
                 continue
             }
 
-            const subjectCoord = parseCoordKey(key)
             const subjectBefore = resolvePlacementCoordBefore(placement, beforeBoard)
 
             if (!isNewlyInArea(subjectCoord, subjectBefore, anchorAfter, anchorBefore, params.cells)) {
@@ -204,8 +235,8 @@ function collectAreaEnteredByTriggers(
     rule: FigureEventRule,
     ownerFigureId: FigureId,
     ctx: MoveEventContext,
-    afterBoard: Record<string, FigurePlacement>,
-    beforeBoard: Record<string, FigurePlacement> | undefined,
+    afterBoard: BoardStacks,
+    beforeBoard: BoardStacks | undefined,
 ): TriggeredFigureEvent[] {
     const params = normalizeFigureEventParamsAreaEnteredBy(
         rule.params as FigureEventParamsAreaEnteredBy | undefined,
@@ -244,12 +275,11 @@ function collectAreaEnteredByTriggers(
         })
     }
 
-    for (const [ownerKey, ownerPlacement] of Object.entries(afterBoard)) {
+    for (const { coord: ownerAfter, placement: ownerPlacement } of iterBoardPlacements(afterBoard)) {
         if (ownerPlacement.figureId !== ownerFigureId) {
             continue
         }
 
-        const ownerAfter = parseCoordKey(ownerKey)
         const ownerBefore = resolvePlacementCoordBefore(ownerPlacement, beforeBoard)
 
         if (matchesFigureFilterList(
@@ -265,7 +295,7 @@ function collectAreaEnteredByTriggers(
             continue
         }
 
-        for (const [subjectKey, subjectPlacement] of Object.entries(afterBoard)) {
+        for (const { coord: subjectCoord, placement: subjectPlacement } of iterBoardPlacements(afterBoard)) {
             if (!matchesFigureFilterList(
                 params.entererFigures,
                 subjectPlacement.figureId,
@@ -274,7 +304,6 @@ function collectAreaEnteredByTriggers(
                 continue
             }
 
-            const subjectCoord = parseCoordKey(subjectKey)
             const subjectBefore = resolvePlacementCoordBefore(subjectPlacement, beforeBoard)
 
             if (!isNewlyInArea(subjectCoord, subjectBefore, ownerAfter, ownerBefore, params.cells)) {
@@ -288,43 +317,77 @@ function collectAreaEnteredByTriggers(
     return triggered
 }
 
+function collectStepOnFigureTriggers(
+    rule: FigureEventRule,
+    ownerFigureId: FigureId,
+    ctx: MoveEventContext,
+    afterBoard: BoardStacks,
+): TriggeredFigureEvent[] {
+    if (ctx.actorPlacement.figureId !== ownerFigureId) {
+        return []
+    }
+
+    const params = normalizeFigureEventParamsStepOnFigure(
+        rule.params as FigureEventParamsStepOnFigure | undefined,
+    )
+    const stepCause = ctx.stepCause ?? 'manual'
+
+    if (params.cause !== 'any' && params.cause !== stepCause) {
+        return []
+    }
+
+    if (ctx.targetAtTo) {
+        if (!matchesFigureFilterList(
+            params.targetFigures,
+            ctx.targetAtTo.figureId,
+            resolvePlacementStateIndex(ctx.targetAtTo),
+        )) {
+            return []
+        }
+
+        const stack = afterBoard[coordKey(ctx.to)] ?? []
+        const targetIndex = stack.findIndex(item => item.instanceId === ctx.targetAtTo!.instanceId)
+
+        if (targetIndex >= 0 && params.stackTarget && params.stackTarget !== 'all') {
+            if (!matchesStackPosition(stack.length, targetIndex, params.stackTarget, params.stackIndex)) {
+                return []
+            }
+        }
+
+        return [{ ownerFigureId, ruleId: rule.id, stepOnTarget: ctx.targetAtTo }]
+    }
+
+    const stack = afterBoard[coordKey(ctx.to)] ?? []
+    const targets = getStackPlacementsByFilter(
+        stack,
+        params.stackTarget ?? 'all',
+        params.stackIndex ?? 0,
+        placement => matchesFigureFilterList(
+            params.targetFigures,
+            placement.figureId,
+            resolvePlacementStateIndex(placement),
+        ),
+    )
+
+    return targets.map(stepOnTarget => ({
+        ownerFigureId,
+        ruleId: rule.id,
+        stepOnTarget,
+    }))
+}
+
 export function matchesFigureEvent(
     rule: FigureEventRule,
     ownerFigureId: FigureId,
     ctx: MoveEventContext,
-    anchorCoord?: { i: number; j: number },
 ): boolean {
     switch (rule.type) {
         case FigureEventType.steppedOnBy:
         case FigureEventType.leaveBoard:
         case FigureEventType.enterFigureArea:
         case FigureEventType.areaEnteredBy:
+        case FigureEventType.stepOnFigure:
             return false
-        case FigureEventType.stepOnFigure: {
-            if (ctx.actorPlacement.figureId !== ownerFigureId || ctx.targetAtTo == null) {
-                return false
-            }
-
-            const params = normalizeFigureEventParamsStepOnFigure(
-                rule.params as FigureEventParamsStepOnFigure | undefined,
-            )
-            const cause = params?.cause ?? 'any'
-            const stepCause = ctx.stepCause ?? 'manual'
-
-            if (cause !== 'any' && cause !== stepCause) {
-                return false
-            }
-
-            if (!matchesFigureFilterList(
-                params?.targetFigures,
-                ctx.targetAtTo.figureId,
-                resolvePlacementStateIndex(ctx.targetAtTo),
-            )) {
-                return false
-            }
-
-            return true
-        }
         case FigureEventType.enterCell: {
             const params = rule.params as FigureEventParamsEnterCell | undefined
             if (!params) {
@@ -359,15 +422,17 @@ export function matchesFigureEvent(
 
 export function collectTriggeredFigureEvents(
     ctx: MoveEventContext,
-    figuresByCoord: Record<string, FigurePlacement>,
+    figuresByCoord: BoardStacks,
 ): TriggeredFigureEvent[] {
     const triggered: TriggeredFigureEvent[] = []
     const seen = new Set<string>()
-    const beforeBoard = ctx.figuresBeforeMove
+    const beforeBoard = normalizeBoardStacks(ctx.figuresBeforeMove)
 
     const push = (event: TriggeredFigureEvent) => {
         const anchorPart = event.areaAnchor ? coordKey(event.areaAnchor) : ''
-        const subjectPart = event.subjectPlacement?.instanceId ?? ''
+        const subjectPart = event.subjectPlacement?.instanceId
+            ?? event.stepOnTarget?.instanceId
+            ?? ''
         const key = `${event.ownerFigureId}:${event.ruleId}:${anchorPart}:${subjectPart}`
         if (seen.has(key)) {
             return
@@ -405,6 +470,13 @@ export function collectTriggeredFigureEvents(
                     figuresByCoord,
                     beforeBoard,
                 )) {
+                    push(event)
+                }
+                continue
+            }
+
+            if (rule.type === FigureEventType.stepOnFigure) {
+                for (const event of collectStepOnFigureTriggers(rule, entry.id, ctx, figuresByCoord)) {
                     push(event)
                 }
                 continue

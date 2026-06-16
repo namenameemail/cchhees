@@ -5,13 +5,17 @@ import styles from './BoardFigureAnimationsLayer.module.css'
 
 export interface BoardFigureAnimationsLayerProps {
     items: FigureOverlayAnimItem[]
+    cellXDistance?: number
+    cellYDistance?: number
 }
 
 interface AnimatedFigureProps {
     item: FigureOverlayAnimItem
+    cellXDistance?: number
+    cellYDistance?: number
 }
 
-const AnimatedFigure: FC<AnimatedFigureProps> = ({ item }) => {
+const AnimatedFigure: FC<AnimatedFigureProps> = ({ item, cellXDistance, cellYDistance }) => {
     const [active, setActive] = useState(false)
     const durationMs = item.kind === 'move' ? item.moveDurationMs : item.fadeDurationMs
 
@@ -47,12 +51,18 @@ const AnimatedFigure: FC<AnimatedFigureProps> = ({ item }) => {
                 stateIndex={item.stateIndex}
                 x={0}
                 y={0}
+                cellXDistance={cellXDistance}
+                cellYDistance={cellYDistance}
             />
         </g>
     )
 }
 
-export const BoardFigureAnimationsLayer: FC<BoardFigureAnimationsLayerProps> = ({ items }) => {
+export const BoardFigureAnimationsLayer: FC<BoardFigureAnimationsLayerProps> = ({
+    items,
+    cellXDistance,
+    cellYDistance,
+}) => {
     if (items.length === 0) {
         return null
     }
@@ -60,7 +70,12 @@ export const BoardFigureAnimationsLayer: FC<BoardFigureAnimationsLayerProps> = (
     return (
         <g className={styles.layer} pointerEvents="none">
             {items.map(item => (
-                <AnimatedFigure key={item.id} item={item} />
+                <AnimatedFigure
+                    key={item.id}
+                    item={item}
+                    cellXDistance={cellXDistance}
+                    cellYDistance={cellYDistance}
+                />
             ))}
         </g>
     )

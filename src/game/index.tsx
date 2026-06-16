@@ -16,6 +16,7 @@ import { Board } from './components/Board'
 import { Tray } from './components/Tray'
 import { History } from './components/History'
 import { CellParametersForm } from './components/CellParametersForm/CellParametersForm'
+import { MoveDebugWorkbench } from './components/MoveDebugWorkbench/MoveDebugWorkbench'
 // import { AutomaticConnectionsParametersForm } from './components/AutomaticConnectionsParametersForm'
 import { AssetsPanel } from '../projects/components/AssetsPanel'
 import { selectionDebugLog } from './selectionDebugLog'
@@ -107,6 +108,15 @@ export const Game: React.FC<GameProps> = () => {
         }
     }
 
+    const handleDebugTab = () => {
+        if (isToolsOpen && leftTab === 2) {
+            setIsToolsOpen(false)
+        } else {
+            setLeftTab(2)
+            setIsToolsOpen(true)
+        }
+    }
+
     if (!isReady || !currentProject) {
         return null
     }
@@ -154,6 +164,19 @@ export const Game: React.FC<GameProps> = () => {
                         >
                             <span className={styles.settingTabText}>history</span>
                         </button>
+                        {import.meta.env.DEV && (
+                            <button
+                                type="button"
+                                className={cn(
+                                    styles.settingTab,
+                                    isToolsOpen && leftTab === 2 && styles.settingTabActive,
+                                )}
+                                data-label="debug"
+                                onClick={handleDebugTab}
+                            >
+                                <span className={styles.settingTabText}>debug</span>
+                            </button>
+                        )}
                     </div>
 
                     <div
@@ -170,6 +193,11 @@ export const Game: React.FC<GameProps> = () => {
                         {leftTab === 1 && (
                             <div className={styles.toolsBody}>
                                 <History />
+                            </div>
+                        )}
+                        {import.meta.env.DEV && leftTab === 2 && (
+                            <div className={styles.toolsBody}>
+                                <MoveDebugWorkbench />
                             </div>
                         )}
                     </div>

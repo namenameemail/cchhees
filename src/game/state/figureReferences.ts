@@ -16,6 +16,7 @@ import {
     FIGURE_FILTER_NONE,
     isConcreteFigureFilter,
 } from '../figureFilter'
+import { cloneFiguresByCoord } from '../figureStack'
 import { FiguresSlice } from './slices'
 
 export function getFigureCatalogIds(catalog: FigureCatalog): Set<FigureId> {
@@ -23,11 +24,13 @@ export function getFigureCatalogIds(catalog: FigureCatalog): Set<FigureId> {
 }
 
 export function removeFigureFromBoard(figures: FiguresSlice, figureId: FigureId): FiguresSlice {
-    const figuresByCoord: Record<string, FigurePlacement> = {}
+    const figuresByCoord: FiguresSlice['figuresByCoord'] = {}
 
-    for (const [key, placement] of Object.entries(figures.figuresByCoord)) {
-        if (placement.figureId !== figureId) {
-            figuresByCoord[key] = placement
+    for (const [key, stack] of Object.entries(figures.figuresByCoord)) {
+        const filtered = stack.filter(placement => placement.figureId !== figureId)
+
+        if (filtered.length > 0) {
+            figuresByCoord[key] = filtered
         }
     }
 
@@ -39,11 +42,13 @@ export function removeFigureFromBoard(figures: FiguresSlice, figureId: FigureId)
 
 export function pruneFigureReferences(figures: FiguresSlice, catalog: FigureCatalog): FiguresSlice {
     const validIds = getFigureCatalogIds(catalog)
-    const figuresByCoord: Record<string, FigurePlacement> = {}
+    const figuresByCoord: FiguresSlice['figuresByCoord'] = {}
 
-    for (const [key, placement] of Object.entries(figures.figuresByCoord)) {
-        if (validIds.has(placement.figureId)) {
-            figuresByCoord[key] = placement
+    for (const [key, stack] of Object.entries(figures.figuresByCoord)) {
+        const filtered = stack.filter(placement => validIds.has(placement.figureId))
+
+        if (filtered.length > 0) {
+            figuresByCoord[key] = filtered
         }
     }
 
@@ -54,14 +59,8 @@ export function pruneFigureReferences(figures: FiguresSlice, catalog: FigureCata
 }
 
 export function cloneFiguresSlicePlacements(figures: FiguresSlice): FiguresSlice {
-    const figuresByCoord: Record<string, FigurePlacement> = {}
-
-    for (const [key, placement] of Object.entries(figures.figuresByCoord)) {
-        figuresByCoord[key] = cloneFigurePlacement(placement)
-    }
-
     return {
-        figuresByCoord,
+        figuresByCoord: cloneFiguresByCoord(figures.figuresByCoord),
         tray: figures.tray.map(cloneFigurePlacement),
     }
 }
