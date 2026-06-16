@@ -1,0 +1,8 @@
+.layer {
+    pointer-events: none;
+}
+
+.animGroup {
+    transition-property: transform, opacity;
+    transition-timing-function: ease-out;
+}

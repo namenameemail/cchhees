@@ -96,6 +96,11 @@ export interface BoardAxisLabelsSettings {
     fontAssetId?: number | null
 }
 
+export interface BoardFigureAnimationSettings {
+    moveDurationMs?: number
+    fadeDurationMs?: number
+}
+
 export interface BoardParameters {
     n: number
     m: number
@@ -123,6 +128,7 @@ export interface BoardParameters {
     showAxisLabels?: boolean
     /** @deprecated migrated to axisNumberings */
     axisLabels?: BoardAxisLabelsSettings
+    figureAnimation?: BoardFigureAnimationSettings
 }
 
 export const AXIS_NUMBERING_FORMAT_OPTIONS: AxisNumberingFormat[] = ['digit', 'letter', 'roman']

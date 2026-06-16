@@ -16,6 +16,7 @@ import { matchesFigureFilterList } from '../figureFilter'
 import { applyLeaveBoardAction, applySteppedOnAction } from './execute'
 import { gameMovesDebugLog } from '../gameMovesDebugLog'
 import { runFigureEvents } from './runFigureEvents'
+import { FigureStepRecorder, recordFigureStep } from '../figureAnimation/figureStepRecorder'
 
 export interface SteppedOnEvent {
     stepperPlacement: FigurePlacement
@@ -205,6 +206,7 @@ function applyStepOnFigureEventsForStepper(
     event: SteppedOnEvent,
     catalog: FigureCatalog,
     boardParameters: BoardParameters,
+    onStep?: FigureStepRecorder,
 ): FiguresSlice {
     if (event.cause !== 'displacement') {
         return figures
@@ -228,6 +230,7 @@ function applyStepOnFigureEventsForStepper(
         stepperPlacement: event.stepperPlacement,
         stepperCoord: event.stepperCoord,
         figuresBeforeMove,
+        onStep,
     })
 }
 
@@ -237,6 +240,7 @@ function processSteppedOnEvent(
     catalog: FigureCatalog,
     boardParameters: BoardParameters,
     queue: QueueItem[],
+    onStep?: FigureStepRecorder,
 ): FiguresSlice {
     const matched = findMatchingSteppedOnRules(event, catalog)
     const ctx: SteppedOnActionContext = {
@@ -276,7 +280,9 @@ function processSteppedOnEvent(
         nextFigures = applySteppedOnActions(figures, matched[0].rule.actions, ctx, queue)
     }
 
-    return applyStepOnFigureEventsForStepper(nextFigures, event, catalog, boardParameters)
+    recordFigureStep(onStep, nextFigures)
+
+    return applyStepOnFigureEventsForStepper(nextFigures, event, catalog, boardParameters, onStep)
 }
 
 function processLeaveBoardEvent(
@@ -285,6 +291,7 @@ function processLeaveBoardEvent(
     catalog: FigureCatalog,
     boardParameters: BoardParameters,
     queue: QueueItem[],
+    onStep?: FigureStepRecorder,
 ): FiguresSlice {
     const matched: FigureEventRule[] = []
 
@@ -317,7 +324,9 @@ function processLeaveBoardEvent(
             actions,
             fallback: true,
         })
-        return applyLeaveBoardAction(figures, actions[0], ctx, queue)
+        const result = applyLeaveBoardAction(figures, actions[0], ctx, queue)
+        recordFigureStep(onStep, result)
+        return result
     }
 
     gameMovesDebugLog.eventMatched({
@@ -327,10 +336,12 @@ function processLeaveBoardEvent(
         actions: matched[0].actions,
     })
 
-    return matched[0].actions.reduce(
+    const result = matched[0].actions.reduce(
         (current, action) => applyLeaveBoardAction(current, action, ctx, queue),
         figures,
     )
+    recordFigureStep(onStep, result)
+    return result
 }
 
 function processPlaceItem(
@@ -377,6 +388,7 @@ export function resolveActionQueue(
     initialQueue: QueueItem[],
     catalog: FigureCatalog,
     boardParameters: BoardParameters,
+    onStep?: FigureStepRecorder,
 ): FiguresSlice {
     const queue: QueueItem[] = initialQueue.map(item => (
         'kind' in item
@@ -413,6 +425,7 @@ export function resolveActionQueue(
                 item.fromCoord,
                 queue,
             )
+            recordFigureStep(onStep, nextFigures)
             continue
         }
 
@@ -428,6 +441,7 @@ export function resolveActionQueue(
                 catalog,
                 boardParameters,
                 queue,
+                onStep,
             )
             continue
         }
@@ -446,6 +460,7 @@ export function resolveActionQueue(
             catalog,
             boardParameters,
             queue,
+            onStep,
         )
     }
 
@@ -457,11 +472,13 @@ export function resolveSteppedOnQueue(
     initialQueue: SteppedOnEvent[],
     catalog: FigureCatalog,
     boardParameters: BoardParameters,
+    onStep?: FigureStepRecorder,
 ): FiguresSlice {
     return resolveActionQueue(
         figures,
         initialQueue.map(event => ({ ...event })),
         catalog,
         boardParameters,
+        onStep,
     )
 }

@@ -31,11 +31,11 @@ import {
 } from '../boardAxisLabels'
 import { BoardMarkGradientDefs } from './BoardMarkGradientDefs'
 import { BoardBackgroundLayer, BoardBackgroundPattern } from './BoardBackground'
-import {
-    BoardAxisNumberingClipDefs,
+import { BoardAxisNumberingClipDefs,
     BoardAxisNumberingFrameLayer,
     BoardAxisNumberingItemsLayer,
 } from './BoardAxisLabels'
+import { BoardFigureAnimationsLayer } from './BoardFigureAnimationsLayer'
 
 export interface BoardProps {
     className?: string
@@ -43,7 +43,7 @@ export interface BoardProps {
 
 export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ className }, ref) {
 
-    const { state, mode, activeCell, figureCatalog, previewCellStyleRuleIndex } = useGameContext()
+    const { state, mode, activeCell, figureCatalog, previewCellStyleRuleIndex, figureBoardAnimations } = useGameContext()
     const selectionGradientId = useId().replace(/:/g, '')
     const selectionOverlayGradientId = useId().replace(/:/g, '')
     const legalMoveGradientId = useId().replace(/:/g, '')
@@ -316,9 +316,11 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                         boardMarks={boardMarks}
                         gradientIds={markGradientIds}
                         isLegalMove={legalMoveKeys.has(coordKey(coord))}
+                        hiddenFigureInstanceIds={figureBoardAnimations.hiddenInstanceIds}
                     />
                 )
             })}
+            <BoardFigureAnimationsLayer items={figureBoardAnimations.overlayItems} />
             </g>
             {hasNumberings && (
                 <BoardAxisNumberingItemsLayer

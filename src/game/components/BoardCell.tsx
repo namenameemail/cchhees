@@ -24,6 +24,7 @@ export interface CellProps {
     boardMarks: ResolvedBoardMarks
     gradientIds: BoardMarkGradientIds
     isLegalMove: boolean
+    hiddenFigureInstanceIds?: ReadonlySet<string>
 }
 
 function renderMark(
@@ -67,6 +68,7 @@ export const BoardCell: FC<CellProps> = (props) => {
         moveActiveCellFigureTo,
         setCellFigure,
         setCellParameters,
+        isFigureAnimating,
     } = useGameContext()
 
     const {
@@ -82,6 +84,7 @@ export const BoardCell: FC<CellProps> = (props) => {
         boardMarks,
         gradientIds,
         isLegalMove,
+        hiddenFigureInstanceIds,
     } = props
 
     const { i, j } = coord
@@ -115,6 +118,10 @@ export const BoardCell: FC<CellProps> = (props) => {
     ), [boardMarks, gradientIds, showSelection, showLegalMove, showCursor, cx, cy, r])
 
     const handleCellClick = useCallback(() => {
+        if (isFigureAnimating) {
+            return
+        }
+
         const hasFigure = Boolean(cell.figure)
         selectionDebugLog.cellClick(coord, Mode[mode] ?? String(mode), activeCell, hasFigure)
 
@@ -138,7 +145,10 @@ export const BoardCell: FC<CellProps> = (props) => {
         } else if (mode === Mode.PaintTheBoard) {
             setCellParameters(coord)
         }
-    }, [mode, coord, cell.figure, activeFigure, activeCell, state.boardParameters, state.cells, setActiveCell, moveActiveCellFigureTo, setCellParameters, setCellFigure])
+    }, [mode, coord, cell.figure, activeFigure, activeCell, state.boardParameters, state.cells, setActiveCell, moveActiveCellFigureTo, setCellParameters, setCellFigure, isFigureAnimating])
+
+    const showFigure = cell.figure
+        && !hiddenFigureInstanceIds?.has(cell.figure.instanceId)
 
     const handleMouseEnter = useCallback(() => {
         setIsHovered(true)
@@ -153,10 +163,10 @@ export const BoardCell: FC<CellProps> = (props) => {
             {!isDisabled && (
                 <>
                     {belowMarks}
-                    {cell.figure && (
+                    {showFigure && (
                         <FigureSVGGroup
-                            figureId={cell.figure.figureId}
-                            stateIndex={cell.figure.stateIndex}
+                            figureId={cell.figure!.figureId}
+                            stateIndex={cell.figure!.stateIndex}
                             x={cx}
                             y={cy}
                         />

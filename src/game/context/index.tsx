@@ -14,6 +14,15 @@ import {
 } from '../figureView'
 import { isFigureMoveAllowed } from '../moveRules'
 import { applyFigureMove } from '../events/applyFigureMove'
+import { computeFigureMoveSteps } from '../figureAnimation/figureStepRecorder'
+import {
+    createEmptyFigureBoardAnimationState,
+    playStepAnimation,
+} from '../figureAnimation/playStepAnimation'
+import {
+    isInstantFigureAnimation,
+    resolveFigureAnimationSettings,
+} from '../figureAnimation/resolveFigureAnimationSettings'
 import { removeFigureFromBoard, removeFigureReferencesFromCatalog } from '../state/figureReferences'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
@@ -22,6 +31,7 @@ import { ProjectPersistData } from '../../projects/types'
 import { ActiveBoardPersistPayload } from '../../projects/projectPersist'
 import { Mode } from '../types'
 import { BoardParameters } from '../types/boardParameters'
+import { normalizeBoardFigureAnimationSettings } from '../figureAnimation/resolveFigureAnimationSettings'
 import { ConnectionParams } from '../types/connections'
 import { BoardStyleRule } from '../types/styleRules'
 import { cellParametersBrushStateInitialValue, connectionParamsBrushStateInitialValue } from './constants'
@@ -176,6 +186,13 @@ export function GameProvider({
     const [boardParametersFormKey, setBoardParametersFormKey] = useState(0)
     const pendingBoardParametersRef = useRef<BoardParameters | null>(null)
 
+    const [displayFiguresSlice, setDisplayFiguresSlice] = useState<FiguresSlice | undefined>(undefined)
+    const [isFigureAnimating, setIsFigureAnimating] = useState(false)
+    const [figureBoardAnimations, setFigureBoardAnimations] = useState(createEmptyFigureBoardAnimationState())
+    const skipFigureAnimationRef = useRef(true)
+    const prevFiguresSliceRef = useRef(figuresSlice)
+    const isMoveAnimatingRef = useRef(false)
+
     const clearActiveCellIfInvalid = useCallback((n: number, m: number, cell?: CellCoord) => {
         const active = cell ?? activeCell
         if (active !== undefined && !isCoordInGrid(active, n, m)) {
@@ -289,6 +306,7 @@ export function GameProvider({
 
     const applyRemotePersistData = useCallback((data: ProjectPersistData) => {
         skipPersistRef.current = true
+        skipFigureAnimationRef.current = true
 
         const resolved = applyRemotePersistDataFromProject(data)
 
@@ -329,6 +347,98 @@ export function GameProvider({
         setState(result.state)
         return result.state
     }, [figuresSlice, boardSlice, figureCatalog])
+
+    useEffect(() => {
+        skipFigureAnimationRef.current = true
+    }, [activeBoardId])
+
+    const waitForAnimationCompletion = useCallback((durationMs: number) => {
+        return new Promise<void>(resolve => {
+            window.setTimeout(resolve, durationMs + 16)
+        })
+    }, [])
+
+    const playFigureStepSequence = useCallback(async (
+        steps: FiguresSlice[],
+        boardParameters: BoardParameters,
+    ) => {
+        const settings = resolveFigureAnimationSettings(boardParameters)
+
+        setIsFigureAnimating(true)
+        setDisplayFiguresSlice(steps[0])
+
+        try {
+            for (let i = 1; i < steps.length; i += 1) {
+                await playStepAnimation(
+                    steps[i - 1],
+                    steps[i],
+                    boardParameters,
+                    settings,
+                    setFigureBoardAnimations,
+                    waitForAnimationCompletion,
+                )
+                setDisplayFiguresSlice(steps[i])
+            }
+        } finally {
+            setFigureBoardAnimations(createEmptyFigureBoardAnimationState())
+            setDisplayFiguresSlice(undefined)
+            setIsFigureAnimating(false)
+        }
+    }, [waitForAnimationCompletion])
+
+    useEffect(() => {
+        if (skipFigureAnimationRef.current) {
+            skipFigureAnimationRef.current = false
+            prevFiguresSliceRef.current = figuresSlice
+            return
+        }
+
+        if (isMoveAnimatingRef.current || mode !== Mode.Game) {
+            prevFiguresSliceRef.current = figuresSlice
+            return
+        }
+
+        const prev = prevFiguresSliceRef.current
+        const settings = resolveFigureAnimationSettings(boardSlice.boardParameters)
+
+        if (isInstantFigureAnimation(settings)) {
+            prevFiguresSliceRef.current = figuresSlice
+            return
+        }
+
+        let cancelled = false
+
+        void (async () => {
+            setIsFigureAnimating(true)
+            setDisplayFiguresSlice(prev)
+
+            try {
+                await playStepAnimation(
+                    prev,
+                    figuresSlice,
+                    boardSlice.boardParameters,
+                    settings,
+                    setFigureBoardAnimations,
+                    waitForAnimationCompletion,
+                )
+
+                if (!cancelled) {
+                    setDisplayFiguresSlice(figuresSlice)
+                }
+            } finally {
+                if (!cancelled) {
+                    setDisplayFiguresSlice(undefined)
+                    setFigureBoardAnimations(createEmptyFigureBoardAnimationState())
+                    setIsFigureAnimating(false)
+                    prevFiguresSliceRef.current = figuresSlice
+                }
+            }
+        })()
+
+        return () => {
+            cancelled = true
+        }
+    }, [figuresSlice, mode, boardSlice.boardParameters, waitForAnimationCompletion])
 
     useEffect(() => {
         if (skipInitialPersistRef.current) {
@@ -379,23 +489,28 @@ export function GameProvider({
     }, [boardHistory, boardSlice, applyBoardChange])
 
     const setBoardParameters = useCallback((value: BoardParameters) => {
-        const nextBoard: BoardSlice = {
-            ...boardSlice,
-            boardParameters: value,
+        const normalizedValue: BoardParameters = {
+            ...value,
+            figureAnimation: normalizeBoardFigureAnimationSettings(value.figureAnimation),
         }
 
-        const shrinking = isGridShrink(boardSlice.boardParameters, value)
-        const outsideCount = countFiguresOutsideGrid(figuresSlice, value.n, value.m)
+        const nextBoard: BoardSlice = {
+            ...boardSlice,
+            boardParameters: normalizedValue,
+        }
+
+        const shrinking = isGridShrink(boardSlice.boardParameters, normalizedValue)
+        const outsideCount = countFiguresOutsideGrid(figuresSlice, normalizedValue.n, normalizedValue.m)
 
         if (shrinking && outsideCount > 0) {
-            pendingBoardParametersRef.current = value
+            pendingBoardParametersRef.current = normalizedValue
             setShrinkWarningCount(outsideCount)
             setShrinkWarningOpen(true)
             setBoardParametersFormKey(key => key + 1)
             return
         }
 
-        applyBoardChange(nextBoard, true, { kind: 'board-parameters', boardId: activeBoardIdRef.current, boardParameters: value })
+        applyBoardChange(nextBoard, true, { kind: 'board-parameters', boardId: activeBoardIdRef.current, boardParameters: normalizedValue })
     }, [boardSlice, figuresSlice, applyBoardChange])
 
     const confirmShrinkBoard = useCallback(() => {
@@ -484,6 +599,10 @@ export function GameProvider({
     }, [figuresSlice, replace, setFigure])
 
     const moveActiveCellFigureTo = useCallback((to: CellCoord) => {
+        if (isFigureAnimating || isMoveAnimatingRef.current) {
+            return
+        }
+
         if (activeCell === undefined) {
             return
         }
@@ -517,8 +636,7 @@ export function GameProvider({
         setActiveCell(undefined, 'figure move start')
 
         const targetAtTo = figuresSlice.figuresByCoord[toKey]
-
-        pushFiguresChange(applyFigureMove(figuresSlice, {
+        const moveInput = {
             from,
             to,
             actorPlacement: fromPlacement,
@@ -526,8 +644,38 @@ export function GameProvider({
             swapOnEat: state.boardParameters.swapOnEat,
             boardParameters: state.boardParameters,
             catalog: figureCatalog,
-        }))
-    }, [activeCell, figuresSlice, figureCatalog, state.boardParameters, pushFiguresChange, setActiveCell])
+        }
+
+        const animationSettings = resolveFigureAnimationSettings(state.boardParameters)
+
+        if (mode !== Mode.Game || isInstantFigureAnimation(animationSettings)) {
+            pushFiguresChange(applyFigureMove(figuresSlice, moveInput))
+            return
+        }
+
+        const steps = computeFigureMoveSteps(figuresSlice, moveInput)
+        isMoveAnimatingRef.current = true
+
+        void (async () => {
+            try {
+                await playFigureStepSequence(steps, state.boardParameters)
+                pushFiguresChange(steps[steps.length - 1])
+            } finally {
+                isMoveAnimatingRef.current = false
+                prevFiguresSliceRef.current = steps[steps.length - 1]
+            }
+        })()
+    }, [
+        activeCell,
+        figuresSlice,
+        figureCatalog,
+        state.boardParameters,
+        pushFiguresChange,
+        setActiveCell,
+        mode,
+        isFigureAnimating,
+        playFigureStepSequence,
+    ])
 
     const setCellParameters = useCallback((coord: CellCoord) => {
         const key = coordKey(coord)
@@ -791,11 +939,19 @@ export function GameProvider({
         }
     }, [boardSlice, figureCatalog, cellParametersBrushState, applyBoardChange, applyCatalogChange])
 
+    const contextState = useMemo(() => {
+        if (displayFiguresSlice) {
+            return composeGameState(displayFiguresSlice, boardSlice, figureCatalog)
+        }
+
+        return state
+    }, [displayFiguresSlice, state, boardSlice, figureCatalog])
+
     const value = useMemo(
         () => ({
             mode,
             setMode,
-            state,
+            state: contextState,
             figuresHistory,
             boardHistory,
             figureCatalog,
@@ -833,10 +989,12 @@ export function GameProvider({
             clearAssetReferences,
             applyRemotePersistData,
             applyRemoteOps,
+            isFigureAnimating,
+            figureBoardAnimations,
         }),
         [
             mode,
-            state,
+            contextState,
             figuresHistory,
             boardHistory,
             figureCatalog,
@@ -869,6 +1027,8 @@ export function GameProvider({
             clearAssetReferences,
             applyRemotePersistData,
             applyRemoteOps,
+            isFigureAnimating,
+            figureBoardAnimations,
         ],
     )
 

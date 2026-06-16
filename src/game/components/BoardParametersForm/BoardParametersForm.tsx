@@ -135,6 +135,31 @@ const parametersConfig = (value: BoardParameters) => {
             type: ParameterTypes.TextInput,
             props: { placeholder: 'borderDasharray' },
         },
+        {
+            name: 'figureAnimation',
+            type: ParameterTypes.Form1,
+            props: {
+                className: styles.fullWidth,
+                config: [
+                    {
+                        name: 'moveDurationMs',
+                        type: ParameterTypes.NumberInput,
+                        props: {
+                            placeholder: 'анимация хода (мс)',
+                            ...nonNegative,
+                        },
+                    },
+                    {
+                        name: 'fadeDurationMs',
+                        type: ParameterTypes.NumberInput,
+                        props: {
+                            placeholder: 'анимация исчезновения (мс)',
+                            ...nonNegative,
+                        },
+                    },
+                ],
+            },
+        },
     ]
 }
 

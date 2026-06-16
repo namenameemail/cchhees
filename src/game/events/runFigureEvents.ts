@@ -4,6 +4,7 @@ import { cloneFigurePlacement } from '../figureView'
 import { collectTriggeredFigureEvents } from './match'
 import { applyGameActions } from './execute'
 import { MoveEventContext } from './types'
+import { recordFigureStep } from '../figureAnimation/figureStepRecorder'
 import { gameMovesDebugLog } from '../gameMovesDebugLog'
 import { logFigureEventRuntime } from '../figureEventRulesDebugLog'
 import { resolveActionQueue, SteppedOnQueueItem } from './steppedOnQueue'
@@ -97,6 +98,7 @@ export function runFigureEvents(
         })
 
         nextFigures = applyGameActions(nextFigures, rule.actions, actionCtx, deferredQueue)
+        recordFigureStep(ctx.onStep, nextFigures)
 
         logFigureEventRuntime({
             phase: 'apply-done',
@@ -126,7 +128,9 @@ export function runFigureEvents(
             deferredQueue,
             ctx.catalog,
             ctx.boardParameters,
+            ctx.onStep,
         )
+        recordFigureStep(ctx.onStep, nextFigures)
     }
 
     return nextFigures

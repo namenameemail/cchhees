@@ -51,6 +51,10 @@ export const initialGameState: GameState = {
         borderColor: 'black',
         boardMarks: DEFAULT_BOARD_MARKS,
         axisNumberings: [],
+        figureAnimation: {
+            moveDurationMs: 250,
+            fadeDurationMs: 200,
+        },
     },
 
     styleRules: [],
@@ -102,4 +106,9 @@ export const defaultGameContextValue: GameContextValue = {
     clearAssetReferences: mockFn,
     applyRemotePersistData: mockFn,
     applyRemoteOps: () => initialGameState,
+    isFigureAnimating: false,
+    figureBoardAnimations: {
+        overlayItems: [],
+        hiddenInstanceIds: new Set(),
+    },
 }

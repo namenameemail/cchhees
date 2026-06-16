@@ -4,6 +4,7 @@ import { BoardParameters } from '../types/boardParameters'
 import { FigureCatalog } from '../types/figures'
 import { FiguresSlice } from '../state/slices'
 import { cloneFigurePlacement } from '../figureView'
+import { recordFigureStep, FigureStepRecorder } from '../figureAnimation/figureStepRecorder'
 import { runFigureEvents } from './runFigureEvents'
 import { resolveSteppedOnQueue, SteppedOnEvent } from './steppedOnQueue'
 import { MoveEventContext } from './types'
@@ -17,6 +18,7 @@ export interface ApplyFigureMoveInput {
     swapOnEat: boolean
     boardParameters: BoardParameters
     catalog: FigureCatalog
+    onStep?: FigureStepRecorder
 }
 
 export function applyFigureMove(
@@ -79,12 +81,15 @@ export function applyFigureMove(
         tray,
     }
 
+    recordFigureStep(input.onStep, afterMove)
+
     if (steppedOnQueue.length > 0) {
         afterMove = resolveSteppedOnQueue(
             afterMove,
             steppedOnQueue,
             input.catalog,
             input.boardParameters,
+            input.onStep,
         )
     }
 
@@ -96,6 +101,7 @@ export function applyFigureMove(
                 [toKey]: cloneFigurePlacement(input.actorPlacement),
             },
         }
+        recordFigureStep(input.onStep, afterMove)
     }
 
     const eventContext: MoveEventContext = {
@@ -111,6 +117,7 @@ export function applyFigureMove(
         stepperPlacement: input.actorPlacement,
         stepperCoord: input.from,
         figuresBeforeMove,
+        onStep: input.onStep,
     }
 
     return runFigureEvents(afterMove, eventContext)

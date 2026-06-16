@@ -2,6 +2,7 @@ import { BoardParameters } from '../types/boardParameters'
 import { CellCoord } from '../types/coords'
 import { FigureEventType, StepCause } from '../types/events'
 import { FigureCatalog, FigureId, FigurePlacement } from '../types/figures'
+import { FigureStepRecorder } from '../figureAnimation/figureStepRecorder'
 
 export interface MoveEventContext {
     from: CellCoord
@@ -20,6 +21,7 @@ export interface MoveEventContext {
     figuresBeforeMove?: Record<string, FigurePlacement>
     areaSubjectCoord?: CellCoord
     areaSubjectPlacement?: FigurePlacement
+    onStep?: FigureStepRecorder
 }
 
 export interface TriggeredFigureEvent {

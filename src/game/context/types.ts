@@ -12,6 +12,7 @@ import { FiguresSlice, BoardSlice } from '../state/slices'
 import { CellCoord } from '../types/coords'
 import { ProjectPersistData } from '../../projects/types'
 import { CollabOp } from '../../collab/ops'
+import { FigureBoardAnimationState } from '../figureAnimation/playStepAnimation'
 
 export interface GameContextValue {
     mode: Mode
@@ -68,4 +69,6 @@ export interface GameContextValue {
     clearAssetReferences: (assetId: number) => void
     applyRemotePersistData: (data: ProjectPersistData) => void
     applyRemoteOps: (ops: CollabOp[]) => GameState
+    isFigureAnimating: boolean
+    figureBoardAnimations: FigureBoardAnimationState
 }
