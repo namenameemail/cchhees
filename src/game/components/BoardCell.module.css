@@ -1,0 +1,20 @@
+.boardDeleteRingTrack {
+    pointer-events: none;
+}
+
+.boardDeleteRingProgress {
+    pointer-events: none;
+    animation-name: boardCellDeleteProgress;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+@keyframes boardCellDeleteProgress {
+    from {
+        stroke-dashoffset: var(--delete-ring-circumference);
+    }
+
+    to {
+        stroke-dashoffset: 0;
+    }
+}
