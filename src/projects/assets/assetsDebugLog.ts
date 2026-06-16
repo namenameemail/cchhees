@@ -1,47 +1,13 @@
-import { profiler, profileDebug, isProfilerPanelChannel } from '../../profiler'
+import { createChannelDebugLog } from '@/channelDebugLog'
 
-const MAX_CONSOLE_LINES = 120
-const CONSOLE_PREFIX = '[assets] '
-
-function enabled(): boolean {
-    return import.meta.env.DEV
-}
-
-function trimConsoleLines(): void {
-    const lines = profiler.getPanelLines('console')
-    const assetLines = lines.filter(line => line.startsWith(CONSOLE_PREFIX))
-
-    if (assetLines.length <= MAX_CONSOLE_LINES) {
-        return
-    }
-
-    const otherLines = lines.filter(line => !line.startsWith(CONSOLE_PREFIX))
-    profiler.setPanelText('console', [...otherLines, ...assetLines.slice(-MAX_CONSOLE_LINES)].join('\n'))
-}
+const log = createChannelDebugLog({
+    channel: 'assets',
+    consolePrefix: '[assets] ',
+    maxConsoleLines: 120,
+})
 
 function append(text: string, meta?: Record<string, unknown>): void {
-    if (!enabled()) {
-        return
-    }
-
-    const time = new Date().toLocaleTimeString(undefined, {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        fractionalSecondDigits: 3,
-    } as Intl.DateTimeFormatOptions)
-
-    if (isProfilerPanelChannel('assets')) {
-        profiler.appendPanelText('console', `${CONSOLE_PREFIX}${time}  ${text}`)
-        trimConsoleLines()
-    }
-    profileDebug('assets', text.slice(0, 120), meta)
-
-    if (profiler.isRecording) {
-        profiler.log(`assets ${text}`, meta)
-        profiler.flushLatest('assets')
-    }
+    log.append(text, meta)
 }
 
 export const assetsDebugLog = {

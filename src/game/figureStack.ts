@@ -1,4 +1,5 @@
-import { CellCoord, coordKey } from './types/coords'
+import { CellCoord, coordKey, parseCoordKey } from './types/coords'
+import { Cell } from './types/cells'
 import { FigurePlacement } from './types/figures'
 import { cloneFigurePlacement, placementsMatch } from './figureView'
 import { FiguresSlice } from './state/slices'
@@ -8,6 +9,22 @@ import {
 } from './types/events'
 
 export type StackIndex = { coord: CellCoord; index: number }
+
+export function getCellStack(cell: Cell | undefined): FigurePlacement[] {
+    if (!cell) {
+        return []
+    }
+
+    if (cell.figures && cell.figures.length > 0) {
+        return cell.figures
+    }
+
+    if (cell.figure) {
+        return [cell.figure]
+    }
+
+    return []
+}
 
 export function isStackArray(value: unknown): value is FigurePlacement[] {
     return Array.isArray(value)
@@ -54,8 +71,7 @@ export function findInstance(
         const index = stack.findIndex(placement => placement.instanceId === instanceId)
 
         if (index >= 0) {
-            const [i, j] = key.split(',').map(Number)
-            return { coord: { i, j }, index }
+            return { coord: parseCoordKey(key), index }
         }
     }
 
@@ -295,10 +311,10 @@ export function iterBoardPlacements(
     const items: Array<{ coord: CellCoord; index: number; placement: FigurePlacement }> = []
 
     for (const [key, stack] of Object.entries(figuresByCoord)) {
-        const [i, j] = key.split(',').map(Number)
+        const coord = parseCoordKey(key)
 
         stack.forEach((placement, index) => {
-            items.push({ coord: { i, j }, index, placement })
+            items.push({ coord, index, placement })
         })
     }
 

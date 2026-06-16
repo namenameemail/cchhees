@@ -18,10 +18,12 @@ export interface Form1Props<StateType> {
     value: StateType
     config: Form1FieldConfig<StateType>[] | ((value: StateType) => Form1FieldConfig<StateType>[])
     onChange: (value: StateType, name?: any) => void
+    /** Short label left of each field; parent uses `.labeledGridForm` for two-column layout. */
+    fieldLayout?: 'default' | 'labeled'
 }
 
 export function Form1<StateType>(props: Form1Props<StateType>) {
-    const { value, name, onChange, className } = props
+    const { value, name, onChange, className, fieldLayout = 'default' } = props
 
     const handleParameterChange = React.useCallback((paramName: string, newParamValue: any) => {
 
@@ -47,8 +49,13 @@ export function Form1<StateType>(props: Form1Props<StateType>) {
     })()
 
     return (
-        <div className={cn(styles.form1, className)}>
-            {config.map(({ name, type, Component, props, propsByState, visibility }) => {
+        <div className={cn(
+            styles.form1,
+            fieldLayout === 'default' && !className && styles.form1Column,
+            fieldLayout === 'labeled' && styles.labeledGridForm,
+            className,
+        )}>
+            {config.map(({ name, type, Component, props, propsByState, visibility, label, column }) => {
                 return (
                     <ParameterComponent<StateType>
                         key={name}
@@ -61,6 +68,9 @@ export function Form1<StateType>(props: Form1Props<StateType>) {
                         propsByState={propsByState}
                         onChange={handleParameterChange}
                         onFieldsChange={handleFieldsChange}
+                        label={label}
+                        column={column}
+                        fieldLayout={fieldLayout}
                     />
                 )
             })}
@@ -98,6 +108,9 @@ export interface ParameterComponentProps<StateType> {
     state: StateType
     onChange: (name: string, value: any) => void
     onFieldsChange?: (fields: Record<string, unknown>) => void
+    label?: string
+    column?: 'half' | 'full'
+    fieldLayout?: 'default' | 'labeled'
 }
 
 export function ParameterComponent<StateType>(props: ParameterComponentProps<StateType>) {
@@ -111,6 +124,9 @@ export function ParameterComponent<StateType>(props: ParameterComponentProps<Sta
         propsByState,
         visibility,
         onFieldsChange,
+        label,
+        column = 'half',
+        fieldLayout = 'default',
     } = props
 
     const Component = _Component || (type ? inputComponentsByParameterType[type] : undefined)
@@ -121,16 +137,42 @@ export function ParameterComponent<StateType>(props: ParameterComponentProps<Sta
         ...(propsByState?.(state) || {}),
     }), [inputProps, propsByState, state])
 
+    if (!isVisible || !Component) {
+        return null
+    }
+
+    const control = (
+        <Component
+            value={state?.[name]}
+            props={_inputProps}
+            name={name}
+            onChange={onChange}
+            formState={state}
+            onFieldsChange={onFieldsChange}
+        />
+    )
+
+    if (fieldLayout !== 'labeled' || !label) {
+        return control
+    }
+
     return (
-        (isVisible && Component) ?
-            <Component
-                value={state?.[name]}
-                props={_inputProps}
-                name={name}
-                onChange={onChange}
-                formState={state}
-                onFieldsChange={onFieldsChange}
-            /> : null
+        <div
+            className={cn(
+                styles.labeledField,
+                column === 'full' && styles.labeledFieldFull,
+            )}
+        >
+            <span
+                className={styles.fieldLabel}
+                title={_inputProps?.title ?? name}
+            >
+                {label}
+            </span>
+            <div className={styles.fieldControl}>
+                {control}
+            </div>
+        </div>
     )
 }
 
@@ -176,7 +218,8 @@ export const inputComponentsByParameterType: {
                 resetOnBlur={props?.resetOnBlur ?? false}
                 value={value}
                 onChange={handleChange}
-                title={props.placeholder}
+                title={props?.title ?? props?.placeholder}
+                className={cn(styles.fieldInput, props?.className)}
                 {...props}
             />
         )
@@ -197,7 +240,7 @@ export const inputComponentsByParameterType: {
                 changeOnEnter
                 changeOnBlur
                 resetOnBlur
-                className={props?.className}
+                className={cn(styles.fieldInput, props?.className)}
             />
         )
     },
@@ -219,6 +262,7 @@ export const inputComponentsByParameterType: {
                 max={props?.max}
                 step={props?.step}
                 direction={props?.direction}
+                dragPixelsPerStep={props?.dragPixelsPerStep}
                 pointerLock={props?.pointerLock ?? true}
                 placeholder={props?.placeholder}
                 title={props?.title || props?.placeholder}
@@ -227,8 +271,8 @@ export const inputComponentsByParameterType: {
                 changeOnChange={props?.changeOnChange ?? true}
                 changeOnEnter={props?.changeOnEnter ?? true}
                 resetOnBlur={props?.resetOnBlur ?? false}
-                className={props?.className}
-                dragClassName={cn(styles.form1field, styles.cursorPointer, props?.dragClassName)}
+                className={cn(styles.fieldInput, props?.className)}
+                dragClassName={cn(styles.form1field, styles.cursorPointer, styles.fieldInput, props?.dragClassName)}
             />
         )
     },
@@ -326,7 +370,7 @@ export const inputComponentsByParameterType: {
 
         return (
             <select
-                className={props?.className}
+                className={cn(styles.fieldInput, props?.className)}
                 value={value}
                 onChange={handleChange}
                 title={props?.title}

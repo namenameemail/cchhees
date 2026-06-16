@@ -1,7 +1,18 @@
+import { createChannelDebugLog } from '@/channelDebugLog'
+
+const log = createChannelDebugLog({
+    channel: 'collab',
+    consolePrefix: '[collab] ',
+    profileDebugKey: 'collab',
+})
+
 export function collabLog(...args: unknown[]) {
-    if (import.meta.env.DEV) {
-        console.log('[collab]', ...args)
+    if (!log.enabled()) {
+        return
     }
+
+    const text = args.map(arg => (typeof arg === 'string' ? arg : JSON.stringify(arg))).join(' ')
+    log.append(text, undefined, { logToConsole: true })
 }
 
 export function collabWarn(...args: unknown[]) {

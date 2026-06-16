@@ -4,12 +4,15 @@
     align-items: flex-start;
 
     min-width: 256px;
-    border-top: 1px solid black;
+    border-top: 1px solid gray;
     margin: 0;
 }
 
 .array .item {
-    border: 1px solid black;
+    border-top: 1px solid gray;
+    border-bottom: 1px solid gray;
+    border-left: none;
+    border-right: none;
     position: relative;
 }
 
@@ -73,7 +76,10 @@
 }
 
 .paramsByTypeForm > * {
+    flex: 0 0 50%;
     width: 50%;
+    max-width: 50%;
+    min-width: 0;
     box-sizing: border-box;
 }
 
@@ -86,17 +92,22 @@
 }
 
 .paramsByTypeItemForm > * {
+    flex: 0 0 50%;
     width: 50%;
+    max-width: 50%;
+    min-width: 0;
     box-sizing: border-box;
 }
 
 .cellConditionsForm {
+    flex: 0 0 152px;
     width: 152px;
+    min-width: 152px;
+    max-width: 152px;
     display: flex;
     flex-direction: column;
-
     align-items: flex-end;
-
+    box-sizing: border-box;
     position: relative;
     z-index: 1;
     background: lightgrey;
@@ -172,7 +183,10 @@
     padding: 4px;
 }
 .connectionParamsForm > * {
+    flex: 0 0 50%;
     width: 50%;
+    max-width: 50%;
+    min-width: 0;
     box-sizing: border-box;
 }
 

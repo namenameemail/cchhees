@@ -1,26 +1,16 @@
-import { profiler, profileDebug, isProfilerPanelChannel } from '../profiler'
+import { createChannelDebugLog } from '../channelDebugLog'
 import { CollabOp } from './ops'
 import { CollabSyncMessage } from './types'
 import { measureJsonBytes } from './dataChannelSend'
 
-const MAX_CONSOLE_LINES = 180
-const CONSOLE_PREFIX = '[collab] '
+const log = createChannelDebugLog({
+    channel: 'collab',
+    consolePrefix: '[collab] ',
+    maxConsoleLines: 180,
+    profileDebugKey: 'collab.xfer',
+})
 
 let sessionBanner = ''
-
-function enabled(): boolean {
-    return import.meta.env.DEV
-}
-
-function formatTime(): string {
-    return new Date().toLocaleTimeString(undefined, {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        fractionalSecondDigits: 3,
-    } as Intl.DateTimeFormatOptions)
-}
 
 function shortPeer(peerId?: string | null): string {
     if (!peerId) {
@@ -83,42 +73,13 @@ export function describeCollabMessage(message: CollabSyncMessage): string {
     }
 }
 
-function trimConsoleLines(): void {
-    const lines = profiler.getPanelLines('console')
-    const collabLines = lines.filter(line => line.startsWith(CONSOLE_PREFIX))
-
-    if (collabLines.length <= MAX_CONSOLE_LINES) {
-        return
-    }
-
-    const otherLines = lines.filter(line => !line.startsWith(CONSOLE_PREFIX))
-    const trimmed = collabLines.slice(-MAX_CONSOLE_LINES)
-    profiler.setPanelText('console', [...otherLines, ...trimmed].join('\n'))
-}
-
 function appendLine(text: string, meta?: Record<string, unknown>): void {
-    if (!enabled()) {
-        return
-    }
-
-    const line = `${CONSOLE_PREFIX}${formatTime()}  ${text}`
-
-    if (isProfilerPanelChannel('collab')) {
-        profiler.appendPanelText('console', line)
-        trimConsoleLines()
-    }
-
-    profileDebug('collab.xfer', text.slice(0, 120), meta)
-
-    if (profiler.isRecording) {
-        profiler.log(`collab.xfer ${text}`, meta)
-        profiler.flushLatest('collab')
-    }
+    log.append(text, meta)
 }
 
 export const collabXferLog = {
     reset(role?: string | null): void {
-        if (!enabled()) {
+        if (!log.enabled()) {
             return
         }
 

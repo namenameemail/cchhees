@@ -18,9 +18,11 @@ import styles from '../styles.module.css'
 
 export interface BoardExportButtonProps {
     boardRef: RefObject<SVGSVGElement | null>
+    iconMode?: boolean
+    className?: string
 }
 
-export const BoardExportButton: FC<BoardExportButtonProps> = ({ boardRef }) => {
+export const BoardExportButton: FC<BoardExportButtonProps> = ({ boardRef, iconMode, className }) => {
     const { currentProject } = useProjectContext()
     const { state } = useGameContext()
     const { getAssetById, getAssetUrl } = useAssetsContext()
@@ -84,11 +86,12 @@ export const BoardExportButton: FC<BoardExportButtonProps> = ({ boardRef }) => {
         <>
             <button
                 type="button"
-                className={styles.boardExportButton}
+                className={className ?? styles.boardExportButton}
                 onClick={() => void handleExport()}
                 disabled={isExporting}
+                title={isExporting ? 'экспорт...' : 'export png'}
             >
-                {isExporting ? 'export...' : 'export png'}
+                {iconMode ? '⬇' : (isExporting ? 'export...' : 'export png')}
             </button>
 
             <ConfirmModal

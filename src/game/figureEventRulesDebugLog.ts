@@ -1,10 +1,18 @@
-import { profiler, profileDebug, isProfilerPanelChannel } from '../profiler'
+import { createChannelDebugLog, isDebugEnabled } from '../channelDebugLog'
+import { isProfilerPanelChannel, profiler, profileDebug } from '../profiler'
 import { FigureEventRule, GameAction } from './types/events'
 import { FigureId } from './types/figures'
 
 const MAX_EVENTS = 80
 const MAX_CONSOLE_LINES = 120
 const CONSOLE_PREFIX = '[events] '
+
+const channelLog = createChannelDebugLog({
+    channel: 'events',
+    consolePrefix: CONSOLE_PREFIX,
+    maxConsoleLines: MAX_CONSOLE_LINES,
+    profileDebugMaxChars: 160,
+})
 
 export type FigureEventRulesDebugEvent = {
     at: number
@@ -22,22 +30,6 @@ const events: FigureEventRulesDebugEvent[] = []
 if (typeof window !== 'undefined') {
     (window as Window & { __FIGURE_EVENT_RULES_DEBUG__?: FigureEventRulesDebugEvent[] })
         .__FIGURE_EVENT_RULES_DEBUG__ = []
-}
-
-function enabled(): boolean {
-    return import.meta.env.DEV
-}
-
-function trimConsoleLines(): void {
-    const lines = profiler.getPanelLines('console')
-    const eventLines = lines.filter(line => line.startsWith(CONSOLE_PREFIX))
-
-    if (eventLines.length <= MAX_CONSOLE_LINES) {
-        return
-    }
-
-    const otherLines = lines.filter(line => !line.startsWith(CONSOLE_PREFIX))
-    profiler.setPanelText('console', [...otherLines, ...eventLines.slice(-MAX_CONSOLE_LINES)].join('\n'))
 }
 
 function summarizeRule(rule: FigureEventRule | undefined) {
@@ -60,7 +52,7 @@ function summarizeRules(rules: FigureEventRule[] | undefined) {
 }
 
 function pushEvent(event: Omit<FigureEventRulesDebugEvent, 'at'>) {
-    if (!enabled()) {
+    if (!isDebugEnabled()) {
         return
     }
 
@@ -91,7 +83,7 @@ function pushEvent(event: Omit<FigureEventRulesDebugEvent, 'at'>) {
 
     if (isProfilerPanelChannel('events')) {
         profiler.appendPanelText('console', line)
-        trimConsoleLines()
+        channelLog.trimConsoleLines()
     }
 
     profileDebug('events', event.action.slice(0, 160), {

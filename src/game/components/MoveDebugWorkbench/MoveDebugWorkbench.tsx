@@ -6,9 +6,12 @@ import { applyFigureMove } from '../../events/applyFigureMove'
 import { getTopOfStack } from '../../figureStack'
 import { computeFigureMoveSteps } from '../../figureAnimation/figureStepRecorder'
 import {
+    createAnimationCompletionWaiter,
+    playFigureStepSequence,
+} from '../../figureAnimation/playFigureStepSequence'
+import {
     createEmptyFigureBoardAnimationState,
     FigureBoardAnimationState,
-    playStepAnimation,
 } from '../../figureAnimation/playStepAnimation'
 import {
     isInstantFigureAnimation,
@@ -164,34 +167,21 @@ export const MoveDebugWorkbench: FC = () => {
         setPhase('playMove')
     }, [phase, beforeSlice, appendSessionLog])
 
-    const waitForAnimationCompletion = useCallback((durationMs: number) => {
-        return new Promise<void>(resolve => {
-            window.setTimeout(resolve, durationMs + 16)
-        })
-    }, [])
+    const waitForAnimationCompletion = useCallback(createAnimationCompletionWaiter(), [])
 
     const playLocalFigureStepSequence = useCallback(async (
         steps: FiguresSlice[],
     ) => {
-        const settings = resolveFigureAnimationSettings(boardParameters)
-
         setIsAnimating(true)
         setDisplayFiguresSlice(steps[0])
 
         try {
-            for (let i = 1; i < steps.length; i += 1) {
-                await playStepAnimation(
-                    steps[i - 1],
-                    steps[i],
-                    boardParameters,
-                    settings,
-                    setFigureBoardAnimations,
-                    waitForAnimationCompletion,
-                )
-                setDisplayFiguresSlice(steps[i])
-            }
+            await playFigureStepSequence(steps, boardParameters, {
+                onStepDisplay: setDisplayFiguresSlice,
+                onAnimationsChange: setFigureBoardAnimations,
+                waitForAnimationCompletion,
+            })
         } finally {
-            setFigureBoardAnimations(createEmptyFigureBoardAnimationState())
             setDisplayFiguresSlice(undefined)
             setIsAnimating(false)
         }

@@ -1,0 +1,36 @@
+.itemHoldDeleting {
+    position: relative;
+    overflow: hidden;
+}
+
+.itemHoldDeleting::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    top: auto;
+    width: 100%;
+    height: 0;
+    background: rgba(204, 68, 68, 0.28);
+    animation: formItemDeleteProgress 1s linear forwards;
+    pointer-events: none;
+    z-index: 10;
+}
+
+@keyframes formItemDeleteProgress {
+    from {
+        height: 0;
+    }
+
+    to {
+        height: 100%;
+    }
+}
+
+.deleteButton {
+    cursor: pointer;
+}
+
+.itemHoldDeleting .deleteButton {
+    border-color: #c44;
+    color: #c44;
+}

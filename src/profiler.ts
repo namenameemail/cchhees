@@ -25,7 +25,7 @@ export function getProfilerPanelChannel(): ProfilerPanelChannel {
 }
 
 export function isProfilerPanelChannel(channel: ProfilerPanelChannel): boolean {
-    if (!import.meta.env.DEV) {
+    if (!import.meta.env?.DEV) {
         return false
     }
 
@@ -37,7 +37,7 @@ export function isProfilerPanelChannel(channel: ProfilerPanelChannel): boolean {
 }
 
 export const profiler = createProfiler({
-    isDev: import.meta.env.DEV,
-    captureConsole: import.meta.env.DEV,
+    isDev: import.meta.env?.DEV ?? false,
+    captureConsole: import.meta.env?.DEV ?? false,
 })
 export const profileDebug = createProfileDebug(profiler)

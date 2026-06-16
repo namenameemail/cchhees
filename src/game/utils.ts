@@ -1,3 +1,4 @@
+import { createInitialFiguresSliceFromState } from './state/slices'
 import { historyInit } from './context/history'
 import { GameContextValue } from './context/types'
 import { Cell, CellShape } from './types/cells'
@@ -66,8 +67,11 @@ const mockFn = () => {
 export const defaultGameContextValue: GameContextValue = {
     mode: Mode.Game,
     state: initialGameState,
+    figuresSlice: createInitialFiguresSliceFromState(initialGameState),
     figuresHistory: historyInit(),
     boardHistory: historyInit(),
+    figureCatalog: initialGameState.figureCatalog,
+    catalogHistory: historyInit(),
     cellParametersBrushState: {
         paramsByShape: {
             [CellShape.img]: getDefaultSvgCellParams(),

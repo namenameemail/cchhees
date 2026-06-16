@@ -1,4 +1,4 @@
-import { CellCoord, coordKey } from '../types/coords'
+import { CellCoord, coordKey, parseCoordKey } from '../types/coords'
 import {
     FigureEventAreaCell,
     FigureEventParamsAreaEnteredBy,
@@ -19,7 +19,7 @@ import {
 } from '../figureView'
 import { hasFigureAreaCell } from '../figureAreaCells'
 import { matchesFigureFilterList } from '../figureFilter'
-import { getStackPlacementsByFilter, matchesStackPosition } from '../figureStack'
+import { getStackPlacementsByFilter, iterBoardPlacements, matchesStackPosition } from '../figureStack'
 import { MoveEventContext, TriggeredFigureEvent } from './types'
 
 type BoardStacks = Record<string, FigurePlacement[]>
@@ -61,11 +61,6 @@ function isInsideFigureArea(
     return hasFigureAreaCell(cells, dx, dy)
 }
 
-function parseCoordKey(key: string): CellCoord {
-    const [i, j] = key.split(',').map(Number)
-    return { i, j }
-}
-
 function normalizeBoardStacks(
     board?: Record<string, FigurePlacement | FigurePlacement[]>,
 ): BoardStacks {
@@ -80,22 +75,6 @@ function normalizeBoardStacks(
     }
 
     return normalized
-}
-
-function iterBoardPlacements(
-    board: BoardStacks,
-): Array<{ coord: CellCoord; placement: FigurePlacement }> {
-    const items: Array<{ coord: CellCoord; placement: FigurePlacement }> = []
-
-    for (const [key, stack] of Object.entries(board)) {
-        const coord = parseCoordKey(key)
-
-        for (const placement of stack) {
-            items.push({ coord, placement })
-        }
-    }
-
-    return items
 }
 
 function resolvePlacementCoordBefore(

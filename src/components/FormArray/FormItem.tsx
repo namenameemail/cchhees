@@ -1,6 +1,10 @@
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import cn from 'classnames'
 import { Form1 } from '../Form1'
 import { Form1FieldConfig } from '../Form1/types'
+import styles from './FormItem.module.css'
+
+const DELETE_HOLD_MS = 1000
 
 export interface FormItemProps<ItemState> {
     className?: string
@@ -30,16 +34,41 @@ export function FormItem<ItemState>(props: FormItemProps<ItemState>) {
         onChange(value, index)
     }, [index, onChange])
 
-    const handleRemove = useCallback(() => {
-        onRemove(index)
-    }, [index, onRemove])
-
     const handleUp = useCallback(() => {
         onUp(index)
     }, [index, onUp])
     const handleDown = useCallback(() => {
         onDown(index)
     }, [index, onDown])
+
+    const [isHoldingDelete, setIsHoldingDelete] = useState(false)
+    const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    const clearHoldDelete = useCallback(() => {
+        if (holdTimerRef.current) {
+            clearTimeout(holdTimerRef.current)
+            holdTimerRef.current = null
+        }
+        setIsHoldingDelete(false)
+    }, [])
+
+    const handleDeletePointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+        event.preventDefault()
+        event.stopPropagation()
+        event.currentTarget.setPointerCapture(event.pointerId)
+        setIsHoldingDelete(true)
+        holdTimerRef.current = setTimeout(() => {
+            holdTimerRef.current = null
+            setIsHoldingDelete(false)
+            onRemove(index)
+        }, DELETE_HOLD_MS)
+    }, [index, onRemove])
+
+    const handleDeletePointerEnd = useCallback(() => {
+        clearHoldDelete()
+    }, [clearHoldDelete])
+
+    useEffect(() => () => clearHoldDelete(), [clearHoldDelete])
 
     const itemConfig = (() => {
         if (typeof props.config === 'function') {
@@ -52,7 +81,7 @@ export function FormItem<ItemState>(props: FormItemProps<ItemState>) {
 
     return (
         <div
-            className={className}
+            className={cn(className, isHoldingDelete && styles.itemHoldDeleting)}
             onMouseEnter={onMouseEnter}
             onMouseLeave={onMouseLeave}
         >
@@ -64,7 +93,18 @@ export function FormItem<ItemState>(props: FormItemProps<ItemState>) {
                 className={itemFormClassName}
             />
             <div>
-                <button onClick={handleRemove}>x</button>
+                <button
+                    type="button"
+                    className={styles.deleteButton}
+                    title="Удерживайте для удаления"
+                    aria-label="Удалить"
+                    onPointerDown={handleDeletePointerDown}
+                    onPointerUp={handleDeletePointerEnd}
+                    onPointerCancel={handleDeletePointerEnd}
+                    onLostPointerCapture={handleDeletePointerEnd}
+                >
+                    x
+                </button>
                 {isUpDownEnabled && (<>
                     <button onClick={handleUp}>↑</button>
                     <button onClick={handleDown}>↓</button>

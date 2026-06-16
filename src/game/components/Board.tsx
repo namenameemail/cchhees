@@ -14,6 +14,7 @@ import {
 import { isCellStyleRule, isConnectionStyleRule } from '../types/styleRules'
 import { Mode } from '../types'
 import { resolveFigureDefinition } from '../figureView'
+import { getCellStack } from '../figureStack'
 import { getLegalMoveDestinations } from '../moveRules'
 import { resolveBoardMarks } from '../boardMarks'
 import {
@@ -44,7 +45,7 @@ export interface BoardProps {
 
 export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ className }, ref) {
 
-    const { state, mode, activeCell, figureCatalog, previewCellStyleRuleIndex, figureBoardAnimations } = useGameContext()
+    const { state, figuresSlice, mode, activeCell, figureCatalog, previewCellStyleRuleIndex, figureBoardAnimations } = useGameContext()
     const selectionGradientId = useId().replace(/:/g, '')
     const selectionOverlayGradientId = useId().replace(/:/g, '')
     const legalMoveGradientId = useId().replace(/:/g, '')
@@ -171,11 +172,7 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
 
         const cellIndex = coordToIndex(activeCell, n)
         const cell = state.cells[cellIndex]
-        const stack = cell?.figures?.length
-            ? cell.figures
-            : cell?.figure
-                ? [cell.figure]
-                : []
+        const stack = getCellStack(cell)
         const placement = stack[stack.length - 1]
 
         if (!placement) {
@@ -184,29 +181,16 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
 
         const definition = resolveFigureDefinition(placement.figureId, figureCatalog ?? state.figureCatalog)
 
-        const figuresByCoord: FiguresSlice['figuresByCoord'] = {}
-        for (const [index, boardCell] of state.cells.entries()) {
-            const boardStack = boardCell.figures?.length
-                ? boardCell.figures
-                : boardCell.figure
-                    ? [boardCell.figure]
-                    : []
-
-            if (boardStack.length > 0) {
-                figuresByCoord[coordKey(indexToCoord(index, n))] = boardStack
-            }
-        }
-
         return new Set(
             getLegalMoveDestinations(
                 activeCell,
                 definition,
-                figuresByCoord,
+                figuresSlice.figuresByCoord,
                 state.boardParameters,
                 placement,
             ).map(coordKey),
         )
-    }, [mode, activeCell, state.cells, state.tray, state.boardParameters, n, figureCatalog, state.figureCatalog])
+    }, [mode, activeCell, figuresSlice.figuresByCoord, state.boardParameters, n, figureCatalog, state.figureCatalog])
 
     const numberingClipRadius = useMemo(
         () => getAxisNumberingFrameClipRadius(boardParameters),

@@ -9,7 +9,6 @@ export interface MoveEventContext {
     to: CellCoord
     actorPlacement: FigurePlacement
     targetAtTo?: FigurePlacement
-    capturedPlacement?: FigurePlacement
     swappedTargetCoord?: CellCoord
     boardParameters: BoardParameters
     catalog: FigureCatalog

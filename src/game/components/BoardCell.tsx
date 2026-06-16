@@ -4,6 +4,7 @@ import { Cell } from '../types/cells'
 import { Mode } from '../types'
 import { FigureSVGGroup } from './FigureSVGGroup'
 import { CellCoord, coordsEqual, coordToIndex } from '../types/coords'
+import { getCellStack } from '../figureStack'
 import { selectionDebugLog } from '../selectionDebugLog'
 import { ResolvedBoardMarks } from '../boardMarks'
 import { BoardMarkGradientIds, renderBoardMark } from './boardMarkRender'
@@ -59,14 +60,7 @@ export const BoardCell: FC<CellProps> = (props) => {
     const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const suppressClickRef = useRef(false)
 
-    const stack = useMemo(
-        () => cell.figures?.length
-            ? cell.figures
-            : cell.figure
-                ? [cell.figure]
-                : [],
-        [cell.figure, cell.figures],
-    )
+    const stack = useMemo(() => getCellStack(cell), [cell])
 
     const topFigure = stack[stack.length - 1]
     const canHoldDelete = mode === Mode.FiguresArrange && Boolean(topFigure)

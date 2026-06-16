@@ -1,11 +1,18 @@
-import { profiler, profileDebug, isProfilerPanelChannel } from '../profiler'
+import { createChannelDebugLog, formatDebugCoord, isDebugEnabled } from '../channelDebugLog'
+import { isProfilerPanelChannel, profiler, profileDebug } from '../profiler'
 import { CellCoord } from './types/coords'
 import { GameAction } from './types/events'
-import { FigureId } from './types/figures'
 
 const MAX_EVENTS = 120
 const MAX_CONSOLE_LINES = 160
 const CONSOLE_PREFIX = '[actions] '
+
+const channelLog = createChannelDebugLog({
+    channel: 'actions',
+    consolePrefix: CONSOLE_PREFIX,
+    maxConsoleLines: MAX_CONSOLE_LINES,
+    profileDebugMaxChars: 160,
+})
 
 export type FigureActionsDebugEvent = {
     at: number
@@ -25,18 +32,6 @@ if (typeof window !== 'undefined') {
         .__FIGURE_ACTIONS_DEBUG__ = []
 }
 
-function enabled(): boolean {
-    return import.meta.env.DEV
-}
-
-function formatCoord(coord: CellCoord | undefined): string {
-    if (!coord) {
-        return '—'
-    }
-
-    return `(${coord.i},${coord.j})`
-}
-
 function formatGameAction(action: GameAction | undefined): string {
     if (!action) {
         return '—'
@@ -45,20 +40,8 @@ function formatGameAction(action: GameAction | undefined): string {
     return `${action.type} ${JSON.stringify(action.params ?? {})}`
 }
 
-function trimConsoleLines(): void {
-    const lines = profiler.getPanelLines('console')
-    const actionLines = lines.filter(line => line.startsWith(CONSOLE_PREFIX))
-
-    if (actionLines.length <= MAX_CONSOLE_LINES) {
-        return
-    }
-
-    const otherLines = lines.filter(line => !line.startsWith(CONSOLE_PREFIX))
-    profiler.setPanelText('console', [...otherLines, ...actionLines.slice(-MAX_CONSOLE_LINES)].join('\n'))
-}
-
 function pushEvent(event: Omit<FigureActionsDebugEvent, 'at'>) {
-    if (!enabled()) {
+    if (!isDebugEnabled()) {
         return
     }
 
@@ -91,7 +74,7 @@ function pushEvent(event: Omit<FigureActionsDebugEvent, 'at'>) {
 
     if (isProfilerPanelChannel('actions')) {
         profiler.appendPanelText('console', line)
-        trimConsoleLines()
+        channelLog.trimConsoleLines()
     }
 
     profileDebug('actions', event.action.slice(0, 160), {
@@ -155,7 +138,7 @@ export function logFigureDisplaceDebug(input: {
     reason?: string
     detail?: Record<string, unknown>
 }) {
-    const toPart = input.to ? formatCoord(input.to) : 'off-board'
+    const toPart = input.to ? formatDebugCoord(input.to) : 'off-board'
 
     logFigureActionDebug('displace', {
         context: input.context,

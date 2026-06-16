@@ -1,0 +1,19 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "noImplicitAny": true
+    },
+    "include": [
+        "src/vite-env.d.ts",
+        "src/game/events/**/*.ts",
+        "src/game/state/**/*.ts",
+        "src/game/figureStack.ts",
+        "src/channelDebugLog.ts",
+        "src/game/context/types.ts",
+        "src/game/context/useFigureMove.ts",
+        "src/game/context/useSliceMutations.ts",
+        "src/game/context/useGameCollabSync.ts",
+        "src/game/context/useGameAnimation.ts",
+        "src/game/context/remotePersist.ts"
+    ]
+}

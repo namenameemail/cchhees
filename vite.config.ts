@@ -4,8 +4,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { profilingSavePlugin, viteDevProfilerSourceAliases } from 'vite-dev-profiler/vite'
 
+const projectRoot = path.dirname(fileURLToPath(import.meta.url))
+const srcRoot = path.resolve(projectRoot, 'src')
+
 const profilerRoot = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
+    projectRoot,
     'node_modules/vite-dev-profiler',
 )
 
@@ -21,9 +24,14 @@ export default defineConfig(({ command }) => {
             react(),
             ...(dev ? [profilingSavePlugin()] : []),
         ],
-        resolve: dev && profilerSourceMode
-            ? { alias: viteDevProfilerSourceAliases(profilerRoot) }
-            : undefined,
+        resolve: {
+            alias: {
+                '@': srcRoot,
+                ...(dev && profilerSourceMode
+                    ? viteDevProfilerSourceAliases(profilerRoot)
+                    : {}),
+            },
+        },
         server: dev && profilerSourceMode
             ? {
                 watch: {

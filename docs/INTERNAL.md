@@ -4,162 +4,90 @@
 
 ## Что это
 
-**cchhees** — SPA на React 18 + TypeScript + Vite. Конфигурируемая SVG-доска с фигурами (шахматы и шашки в виде Unicode-символов), свободным перемещением, лотком снятых фигур, undo/redo и декларативными правилами стилизации клеток и связей.
+**cchhees** — SPA на React 18 + TypeScript + Vite. Конфигурируемая SVG-доска с фигурами, стеками фигур на клетках, move rules, event rules (spawn, displace, set state), undo/redo по slice, IndexedDB-проектами и WebRTC-коллаборацией.
 
-**Важно:** это **не** шахматный/шашечный движок. Нет ходов по правилам, нет очереди хода, мата, рокировки и т.п. Redux в `package.json` объявлен, но **не используется** — состояние через React Context.
+Состояние игры — **React Context** (не Redux). Slice-based модель: `FiguresSlice`, `BoardSlice`, `FigureCatalog` с независимой историей.
 
 ## Запуск
 
 ```bash
 npm install
-npm run dev      # dev-сервер Vite
-npm run build    # tsc && vite build
-npm run preview  # превью production-сборки
+./run              # signaling + Vite (или npm run dev)
+npm run typecheck
+npm run typecheck:strict-game   # noImplicitAny для game/events, state, figureStack
+npm run test
+npm run lint
+npm run verify:displacement
+npm run build
 ```
 
-## Структура
+Path aliases: `@/` → `src/` (например `@/game/figureStack`).
+
+## Структура (основное)
 
 ```
 src/
-├── main.tsx              # точка входа React
-├── App.tsx               # рендер <Game /> (остался boilerplate Vite)
-├── components/
-│   ├── Form1/            # декларативная форма по конфигу полей
-│   ├── FormArray/        # массив элементов с add/remove
-│   └── inputs/           # BlurEnter* (дубликат bbuutoonnss)
+├── main.tsx, App.tsx
+├── channelDebugLog.ts     # фабрика debug-логов для vite-dev-profiler
+├── projects/              # IndexedDB, ProjectProvider
+├── collab/                # WebRTC, CollabProvider, ops
+├── components/            # Form1, FormArray, shared UI
 └── game/
-    ├── index.tsx         # layout: Board + sidebar + tabs
-    ├── utils.ts          # indexToIJ, getCells, initialGameState
-    ├── constants.ts      # Unicode-символы фигур
-    ├── types/            # GameState, Cell, FigureTypes, Mode, conditions...
-    ├── context/
-    │   ├── index.tsx     # GameProvider — единый источник состояния
-    │   ├── history.ts    # undo/redo (до 100 снимков)
-    │   ├── conditions.ts # предикаты для клеток
-    │   └── connections.ts# граф соседей + предикаты для рёбер
-    └── components/       # Board, BoardCell, Tray, History, формы...
+    ├── context/           # GameProvider + hooks (animation, collab, slices, move)
+    ├── events/            # applyFigureMove, match, execute, steppedOnQueue
+    ├── state/             # slices, reconcile, migrate
+    ├── figureStack.ts     # API стеков на клетках
+    ├── moveRules.ts       # валидация ходов игрока
+    ├── moveDebug/         # Move Debug Workbench
+    └── components/        # Board, BoardCell, forms...
 ```
+
+Актуальная диаграмма: [docs/architecture.puml](architecture.puml).
 
 ## Модель данных
 
-### GameState
+### Slices (авторитетное состояние)
 
-| Поле | Тип | Назначение |
-|------|-----|------------|
-| `boardParameters` | `BoardParameters` | n×m, размеры клеток, отступы, `swapOnEat` |
-| `cells` | `Cell[]` | плоский массив длины n×m |
-| `tray` | `FigureTypes[]` | снятые фигуры (в начало массива) |
-| `boardConditions` | `BoardConditionItem[]` | правила → стиль клетки |
-| `connectionsConditions` | `BoardConnectionsConditionItem[]` | правила → стиль ребра |
+| Slice | Содержимое |
+|-------|------------|
+| `FiguresSlice` | `figuresByCoord` (стеки), `tray` |
+| `BoardSlice` | `boardParameters`, `styleRules`, `cellParametersByCoord` |
+| `FigureCatalog` | определения фигур, states, move/event rules |
 
-### Cell
+`composeGameState()` собирает legacy `GameState` для UI. Контекст экспортирует `figuresSlice` (с overlay при анимации) и `state`.
+
+### Cell (composed view)
 
 ```ts
-{ figure?: FigureTypes, parameters?: CellParameters }
+{ figures?: FigurePlacement[], figure?: FigurePlacement /* deprecated mirror */ }
 ```
 
-Индекс ↔ координаты: `i = index % n`, `j = floor(index / n)`.
+Используйте `getCellStack(cell)` из `figureStack.ts` для чтения стека.
 
 ### Режимы (Mode)
 
-| Mode | Поведение клика по клетке |
-|------|---------------------------|
-| `Game` | 1-й клик — выбор; 2-й — перемещение |
-| `FiguresArrange` | поставить `activeFigure` |
-| `PaintTheBoard` | записать `cellParametersBrushState` в `cell.parameters` |
-| `PaintTheBoardConnections` | enum есть, UI кисти не подключён |
-| `Probe` | enum есть, не реализован |
+| Mode | Поведение |
+|------|-----------|
+| `Game` | выбор клетки + ход по move rules |
+| `FiguresArrange` | расстановка фигур |
+| `PaintTheBoard` | кисть параметров клетки |
 
-## Потоки данных
-
-### Перемещение (Mode.Game)
+## Движок ходов
 
 ```
-BoardCell click → setActiveCell(index)
-BoardCell click → moveActiveCellFigureTo(to)
-  → setGameStateWithHistory → historyPush → re-render
+applyFigureMove → steppedOnQueue → runFigureEvents → match → execute (actions/)
 ```
 
-При захвате: фигура с `to` → `tray` (или swap, если `swapOnEat: true`).
+Move Debug Workbench в DEV воспроизводит pipeline и сравнивает expected/actual board.
 
-### Расстановка фигур
+## Tooling
 
-```
-FigureButton → setMode(FiguresArrange) + setActiveFigure
-BoardCell click → setCellFigure → replace/setFigure
-```
-
-### Стилизация клеток
-
-```
-Conditions (FormArray) → setBoardConditions
-BoardCell useMemo → getConditionFunctionByType → CellSVGGroup
-```
-
-`cell.parameters` (paint mode) **не** участвует в отрисовке — только `boardConditions`.
-
-### Связи между клетками
-
-```
-getConnections(n,m) → 8 направлений + self-offsets
-ConnectionsConditions → getConnectionConditionFunctionByType
-Board → ConnectionSVGGroup (линии между центрами)
-```
-
-Связи **не ограничивают** перемещение фигур.
-
-### Undo / Redo
-
-Полные снимки `GameState` в стеках `before[]` / `after[]` (max 100).  
-Изменение `n`/`m` через `useEffect` **без** history.
-
-## UI layout
-
-```
-Game
-└── GameProvider
-    ├── .board
-    │   ├── Board (SVG: connections + BoardCell×N)
-    │   └── .bottom: Tray + History
-    └── .left (tabs)
-        ├── tab "board": BoardParametersForm, Conditions, ConnectionsConditions
-        └── tab "figures": Figures (FigureButton × FigureTypes)
-```
-
-**Не подключены к layout:** `CellParametersForm`, `ConnectionParametersForm` (импортированы, но не рендерятся).
+- **Vitest** — `src/**/*.test.ts` (figureStack, moveRules, applyFigureMove, compareFigureBoards)
+- **ESLint + Prettier** — `npm run lint`, `npm run format`
+- **vite-dev-profiler** — каналы debug (`moves`, `events`, `actions`, `collab`, …)
 
 ## Зависимости
 
-| Пакет | Статус |
-|-------|--------|
-| react, react-dom | используется |
-| classnames | используется |
-| redux, @reduxjs/toolkit, react-redux, redux-thunk, redux-logger, redux-undo | **не используется** |
-| bbuutoonnss (локальный) | Form1 тянет инпуты оттуда |
+Локальные пакеты: `bbuutoonnss`, `vite-dev-profiler` (`file:../…`).
 
-## Технический долг
-
-1. Redux — мёртвые зависимости.
-2. Нет реальных правил шахмат/шашек.
-3. Paint-режимы без UI кистей в sidebar.
-4. `cell.parameters` не влияет на рендер.
-5. Дубли ключей `anbDiagonalUp/Down` в `connections.ts`.
-6. `console.log` в Board, BoardCell, FormArray.
-7. Boilerplate в App.tsx (count, reactLogo).
-
-## Типичные задачи
-
-| Задача | Куда смотреть |
-|--------|---------------|
-| Логика хода/захвата | `context/index.tsx` → `moveActiveCellFigureTo` |
-| Клик по клетке | `components/BoardCell.tsx` |
-| Новое условие клетки | `types/conditions.ts` + `context/conditions.ts` |
-| Новое условие связи | `types/connections.ts` + `context/connections.ts` |
-| Форма параметров доски | `components/BoardParametersForm/` |
-| Undo/redo | `context/history.ts` |
-
-## Дефолты
-
-- Доска: **10×3**
-- `swapOnEat: false`
-- Пустой tray, пустые condition-массивы
+Redux удалён из зависимостей — не использовался.

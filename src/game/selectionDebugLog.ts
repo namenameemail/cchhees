@@ -1,42 +1,13 @@
-import { profiler, profileDebug, isProfilerPanelChannel } from '../profiler'
-import { CellCoord } from './types/coords'
+import { createChannelDebugLog, formatDebugCoord } from '../channelDebugLog'
+import type { CellCoord } from './types/coords'
 
-const CONSOLE_PREFIX = '[selection] '
-
-function enabled(): boolean {
-    return import.meta.env.DEV
-}
-
-function formatCoord(coord: CellCoord | undefined): string {
-    if (!coord) {
-        return '—'
-    }
-
-    return `${coord.i},${coord.j}`
-}
+const log = createChannelDebugLog({
+    channel: 'selection',
+    consolePrefix: '[selection] ',
+})
 
 function append(text: string, meta?: Record<string, unknown>): void {
-    if (!enabled()) {
-        return
-    }
-
-    const time = new Date().toLocaleTimeString(undefined, {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        fractionalSecondDigits: 3,
-    } as Intl.DateTimeFormatOptions)
-
-    if (isProfilerPanelChannel('selection')) {
-        profiler.appendPanelText('console', `${CONSOLE_PREFIX}${time}  ${text}`)
-    }
-    profileDebug('selection', text.slice(0, 120), meta)
-
-    if (profiler.isRecording) {
-        profiler.log(`selection ${text}`, meta)
-        profiler.flushLatest('selection')
-    }
+    log.append(text, meta)
 }
 
 export const selectionDebugLog = {
@@ -50,19 +21,19 @@ export const selectionDebugLog = {
 
     activeCell(next: CellCoord | undefined, reason: string, previous?: CellCoord): void {
         append(
-            `activeCell ${formatCoord(previous)} → ${formatCoord(next)} · ${reason}`,
+            `activeCell ${formatDebugCoord(previous, 'plain')} → ${formatDebugCoord(next, 'plain')} · ${reason}`,
             { previous, next, reason },
         )
     },
 
     cellClick(coord: CellCoord, mode: string, activeCell: CellCoord | undefined, hasFigure: boolean): void {
         append(
-            `cell click (${coord.i},${coord.j}) mode=${mode} active=${formatCoord(activeCell)} figure=${hasFigure}`,
+            `cell click (${coord.i},${coord.j}) mode=${mode} active=${formatDebugCoord(activeCell, 'plain')} figure=${hasFigure}`,
             { coord, mode, activeCell, hasFigure },
         )
     },
 
     cleared(reason: string, coord?: CellCoord): void {
-        append(`cleared ${formatCoord(coord)} · ${reason}`, { reason, coord })
+        append(`cleared ${formatDebugCoord(coord, 'plain')} · ${reason}`, { reason, coord })
     },
 }

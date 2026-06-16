@@ -1,4 +1,5 @@
-import { profiler, profileDebug, isProfilerPanelChannel } from '../profiler'
+import { createChannelDebugLog, formatDebugCoord, formatDebugTime, isDebugEnabled } from '../channelDebugLog'
+import { isProfilerPanelChannel, profiler, profileDebug } from '../profiler'
 import { CellCoord } from './types/coords'
 import {
     DisplaceFigureActionParams,
@@ -16,6 +17,13 @@ const MAX_CONSOLE_LINES = 200
 const MAX_MOVE_EVENTS = 200
 const CONSOLE_PREFIX = '[moves] '
 
+const channelLog = createChannelDebugLog({
+    channel: 'moves',
+    consolePrefix: CONSOLE_PREFIX,
+    maxConsoleLines: MAX_CONSOLE_LINES,
+    profileDebugMaxChars: 160,
+})
+
 let moveSeq = 0
 
 export type GameMovesDebugEvent = {
@@ -27,18 +35,6 @@ export type GameMovesDebugEvent = {
 }
 
 const moveEvents: GameMovesDebugEvent[] = []
-
-function enabled(): boolean {
-    return import.meta.env.DEV
-}
-
-function formatCoord(coord: CellCoord | undefined): string {
-    if (!coord) {
-        return '—'
-    }
-
-    return `(${coord.i},${coord.j})`
-}
 
 function formatPlacement(placement: FigurePlacement | undefined): string {
     if (!placement) {
@@ -83,33 +79,13 @@ function formatActions(actions: GameAction[]): string {
     return actions.map(formatAction).join('; ')
 }
 
-function trimConsoleLines(): void {
-    const lines = profiler.getPanelLines('console')
-    const moveLines = lines.filter(line => line.startsWith(CONSOLE_PREFIX))
-
-    if (moveLines.length <= MAX_CONSOLE_LINES) {
-        return
-    }
-
-    const otherLines = lines.filter(line => !line.startsWith(CONSOLE_PREFIX))
-    profiler.setPanelText('console', [...otherLines, ...moveLines.slice(-MAX_CONSOLE_LINES)].join('\n'))
-}
-
 function append(text: string, meta?: Record<string, unknown>, nested = false): void {
-    if (!enabled()) {
+    if (!isDebugEnabled()) {
         return
     }
-
-    const time = new Date().toLocaleTimeString(undefined, {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        fractionalSecondDigits: 3,
-    } as Intl.DateTimeFormatOptions)
 
     const prefix = nested ? `  #${moveSeq} ` : `#${moveSeq} `
-    const line = `${CONSOLE_PREFIX}${time}  ${prefix}${text}`
+    const line = `${CONSOLE_PREFIX}${formatDebugTime()}  ${prefix}${text}`
 
     moveEvents.push({
         at: Date.now(),
@@ -127,7 +103,7 @@ function append(text: string, meta?: Record<string, unknown>, nested = false): v
 
     if (isProfilerPanelChannel('moves')) {
         profiler.appendPanelText('console', line)
-        trimConsoleLines()
+        channelLog.trimConsoleLines()
     }
     profileDebug('moves', text.slice(0, 160), { moveSeq, ...meta })
 
@@ -145,7 +121,7 @@ export const gameMovesDebugLog = {
         target?: FigurePlacement
         swapOnEat: boolean
     }): void {
-        if (!enabled()) {
+        if (!isDebugEnabled()) {
             return
         }
 
@@ -157,7 +133,7 @@ export const gameMovesDebugLog = {
         const swapPart = input.swapOnEat ? ' swap' : ''
 
         append(
-            `MOVE ${formatPlacement(input.actor)} ${formatCoord(input.from)}→${formatCoord(input.to)}${targetPart}${swapPart}`,
+            `MOVE ${formatPlacement(input.actor)} ${formatDebugCoord(input.from)}→${formatDebugCoord(input.to)}${targetPart}${swapPart}`,
             {
                 kind: 'move',
                 from: input.from,
@@ -177,8 +153,8 @@ export const gameMovesDebugLog = {
         cause: 'manual' | 'displacement'
     }): void {
         append(
-            `QUEUE steppedOn stepper=${formatPlacement(input.stepper)}@${formatCoord(input.stepperCoord)} `
-            + `target=${formatPlacement(input.target)}@${formatCoord(input.targetCoord)} cause=${input.cause}`,
+            `QUEUE steppedOn stepper=${formatPlacement(input.stepper)}@${formatDebugCoord(input.stepperCoord)} `
+            + `target=${formatPlacement(input.target)}@${formatDebugCoord(input.targetCoord)} cause=${input.cause}`,
             { kind: 'queue-steppedOn', ...input },
             true,
         )
@@ -194,7 +170,7 @@ export const gameMovesDebugLog = {
             : ''
 
         append(
-            `QUEUE leaveBoard ${formatPlacement(input.placement)}@${formatCoord(input.fromCoord)}${displacePart}`,
+            `QUEUE leaveBoard ${formatPlacement(input.placement)}@${formatDebugCoord(input.fromCoord)}${displacePart}`,
             { kind: 'queue-leaveBoard', ...input },
             true,
         )
@@ -205,7 +181,7 @@ export const gameMovesDebugLog = {
         coord: CellCoord
     }): void {
         append(
-            `QUEUE place ${formatPlacement(input.placement)}@${formatCoord(input.coord)}`,
+            `QUEUE place ${formatPlacement(input.placement)}@${formatDebugCoord(input.coord)}`,
             { kind: 'queue-place', ...input },
             true,
         )
@@ -257,10 +233,10 @@ export const gameMovesDebugLog = {
         const modePart = input.wrapped ? ' wrap' : ''
         const blockedPart = input.blocked ? ' blocked→queue' : ''
         const offBoardPart = input.offBoard ? ' off-board' : ''
-        const toPart = input.offBoard ? '→off-board' : `→${formatCoord(input.to)}`
+        const toPart = input.offBoard ? '→off-board' : `→${formatDebugCoord(input.to)}`
 
         append(
-            `DISPLACE ${formatPlacement(input.placement)} ${formatCoord(input.from)}${toPart} `
+            `DISPLACE ${formatPlacement(input.placement)} ${formatDebugCoord(input.from)}${toPart} `
             + `Δ(${input.params.dx},${input.params.dy})${modePart}${blockedPart}${offBoardPart}`,
             { kind: 'displace', ...input },
             true,
@@ -274,7 +250,7 @@ export const gameMovesDebugLog = {
         actions: GameAction[]
         areaAnchor?: CellCoord
     }): void {
-        const anchorPart = input.areaAnchor ? ` anchor=${formatCoord(input.areaAnchor)}` : ''
+        const anchorPart = input.areaAnchor ? ` anchor=${formatDebugCoord(input.areaAnchor)}` : ''
 
         append(
             `EVENT ${input.eventType} owner=${input.ownerFigureId} rule=${input.ruleId.slice(0, 8)}${anchorPart}`

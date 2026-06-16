@@ -17,21 +17,23 @@ import { FigureBoardAnimationState } from '../figureAnimation/playStepAnimation'
 export interface GameContextValue {
     mode: Mode
     state: GameState
+    /** Authoritative figure stacks; uses animation overlay slice while a move is animating. */
+    figuresSlice: FiguresSlice
 
     figuresHistory: SliceHistory<FiguresSlice>
     boardHistory: SliceHistory<BoardSlice>
-    figureCatalog?: FigureCatalog
-    catalogHistory?: SliceHistory<FigureCatalog>
+    figureCatalog: FigureCatalog
+    catalogHistory: SliceHistory<FigureCatalog>
     undoFigures: () => void
     redoFigures: () => void
     undoBoard: () => void
     redoBoard: () => void
 
     cellParametersBrushState: CellParameters
-    setCellParametersBrushState: (value) => void
+    setCellParametersBrushState: (value: CellParameters) => void
 
     connectionParamsBrushState: ConnectionParams
-    setConnectionParamsBrushState: (value) => void
+    setConnectionParamsBrushState: (value: ConnectionParams) => void
 
     activeFigure?: FigureId
     setActiveFigure: (value: FigureId | undefined) => void
@@ -51,9 +53,9 @@ export interface GameContextValue {
     boardParametersFormKey: number
     setStyleRules: (value: BoardStyleRule[]) => void
 
-    setMode: (value) => void
+    setMode: (value: Mode) => void
     setTray: (value: FigurePlacement[]) => void
-    setCells: (value) => void
+    setCells: (value: GameState['cells']) => void
     setFigureStateViewParams: (figureId: FigureId, stateIndex: number, params: FigureViewParams) => void
     setFigureStateMoveRules: (
         figureId: FigureId,

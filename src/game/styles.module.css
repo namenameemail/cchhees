@@ -75,8 +75,9 @@ div {
     width: min(320px, calc(90vw - 40px));
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
+    overflow-y: scroll;
     overflow-x: hidden;
+    scrollbar-gutter: stable;
     padding: 12px;
 }
 
@@ -105,8 +106,9 @@ div {
 .settingsBody {
     width: min(520px, calc(90vw - 40px));
     height: 100%;
-    overflow-y: auto;
+    overflow-y: scroll;
     overflow-x: auto;
+    scrollbar-gutter: stable;
 }
 
 .assetsSettingsBody {

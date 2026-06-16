@@ -49,7 +49,7 @@ export const ConnectionSVG: FC<ConnectionSVGProps> = (props) => {
     const doubleDistY = cellYDistance * 2
 
     return (
-        <svg className={className} onClick={onClick} onDoubleClick={onDoubleClick} width={doubleDistX} height={doubleDistY}>
+        <svg className={className} onClick={onClick} onDoubleClick={onDoubleClick} width={doubleDistX} height={doubleDistY} viewBox={`0 0 ${doubleDistX} ${doubleDistY}`}>
             <ConnectionSVGGroup connectionParams={connectionParams}/>
         </svg>
     )

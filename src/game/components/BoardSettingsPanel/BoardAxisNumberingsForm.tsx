@@ -178,25 +178,14 @@ const BackgroundAssetSelectField: FC<ParameterInputComponentProps> = ({ name, va
 
     return (
         <div className={styles.fullWidth}>
-            <div className={styles.backgroundAssetField}>
-                <ProjectImageSelect
-                    name={name}
-                    value={hasAsset ? value : null}
-                    placeholder="фон"
-                    title="фон"
-                    onChange={(assetId) => onChange(name, assetId)}
-                />
-                {hasAsset && (
-                    <button
-                        type="button"
-                        className={styles.clearBackgroundImage}
-                        title="Сбросить изображение"
-                        onClick={() => onChange(name, null)}
-                    >
-                        ×
-                    </button>
-                )}
-            </div>
+            <ProjectImageSelect
+                name={name}
+                value={hasAsset ? value : null}
+                placeholder="фон"
+                title="фон"
+                clearable
+                onChange={(assetId) => onChange(name, assetId)}
+            />
         </div>
     )
 }

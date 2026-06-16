@@ -25,4 +25,8 @@ export interface Form1FieldConfig<StateType> {
     props?: any
     visibility?: (state: StateType) => boolean
     propsByState?: (state: StateType) => any
+    /** Short 2–3 letter label (labeled layout). */
+    label?: string
+    /** Grid column span when fieldLayout is `labeled`. */
+    column?: 'half' | 'full'
 }

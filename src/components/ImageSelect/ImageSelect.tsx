@@ -11,11 +11,23 @@ export interface ImageSelectProps {
     assets: ProjectAssetView[]
     placeholder?: string
     title?: string
+    clearable?: boolean
+    clearTitle?: string
     onChange?: (assetId: number | null, name?: string) => void
 }
 
 export function ImageSelect(props: ImageSelectProps) {
-    const { className, onChange, value, name, placeholder, title, assets } = props
+    const {
+        className,
+        onChange,
+        value,
+        name,
+        placeholder,
+        title,
+        assets,
+        clearable = false,
+        clearTitle = 'Сбросить изображение',
+    } = props
 
     const [focused, setFocused] = useState(false)
     const [listFocused, setListFocused] = useState(false)
@@ -54,22 +66,45 @@ export function ImageSelect(props: ImageSelectProps) {
         setListFocused(false)
     }, [])
 
+    const handleClearMouseDown = useCallback((event: MouseEvent) => {
+        event.preventDefault()
+        onChange?.(null, name)
+        setFocused(false)
+        setListFocused(false)
+    }, [onChange, name])
+
+    const showClear = clearable && value != null
+
     return (
         <div
             className={cn(styles.imageSelect, className)}
             onMouseEnter={handleEnter}
             onMouseLeave={handleLeave}
         >
-            <BlurEnterTextInput
-                value={selectedAsset?.name || ''}
-                resetOnBlur
-                readOnly
-                onChange={() => {}}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
-                placeholder={placeholder}
-                title={title}
-            />
+            <div className={styles.inputRow}>
+                <BlurEnterTextInput
+                    value={selectedAsset?.name || ''}
+                    resetOnBlur
+                    readOnly
+                    onChange={() => {}}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
+                    placeholder={placeholder}
+                    title={title}
+                    className={showClear ? styles.inputWithClear : undefined}
+                />
+                {showClear && (
+                    <button
+                        type="button"
+                        className={styles.clearButton}
+                        title={clearTitle}
+                        aria-label={clearTitle}
+                        onMouseDown={handleClearMouseDown}
+                    >
+                        ×
+                    </button>
+                )}
+            </div>
             {(focused || listFocused) && (
                 <div className={styles.images}>
                     {assets.length === 0 ? (

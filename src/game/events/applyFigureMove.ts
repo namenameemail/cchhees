@@ -40,7 +40,6 @@ export function applyFigureMove(
 
     const figuresBeforeMove = cloneFiguresByCoord(figures.figuresByCoord)
 
-    let capturedPlacement: FigurePlacement | undefined
     let swappedTargetCoord: CellCoord | undefined
     const steppedOnQueue: SteppedOnEvent[] = []
     let afterMove: FiguresSlice = {
@@ -91,7 +90,6 @@ export function applyFigureMove(
         to: input.to,
         actorPlacement: input.actorPlacement,
         targetAtTo: input.targetAtTo,
-        capturedPlacement,
         swappedTargetCoord,
         boardParameters: input.boardParameters,
         catalog: input.catalog,

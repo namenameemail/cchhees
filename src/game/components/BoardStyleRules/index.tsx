@@ -15,7 +15,7 @@ import { CellConditionItem, CellConditionItemType } from '../../types/conditions
 import { ConnectionSVG } from '../ConnectionSVG'
 import { CellSVG } from '../CellSVG'
 import cn from 'classnames'
-import { copyCellParamsService } from '../BoardConditions/CopyCellParamsService'
+import { copyCellParamsService } from '../copyParamsServices'
 import { ConnectionParametersFormBase } from '../ConnectionParametersForm/ConnectionParametersForm'
 import { CellParametersFormBase } from '../CellParametersForm/CellParametersForm'
 import { BoardStyleRule, isCellStyleRule } from '../../types/styleRules'
@@ -187,13 +187,13 @@ function ConditionsArrayEditor(props: ParameterInputComponentProps) {
     const force = fieldProps.force ?? false
 
     const forcePrefix = (
-        <label className={ruleStyles.forceCheckbox}>
+        <label className={ruleStyles.forceCheckbox} title="force">
             <input
                 type="checkbox"
                 checked={force}
                 onChange={() => onChange('force', !force)}
             />
-            force
+            f
         </label>
     )
 
@@ -247,16 +247,18 @@ function CellParamsEditor(props: ParameterInputComponentProps) {
                 onCopy={handleCopy}
                 onPaste={handlePaste}
             />
-            <CellSVG
-                className={conditionStyles.preview}
-                cellParams={value}
-                onClick={() => inputRef.current?.focus()}
-            />
             <CellParametersFormBase
                 className={cn(conditionStyles.cellParamsForm, ruleStyles.paramsForm)}
                 value={value}
                 onChange={handleChange}
             />
+            <div className={ruleStyles.paramsPreviewPane}>
+                <CellSVG
+                    className={conditionStyles.preview}
+                    cellParams={value}
+                    onClick={() => inputRef.current?.focus()}
+                />
+            </div>
         </div>
     )
 }
@@ -280,16 +282,18 @@ function ConnectionParamsEditor(props: ParameterInputComponentProps) {
                 onCopy={handleCopy}
                 onPaste={handlePaste}
             />
-            <ConnectionSVG
-                className={conditionStyles.preview}
-                connectionParams={value}
-                onClick={() => inputRef.current?.focus({ preventScroll: true })}
-            />
             <ConnectionParametersFormBase
                 className={cn(conditionStyles.connectionParamsForm, ruleStyles.paramsForm)}
                 value={value}
                 onChange={handleChange}
             />
+            <div className={ruleStyles.paramsPreviewPane}>
+                <ConnectionSVG
+                    className={conditionStyles.preview}
+                    connectionParams={value}
+                    onClick={() => inputRef.current?.focus({ preventScroll: true })}
+                />
+            </div>
         </div>
     )
 }

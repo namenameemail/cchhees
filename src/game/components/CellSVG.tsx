@@ -53,6 +53,7 @@ export const CellSVG: FC<CellSVGProps> = (props) => {
             onDoubleClick={onDoubleClick}
             width={doubleDistX}
             height={doubleDistY}
+            viewBox={`0 0 ${doubleDistX} ${doubleDistY}`}
         >
             <CellSVGGroup x={doubleDistX / 2} y={doubleDistY / 2} cellParams={cellParams}/>
         </svg>

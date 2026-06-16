@@ -6,7 +6,7 @@ import { BoardParameters } from '../types/boardParameters'
 import { BoardStyleRule } from '../types/styleRules'
 import { coordKey, coordToIndex, indexToCoord, isCoordInGrid, iterGridCoords } from '../types/coords'
 import { initialGameState } from '../utils'
-import { cloneFiguresByCoord, getTopOfStack, isStackArray, normalizeStackEntry } from '../figureStack'
+import { cloneFiguresByCoord, getCellStack, getTopOfStack, isStackArray, normalizeStackEntry } from '../figureStack'
 
 export interface FiguresSlice {
     figuresByCoord: Record<string, FigurePlacement[]>
@@ -20,19 +20,7 @@ export interface BoardSlice {
 }
 
 function normalizeCellFigures(cell: Cell | undefined): FigurePlacement[] {
-    if (!cell) {
-        return []
-    }
-
-    if (cell.figures && cell.figures.length > 0) {
-        return cell.figures.map(item => normalizeFigurePlacement(item))
-    }
-
-    if (cell.figure) {
-        return [normalizeFigurePlacement(cell.figure)]
-    }
-
-    return []
+    return getCellStack(cell).map(item => normalizeFigurePlacement(item))
 }
 
 export function normalizeFiguresSlice(figures: FiguresSlice | {

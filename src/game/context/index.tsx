@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { defaultGameContextValue } from '../utils'
-import { historyPush, historyRedo, historyUndo } from './history'
 import { GameContextValue } from './types'
 import { FigureId, FigureMoveRule, FigurePlacement, FigureViewParams, FigureCatalog } from '../types/figures'
 import { FigureEventRule } from '../types/events'
@@ -9,23 +8,12 @@ import {
     cloneFigureState,
     createFigurePlacement,
     normalizeFigurePlacement,
-    resolveFigureDefinition,
     updateFigureCatalogStateAtIndex,
 } from '../figureView'
-import { isFigureMoveAllowed } from '../moveRules'
-import { applyFigureMove } from '../events/applyFigureMove'
-import { computeFigureMoveSteps } from '../figureAnimation/figureStepRecorder'
-import {
-    createEmptyFigureBoardAnimationState,
-    playStepAnimation,
-} from '../figureAnimation/playStepAnimation'
-import {
-    isInstantFigureAnimation,
-    resolveFigureAnimationSettings,
-} from '../figureAnimation/resolveFigureAnimationSettings'
 import { removeFigureFromBoard, removeFigureReferencesFromCatalog } from '../state/figureReferences'
 import {
     getTopOfStack,
+    getCellStack,
     isStackOccupied,
     pushToStack,
     removePlacementFromBoard,
@@ -33,7 +21,6 @@ import {
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
 import { SliceHistory } from '../types/history'
-import { ProjectPersistData } from '../../projects/types'
 import { ActiveBoardPersistPayload } from '../../projects/projectPersist'
 import { Mode } from '../types'
 import { BoardParameters } from '../types/boardParameters'
@@ -50,12 +37,9 @@ import {
     cloneFigureCatalog,
 } from '../state/slices'
 import {
-    cloneBoardSlice,
     cloneFiguresSlice,
     countFiguresOutsideGrid,
     isGridShrink,
-    pruneCellParameters,
-    pruneFigures,
 } from '../state/reconcile'
 import { ShrinkBoardWarningModal } from '../components/ShrinkBoardWarningModal'
 import { CellCoord, coordKey, coordsEqual, indexToCoord, isCoordInGrid } from '../types/coords'
@@ -64,16 +48,17 @@ import {
     clearAssetIdFromCellParameters,
     clearAssetIdFromFigureViewParams,
 } from '../../projects/assets/assetReferences'
-import {
-    CollabOp,
-    normalizeCollabOps,
-    applyCollabOps,
-    withBoardId,
-    isBoardScopedCollabOp,
-    resolveCollabOpBoardId,
-} from '../../collab/ops'
+import { CollabOp } from '../../collab/ops'
+import { historyPush } from './history'
 import { selectionDebugLog } from '../selectionDebugLog'
 import { setProfilerPanelChannel } from '../../profiler'
+import { applyRemotePersistDataFromProject } from './remotePersist'
+import { useGameAnimation } from './useGameAnimation'
+import { useGameCollabSync } from './useGameCollabSync'
+import { useSliceMutations } from './useSliceMutations'
+import { useFigureMove } from './useFigureMove'
+
+export { applyRemotePersistDataFromProject } from './remotePersist'
 
 export const GameContext = React.createContext<GameContextValue>(defaultGameContextValue)
 
@@ -87,38 +72,6 @@ export interface GameProviderProps {
     initialCatalogHistory: SliceHistory<FigureCatalog>
     onPersist?: (data: ActiveBoardPersistPayload) => void
     onCollabOp?: (op: CollabOp | CollabOp[]) => void
-}
-
-export function applyRemotePersistDataFromProject(data: ProjectPersistData): {
-    boardId: string
-    figuresSlice: FiguresSlice
-    boardSlice: BoardSlice
-    figureCatalog: FigureCatalog
-    figuresHistory: SliceHistory<FiguresSlice>
-    boardHistory: SliceHistory<BoardSlice>
-    catalogHistory: SliceHistory<FigureCatalog>
-    state: GameState
-} | null {
-    const board = data.boards.find(item => item.id === data.activeBoardId) ?? data.boards[0]
-
-    if (!board) {
-        return null
-    }
-
-    const figureCatalog = cloneFigureCatalog(data.figureCatalog)
-    const figuresSlice = createInitialFiguresSliceFromState(board.gameState)
-    const boardSlice = createInitialBoardSliceFromState(board.gameState)
-
-    return {
-        boardId: board.id,
-        figuresSlice,
-        boardSlice,
-        figureCatalog,
-        figuresHistory: board.figuresHistory,
-        boardHistory: board.boardHistory,
-        catalogHistory: data.catalogHistory,
-        state: composeGameState(figuresSlice, boardSlice, figureCatalog),
-    }
 }
 
 export function GameProvider({
@@ -192,13 +145,6 @@ export function GameProvider({
     const [boardParametersFormKey, setBoardParametersFormKey] = useState(0)
     const pendingBoardParametersRef = useRef<BoardParameters | null>(null)
 
-    const [displayFiguresSlice, setDisplayFiguresSlice] = useState<FiguresSlice | undefined>(undefined)
-    const [isFigureAnimating, setIsFigureAnimating] = useState(false)
-    const [figureBoardAnimations, setFigureBoardAnimations] = useState(createEmptyFigureBoardAnimationState())
-    const skipFigureAnimationRef = useRef(true)
-    const prevFiguresSliceRef = useRef(figuresSlice)
-    const isMoveAnimatingRef = useRef(false)
-
     const clearActiveCellIfInvalid = useCallback((n: number, m: number, cell?: CellCoord) => {
         const active = cell ?? activeCell
         if (active !== undefined && !isCoordInGrid(active, n, m)) {
@@ -207,292 +153,88 @@ export function GameProvider({
         }
     }, [activeCell, setActiveCell])
 
-    const syncComposedState = useCallback((
-        nextFigures: FiguresSlice,
-        nextBoard: BoardSlice,
-        catalog: FigureCatalog = figureCatalog,
-        cellToValidate?: CellCoord,
-    ) => {
-        const { n, m } = nextBoard.boardParameters
-        const prunedBoard = pruneCellParameters(nextBoard, n, m)
-        const prunedFigures = pruneFigures(nextFigures, n, m)
-        const nextState = composeGameState(prunedFigures, prunedBoard, catalog)
-        setFiguresSlice(prunedFigures)
-        setBoardSlice(prunedBoard)
-        setState(nextState)
-        clearActiveCellIfInvalid(n, m, cellToValidate)
-        return { nextState, prunedFigures, prunedBoard }
-    }, [figureCatalog, clearActiveCellIfInvalid])
+    const animation = useGameAnimation(figuresSlice, boardSlice.boardParameters, mode, activeBoardId)
 
-    const skipInitialPersistRef = useRef(true)
-    const skipPersistRef = useRef(false)
-    const skipCollabOpRef = useRef(false)
+    const {
+        displayFiguresSlice,
+        isFigureAnimating,
+        figureBoardAnimations,
+        isMoveAnimatingRef,
+        prevFiguresSliceRef,
+        skipFigureAnimationRef,
+        playFigureStepSequenceLocal,
+    } = animation
 
-    const emitCollabOp = useCallback((op: CollabOp | CollabOp[]) => {
-        if (skipCollabOpRef.current || !onCollabOp) {
-            return
-        }
+    const {
+        emitCollabOp,
+        applyRemotePersistData,
+        applyRemoteOps,
+        notifyPersistIfNeeded,
+    } = useGameCollabSync({
+        activeBoardIdRef,
+        onPersist,
+        onCollabOp,
+        state,
+        figuresHistory,
+        boardHistory,
+        figureCatalog,
+        catalogHistory,
+        figuresSlice,
+        boardSlice,
+        setFiguresSlice,
+        setBoardSlice,
+        setFigureCatalog,
+        setFiguresHistory,
+        setBoardHistory,
+        setCatalogHistory,
+        setState,
+        skipFigureAnimationRef,
+    })
 
-        const boardId = activeBoardIdRef.current
-        const resolved = normalizeCollabOps(op).map(item => withBoardId(item, boardId))
-        onCollabOp(resolved.length === 1 ? resolved[0] : resolved)
-    }, [onCollabOp])
-
-    const pushFiguresChange = useCallback((
-        nextFigures: FiguresSlice,
-        op?: CollabOp | CollabOp[],
-    ) => {
-        const cloned = cloneFiguresSlice(nextFigures)
-        const result = historyPush(figuresHistory, figuresSlice, cloned)
-        setFiguresHistory(result.history)
-        setFiguresSlice(result.current)
-        syncComposedState(result.current, boardSlice, figureCatalog)
-
-        if (op) {
-            emitCollabOp(op)
-        } else {
-            emitCollabOp({ kind: 'figures', boardId: activeBoardIdRef.current, figures: result.current })
-        }
-    }, [figuresHistory, figuresSlice, boardSlice, figureCatalog, syncComposedState, emitCollabOp])
-
-    const applyBoardChange = useCallback((
-        nextBoard: BoardSlice,
-        pushHistory = true,
-        op?: CollabOp | CollabOp[],
-    ) => {
-        const cloned = cloneBoardSlice(nextBoard)
-        const { n, m } = cloned.boardParameters
-        const prunedBoard = pruneCellParameters(cloned, n, m)
-        const prunedFigures = pruneFigures(figuresSlice, n, m)
-
-        if (pushHistory) {
-            const result = historyPush(boardHistory, boardSlice, prunedBoard)
-            setBoardHistory(result.history)
-            setBoardSlice(result.current)
-        } else {
-            setBoardSlice(prunedBoard)
-        }
-
-        setFiguresSlice(prunedFigures)
-        const nextState = composeGameState(prunedFigures, prunedBoard, figureCatalog)
-        setState(nextState)
-        clearActiveCellIfInvalid(n, m)
-
-        if (op) {
-            const resolved = normalizeCollabOps(op).map(item => (
-                item.kind === 'board-sync' ? { ...item, board: prunedBoard } : item
-            ))
-            emitCollabOp(resolved.length === 1 ? resolved[0] : resolved)
-        }
-    }, [boardHistory, boardSlice, figuresSlice, figureCatalog, clearActiveCellIfInvalid, emitCollabOp])
-
-    const applyCatalogChange = useCallback((
-        nextCatalog: FigureCatalog,
-        pushHistory = true,
-        op?: CollabOp | CollabOp[],
-    ) => {
-        const cloned = cloneFigureCatalog(nextCatalog)
-        let resolvedCatalog = cloned
-
-        if (pushHistory) {
-            const result = historyPush(catalogHistory, figureCatalog, cloned)
-            setCatalogHistory(result.history)
-            setFigureCatalog(result.current)
-            resolvedCatalog = result.current
-        } else {
-            setFigureCatalog(cloned)
-        }
-
-        setState(composeGameState(figuresSlice, boardSlice, resolvedCatalog))
-
-        if (op) {
-            emitCollabOp(op)
-        }
-    }, [catalogHistory, figureCatalog, figuresSlice, boardSlice, emitCollabOp])
-
-    const applyRemotePersistData = useCallback((data: ProjectPersistData) => {
-        skipPersistRef.current = true
-        skipFigureAnimationRef.current = true
-
-        const resolved = applyRemotePersistDataFromProject(data)
-
-        if (!resolved) {
-            return
-        }
-
-        setFiguresSlice(resolved.figuresSlice)
-        setBoardSlice(resolved.boardSlice)
-        setFigureCatalog(resolved.figureCatalog)
-        setFiguresHistory(resolved.figuresHistory)
-        setBoardHistory(resolved.boardHistory)
-        setCatalogHistory(resolved.catalogHistory)
-        setState(resolved.state)
-    }, [])
-
-    const applyRemoteOps = useCallback((ops: CollabOp[]): GameState => {
-        skipPersistRef.current = true
-        skipCollabOpRef.current = true
-
-        const visibleBoardId = activeBoardIdRef.current
-        const relevantOps = ops.filter(op => {
-            if (!isBoardScopedCollabOp(op)) {
-                return true
-            }
-
-            return resolveCollabOpBoardId(op, visibleBoardId) === visibleBoardId
-        })
-
-        if (relevantOps.length === 0) {
-            return composeGameState(figuresSlice, boardSlice, figureCatalog)
-        }
-
-        const result = applyCollabOps(figuresSlice, boardSlice, figureCatalog, relevantOps)
-        setFiguresSlice(result.figures)
-        setBoardSlice(result.board)
-        setFigureCatalog(result.catalog)
-        setState(result.state)
-        return result.state
-    }, [figuresSlice, boardSlice, figureCatalog])
+    const {
+        pushFiguresChange,
+        applyBoardChange,
+        applyCatalogChange,
+        undoFigures,
+        redoFigures,
+        undoBoard,
+        redoBoard,
+    } = useSliceMutations({
+        activeBoardIdRef,
+        figuresSlice,
+        boardSlice,
+        figureCatalog,
+        figuresHistory,
+        boardHistory,
+        catalogHistory,
+        setFiguresSlice,
+        setBoardSlice,
+        setFigureCatalog,
+        setFiguresHistory,
+        setBoardHistory,
+        setCatalogHistory,
+        setState,
+        clearActiveCellIfInvalid,
+        emitCollabOp,
+    })
 
     useEffect(() => {
-        skipFigureAnimationRef.current = true
-    }, [activeBoardId])
+        notifyPersistIfNeeded()
+    }, [notifyPersistIfNeeded])
 
-    const waitForAnimationCompletion = useCallback((durationMs: number) => {
-        return new Promise<void>(resolve => {
-            window.setTimeout(resolve, durationMs + 16)
-        })
-    }, [])
-
-    const playFigureStepSequence = useCallback(async (
-        steps: FiguresSlice[],
-        boardParameters: BoardParameters,
-    ) => {
-        const settings = resolveFigureAnimationSettings(boardParameters)
-
-        setIsFigureAnimating(true)
-        setDisplayFiguresSlice(steps[0])
-
-        try {
-            for (let i = 1; i < steps.length; i += 1) {
-                await playStepAnimation(
-                    steps[i - 1],
-                    steps[i],
-                    boardParameters,
-                    settings,
-                    setFigureBoardAnimations,
-                    waitForAnimationCompletion,
-                )
-                setDisplayFiguresSlice(steps[i])
-            }
-        } finally {
-            setFigureBoardAnimations(createEmptyFigureBoardAnimationState())
-            setDisplayFiguresSlice(undefined)
-            setIsFigureAnimating(false)
-        }
-    }, [waitForAnimationCompletion])
-
-    useEffect(() => {
-        if (skipFigureAnimationRef.current) {
-            skipFigureAnimationRef.current = false
-            prevFiguresSliceRef.current = figuresSlice
-            return
-        }
-
-        if (isMoveAnimatingRef.current || mode !== Mode.Game) {
-            prevFiguresSliceRef.current = figuresSlice
-            return
-        }
-
-        const prev = prevFiguresSliceRef.current
-        const settings = resolveFigureAnimationSettings(boardSlice.boardParameters)
-
-        if (isInstantFigureAnimation(settings)) {
-            prevFiguresSliceRef.current = figuresSlice
-            return
-        }
-
-        let cancelled = false
-
-        void (async () => {
-            setIsFigureAnimating(true)
-            setDisplayFiguresSlice(prev)
-
-            try {
-                await playStepAnimation(
-                    prev,
-                    figuresSlice,
-                    boardSlice.boardParameters,
-                    settings,
-                    setFigureBoardAnimations,
-                    waitForAnimationCompletion,
-                )
-
-                if (!cancelled) {
-                    setDisplayFiguresSlice(figuresSlice)
-                }
-            } finally {
-                if (!cancelled) {
-                    setDisplayFiguresSlice(undefined)
-                    setFigureBoardAnimations(createEmptyFigureBoardAnimationState())
-                    setIsFigureAnimating(false)
-                    prevFiguresSliceRef.current = figuresSlice
-                }
-            }
-        })()
-
-        return () => {
-            cancelled = true
-        }
-    }, [figuresSlice, mode, boardSlice.boardParameters, waitForAnimationCompletion])
-
-    useEffect(() => {
-        if (skipInitialPersistRef.current) {
-            skipInitialPersistRef.current = false
-            return
-        }
-
-        if (skipPersistRef.current) {
-            skipPersistRef.current = false
-            skipCollabOpRef.current = false
-            return
-        }
-
-        onPersist?.({
-            activeBoardId: activeBoardIdRef.current,
-            state,
-            figuresHistory,
-            boardHistory,
-            figureCatalog,
-            catalogHistory,
-        })
-    }, [state, figuresHistory, boardHistory, figureCatalog, catalogHistory, onPersist])
-
-    const undoFigures = useCallback(() => {
-        const result = historyUndo(figuresHistory, figuresSlice)
-        setFiguresHistory(result.history)
-        syncComposedState(result.current, boardSlice, figureCatalog)
-        emitCollabOp({ kind: 'figures', boardId: activeBoardIdRef.current, figures: result.current })
-    }, [figuresHistory, figuresSlice, boardSlice, figureCatalog, syncComposedState, emitCollabOp])
-
-    const redoFigures = useCallback(() => {
-        const result = historyRedo(figuresHistory, figuresSlice)
-        setFiguresHistory(result.history)
-        syncComposedState(result.current, boardSlice, figureCatalog)
-        emitCollabOp({ kind: 'figures', boardId: activeBoardIdRef.current, figures: result.current })
-    }, [figuresHistory, figuresSlice, boardSlice, figureCatalog, syncComposedState, emitCollabOp])
-
-    const undoBoard = useCallback(() => {
-        const result = historyUndo(boardHistory, boardSlice)
-        setBoardHistory(result.history)
-        applyBoardChange(result.current, false, { kind: 'board-sync', boardId: activeBoardIdRef.current, board: result.current })
-    }, [boardHistory, boardSlice, applyBoardChange])
-
-    const redoBoard = useCallback(() => {
-        const result = historyRedo(boardHistory, boardSlice)
-        setBoardHistory(result.history)
-        applyBoardChange(result.current, false, { kind: 'board-sync', boardId: activeBoardIdRef.current, board: result.current })
-    }, [boardHistory, boardSlice, applyBoardChange])
+    const moveActiveCellFigureTo = useFigureMove({
+        mode,
+        activeCell,
+        figuresSlice,
+        figureCatalog,
+        boardParameters: state.boardParameters,
+        isFigureAnimating,
+        isMoveAnimatingRef,
+        prevFiguresSliceRef,
+        setActiveCell,
+        pushFiguresChange,
+        playFigureStepSequenceLocal,
+    })
 
     const setBoardParameters = useCallback((value: BoardParameters) => {
         const normalizedValue: BoardParameters = {
@@ -587,83 +329,6 @@ export function GameProvider({
             setFigure(coord, figure)
         }
     }, [figuresSlice, replace, setFigure])
-
-    const moveActiveCellFigureTo = useCallback((to: CellCoord) => {
-        if (isFigureAnimating || isMoveAnimatingRef.current) {
-            return
-        }
-
-        if (activeCell === undefined) {
-            return
-        }
-
-        if (coordsEqual(activeCell, to)) {
-            setActiveCell(undefined, 'move to same cell')
-            return
-        }
-
-        const from = activeCell
-        const fromPlacement = getTopOfStack(figuresSlice, from)
-        if (!fromPlacement) {
-            return
-        }
-
-        const figureDefinition = resolveFigureDefinition(fromPlacement.figureId, figureCatalog)
-
-        if (!isFigureMoveAllowed(
-            from,
-            to,
-            figureDefinition,
-            figuresSlice.figuresByCoord,
-            state.boardParameters,
-            fromPlacement,
-        )) {
-            return
-        }
-
-        setActiveCell(undefined, 'figure move start')
-
-        const targetAtTo = getTopOfStack(figuresSlice, to)
-        const moveInput = {
-            from,
-            to,
-            actorPlacement: fromPlacement,
-            targetAtTo,
-            swapOnEat: state.boardParameters.swapOnEat,
-            boardParameters: state.boardParameters,
-            catalog: figureCatalog,
-        }
-
-        const animationSettings = resolveFigureAnimationSettings(state.boardParameters)
-
-        if (mode !== Mode.Game || isInstantFigureAnimation(animationSettings)) {
-            pushFiguresChange(applyFigureMove(figuresSlice, moveInput))
-            return
-        }
-
-        const steps = computeFigureMoveSteps(figuresSlice, moveInput)
-        isMoveAnimatingRef.current = true
-
-        void (async () => {
-            try {
-                await playFigureStepSequence(steps, state.boardParameters)
-                pushFiguresChange(steps[steps.length - 1])
-            } finally {
-                isMoveAnimatingRef.current = false
-                prevFiguresSliceRef.current = steps[steps.length - 1]
-            }
-        })()
-    }, [
-        activeCell,
-        figuresSlice,
-        figureCatalog,
-        state.boardParameters,
-        pushFiguresChange,
-        setActiveCell,
-        mode,
-        isFigureAnimating,
-        playFigureStepSequence,
-    ])
 
     const setCellParameters = useCallback((coord: CellCoord) => {
         const key = coordKey(coord)
@@ -828,11 +493,7 @@ export function GameProvider({
         const { n } = state.boardParameters
         const figuresByCoord: FiguresSlice['figuresByCoord'] = {}
         value.forEach((cell, index) => {
-            const stack = cell.figures?.length
-                ? cell.figures.map(item => normalizeFigurePlacement(item))
-                : cell.figure
-                    ? [normalizeFigurePlacement(cell.figure)]
-                    : []
+            const stack = getCellStack(cell).map(item => normalizeFigurePlacement(item))
 
             if (stack.length > 0) {
                 figuresByCoord[coordKey(indexToCoord(index, n))] = stack
@@ -933,6 +594,11 @@ export function GameProvider({
         }
     }, [boardSlice, figureCatalog, cellParametersBrushState, applyBoardChange, applyCatalogChange])
 
+    const contextFiguresSlice = useMemo(
+        () => displayFiguresSlice ?? figuresSlice,
+        [displayFiguresSlice, figuresSlice],
+    )
+
     const contextState = useMemo(() => {
         if (displayFiguresSlice) {
             return composeGameState(displayFiguresSlice, boardSlice, figureCatalog)
@@ -946,6 +612,7 @@ export function GameProvider({
             mode,
             setMode,
             state: contextState,
+            figuresSlice: contextFiguresSlice,
             figuresHistory,
             boardHistory,
             figureCatalog,
@@ -989,6 +656,7 @@ export function GameProvider({
         [
             mode,
             contextState,
+            contextFiguresSlice,
             figuresHistory,
             boardHistory,
             figureCatalog,

@@ -2,4 +2,27 @@ body {
     margin: 0;
 }
 
+:root {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.35) rgba(0, 0, 0, 0.08);
+}
+
+*::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+*::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.45);
+}
+
 /* vite-dev-profiler: console panel shows scroll debug only (see scrollDebugLog) */

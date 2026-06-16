@@ -1,52 +1,14 @@
-import { profiler, profileDebug, isProfilerPanelChannel } from '../profiler'
+import { createChannelDebugLog } from '../channelDebugLog'
 
-const MAX_CONSOLE_LINES = 300
-const CONSOLE_PREFIX = '[export] '
-
-function enabled(): boolean {
-    return import.meta.env.DEV
-}
-
-function formatTime(): string {
-    return new Date().toLocaleTimeString(undefined, {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        fractionalSecondDigits: 3,
-    } as Intl.DateTimeFormatOptions)
-}
-
-function trimConsoleLines(): void {
-    const lines = profiler.getPanelLines('console')
-    const exportLines = lines.filter(line => line.startsWith(CONSOLE_PREFIX))
-
-    if (exportLines.length <= MAX_CONSOLE_LINES) {
-        return
-    }
-
-    const otherLines = lines.filter(line => !line.startsWith(CONSOLE_PREFIX))
-    profiler.setPanelText('console', [...otherLines, ...exportLines.slice(-MAX_CONSOLE_LINES)].join('\n'))
-}
+const log = createChannelDebugLog({
+    channel: 'export',
+    consolePrefix: '[export] ',
+    maxConsoleLines: 300,
+    profileDebugMaxChars: 200,
+})
 
 function append(text: string, meta?: Record<string, unknown>): void {
-    if (!enabled()) {
-        return
-    }
-
-    const line = `${CONSOLE_PREFIX}${formatTime()}  ${text}`
-
-    if (isProfilerPanelChannel('export')) {
-        profiler.appendPanelText('console', line)
-        trimConsoleLines()
-    }
-
-    profileDebug('export', text.slice(0, 200), meta)
-
-    if (profiler.isRecording) {
-        profiler.log(`export ${text}`, meta)
-        profiler.flushLatest('export')
-    }
+    log.append(text, meta)
 }
 
 export const exportDebugLog = {

@@ -35,6 +35,9 @@
 }
 
 .connectionParametersForm > * {
+    flex: 0 0 50%;
     width: 50%;
+    max-width: 50%;
+    min-width: 0;
     box-sizing: border-box;
 }
