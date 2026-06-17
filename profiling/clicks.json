@@ -1,15 +1,15 @@
 {
-  "recordedAt": "2026-06-14T21:43:12.174Z",
+  "recordedAt": "2026-06-17T07:30:21.201Z",
   "clickCount": 1,
   "clicks": [
     {
-      "ts": "2026-06-14T21:43:10.566Z",
+      "ts": "2026-06-17T07:30:18.260Z",
       "tag": "div",
-      "className": "_cellCenter_16ady_122",
-      "text": "●",
-      "selector": "div._cellCenter_16ady_122:nth-of-type(5)",
-      "x": 2050,
-      "y": 489
+      "className": "_settingsBody_vd416_106 _settingsBodyFixedHeader_vd416_114",
+      "text": "вид клетки нумерация отметки + cell +conn all white black oddRow evenRow oddCol …",
+      "selector": "div._settingsBody_vd416_106._settingsBodyFixedHeader_vd416_114",
+      "x": 576,
+      "y": 134
     }
   ]
 }

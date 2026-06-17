@@ -11,16 +11,14 @@ const BackgroundAssetSelectField: FC<ParameterInputComponentProps> = ({ name, va
     const hasAsset = typeof value === 'number'
 
     return (
-        <div className={styles.fullWidth}>
-            <ProjectImageSelect
-                name={name}
-                value={hasAsset ? value : null}
-                placeholder="background image"
-                title="background image"
-                clearable
-                onChange={(assetId) => onChange(name, assetId)}
-            />
-        </div>
+        <ProjectImageSelect
+            name={name}
+            value={hasAsset ? value : null}
+            placeholder="background image"
+            title="background image"
+            clearable
+            onChange={(assetId) => onChange(name, assetId)}
+        />
     )
 }
 
@@ -33,85 +31,94 @@ export function createSurfaceAppearanceFormConfig(
     return [
         {
             name: 'background',
+            label: 'bg',
             type: ParameterTypes.ColorInput,
-            props: { placeholder: 'background', className: styles.fullWidth },
+            props: { title: 'цвет фона', placeholder: 'background' },
         },
         {
             name: 'backgroundAssetId',
+            label: 'img',
             Component: BackgroundAssetSelectField,
+            props: { title: 'фоновое изображение' },
         },
         {
             name: 'backgroundImageFit',
+            label: 'fit',
             type: ParameterTypes.SelectArray,
             visibility: () => hasBackgroundImage,
             props: {
-                className: styles.fullWidth,
-                title: 'image fit',
+                title: 'режим изображения',
                 options: Object.values(BoardBackgroundImageFit),
             },
         },
         {
             name: 'backgroundRepeatWidth',
+            label: 'rW',
             type: ParameterTypes.NumberInput,
             visibility: () => hasBackgroundImage && imageFit === BoardBackgroundImageFit.repeat,
-            props: { placeholder: 'repeat width', ...atLeastOne },
+            props: { title: 'ширина повтора', placeholder: 'repeat width', ...atLeastOne },
         },
         {
             name: 'backgroundRepeatHeight',
+            label: 'rH',
             type: ParameterTypes.NumberInput,
             visibility: () => hasBackgroundImage && imageFit === BoardBackgroundImageFit.repeat,
-            props: { placeholder: 'repeat height', ...atLeastOne },
+            props: { title: 'высота повтора', placeholder: 'repeat height', ...atLeastOne },
         },
         {
             name: 'backgroundRepeatOffsetX',
+            label: 'oX',
             type: ParameterTypes.NumberInput,
             visibility: () => hasBackgroundImage && imageFit === BoardBackgroundImageFit.repeat,
-            props: { placeholder: 'repeat offsetX' },
+            props: { title: 'смещение повтора X', placeholder: 'repeat offsetX' },
         },
         {
             name: 'backgroundRepeatOffsetY',
+            label: 'oY',
             type: ParameterTypes.NumberInput,
             visibility: () => hasBackgroundImage && imageFit === BoardBackgroundImageFit.repeat,
-            props: { placeholder: 'repeat offsetY' },
+            props: { title: 'смещение повтора Y', placeholder: 'repeat offsetY' },
         },
         {
             name: 'borderRadius',
+            label: 'br',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'borderRadius', ...nonNegative },
+            props: { title: 'скругление рамки', placeholder: 'borderRadius', ...nonNegative },
         },
         {
             name: 'borderWidth',
+            label: 'bw',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'borderWidth', ...nonNegative },
+            props: { title: 'толщина рамки', placeholder: 'borderWidth', ...nonNegative },
         },
         {
             name: 'borderColor',
+            label: 'bc',
             type: ParameterTypes.ColorInput,
-            props: { placeholder: 'borderColor', className: styles.fullWidth },
+            props: { title: 'цвет рамки', placeholder: 'borderColor' },
         },
         {
             name: 'borderDasharray',
+            label: 'ds',
             type: ParameterTypes.TextInput,
-            props: { placeholder: 'borderDasharray' },
+            props: { title: 'штрих рамки (dasharray)', placeholder: 'borderDasharray' },
         },
     ]
 }
 
-const ClipNumberingSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange, props }) => {
+const ClipNumberingSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
     const checked = value === true
 
     return (
-        <div className={props?.className}>
-            <select
-                className={styles.axisSideSelect}
-                value={checked ? 'clip' : 'none'}
-                title="обрезка по скруглению"
-                onChange={event => onChange(name, event.target.value === 'clip')}
-            >
-                <option value="none">не обрезать</option>
-                <option value="clip">обрезать по скруглению</option>
-            </select>
-        </div>
+        <select
+            className={styles.axisSideSelect}
+            value={checked ? 'clip' : 'none'}
+            title="обрезка по скруглению"
+            onChange={event => onChange(name, event.target.value === 'clip')}
+        >
+            <option value="none">не обрезать</option>
+            <option value="clip">обрезать по скруглению</option>
+        </select>
     )
 }
 
@@ -124,9 +131,10 @@ export function createAxisNumberingFrameFormConfig(
         ...createSurfaceAppearanceFormConfig(value),
         {
             name: 'clipNumberingToBorderRadius',
+            label: 'cl',
             Component: ClipNumberingSelectField,
             visibility: () => hasBorderRadius,
-            props: { className: styles.fullWidth },
+            props: { title: 'обрезка по скруглению' },
         },
     ]
 }

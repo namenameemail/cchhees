@@ -552,7 +552,7 @@ export function formatAxisNumberingLabel(
             ? range.endIndex - seqPos
             : cellIndex
 
-        return formatColumnLabel(letterIndex)
+        return formatColumnLabel(letterIndex + item.numberOffset)
     }
 
     return formatAxisLabel(seqIndex + item.numberOffset, item.format)

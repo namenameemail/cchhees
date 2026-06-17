@@ -38,7 +38,8 @@ const BoardMarkSectionForm: FC<BoardMarkSectionFormProps> = ({
         <section className={styles.markSection}>
             <h4 className={styles.markSectionTitle}>{label}</h4>
             <Form1<BoardMarkAppearance>
-                className={styles.markAppearanceForm}
+                className={styles.boardParametersForm}
+                fieldLayout="labeled"
                 value={value}
                 config={config}
                 onChange={handleChange}

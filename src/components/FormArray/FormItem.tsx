@@ -18,6 +18,9 @@ export interface FormItemProps<ItemState> {
     onUp: (index: number) => void
     onDown: (index: number) => void
     isUpDownEnabled?: boolean
+    fieldLayout?: 'default' | 'labeled'
+    instantRemove?: boolean
+    canRemove?: boolean
     onMouseEnter?: React.MouseEventHandler<HTMLDivElement>
     onMouseLeave?: React.MouseEventHandler<HTMLDivElement>
 }
@@ -26,7 +29,7 @@ export function FormItem<ItemState>(props: FormItemProps<ItemState>) {
 
     const {
         index, arrayName, value, onChange, onRemove, className, itemFormClassName, onUp,
-        onDown, isUpDownEnabled, onMouseEnter, onMouseLeave,
+        onDown, isUpDownEnabled, fieldLayout, instantRemove, canRemove = true, onMouseEnter, onMouseLeave,
     } = props
 
     const handleChange = useCallback((value: ItemState) => {
@@ -40,6 +43,10 @@ export function FormItem<ItemState>(props: FormItemProps<ItemState>) {
     const handleDown = useCallback(() => {
         onDown(index)
     }, [index, onDown])
+
+    const handleRemove = useCallback(() => {
+        onRemove(index)
+    }, [index, onRemove])
 
     const [isHoldingDelete, setIsHoldingDelete] = useState(false)
     const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -91,20 +98,34 @@ export function FormItem<ItemState>(props: FormItemProps<ItemState>) {
                 config={itemConfig}
                 onChange={handleChange}
                 className={itemFormClassName}
+                fieldLayout={fieldLayout}
             />
             <div>
-                <button
-                    type="button"
-                    className={styles.deleteButton}
-                    title="Удерживайте для удаления"
-                    aria-label="Удалить"
-                    onPointerDown={handleDeletePointerDown}
-                    onPointerUp={handleDeletePointerEnd}
-                    onPointerCancel={handleDeletePointerEnd}
-                    onLostPointerCapture={handleDeletePointerEnd}
-                >
-                    x
-                </button>
+                {canRemove && (
+                    instantRemove ? (
+                        <button
+                            type="button"
+                            className={styles.deleteButton}
+                            aria-label="Удалить"
+                            onClick={handleRemove}
+                        >
+                            x
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            className={styles.deleteButton}
+                            title="Удерживайте для удаления"
+                            aria-label="Удалить"
+                            onPointerDown={handleDeletePointerDown}
+                            onPointerUp={handleDeletePointerEnd}
+                            onPointerCancel={handleDeletePointerEnd}
+                            onLostPointerCapture={handleDeletePointerEnd}
+                        >
+                            x
+                        </button>
+                    )
+                )}
                 {isUpDownEnabled && (<>
                     <button onClick={handleUp}>↑</button>
                     <button onClick={handleDown}>↓</button>

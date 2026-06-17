@@ -81,16 +81,14 @@
 
 .item {
     position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1px;
-    padding: 1px;
+    display: block;
+    padding: 0;
     border: 1px solid #bbb;
     background: white;
     min-width: 0;
     overflow: hidden;
     cursor: pointer;
+    aspect-ratio: 1;
 }
 
 .itemHoldDeleting {
@@ -133,17 +131,16 @@
 }
 
 .thumbnailWrap {
-    width: 64px;
-    height: 64px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 100%;
+    height: 100%;
+    display: block;
 }
 
 .thumbnail,
 .fontThumbnail {
-    max-width: 100%;
-    max-height: 100%;
+    display: block;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
 }
 
@@ -151,18 +148,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 64px;
-    height: 64px;
-    border: 1px solid #ccc;
-    font-size: 28px;
+    border: none;
+    font-size: clamp(18px, 40%, 28px);
     background: white;
-}
-
-.size {
-    font-size: 9px;
-    color: #666;
-    text-align: center;
-    line-height: 1.2;
+    line-height: 1;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 .deleteButton {

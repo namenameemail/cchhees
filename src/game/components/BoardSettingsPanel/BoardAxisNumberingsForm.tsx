@@ -177,16 +177,14 @@ const BackgroundAssetSelectField: FC<ParameterInputComponentProps> = ({ name, va
     const hasAsset = typeof value === 'number'
 
     return (
-        <div className={styles.fullWidth}>
-            <ProjectImageSelect
-                name={name}
-                value={hasAsset ? value : null}
-                placeholder="фон"
-                title="фон"
-                clearable
-                onChange={(assetId) => onChange(name, assetId)}
-            />
-        </div>
+        <ProjectImageSelect
+            name={name}
+            value={hasAsset ? value : null}
+            placeholder="фон"
+            title="фон"
+            clearable
+            onChange={(assetId) => onChange(name, assetId)}
+        />
     )
 }
 
@@ -199,14 +197,17 @@ const numberingItemConfig = (item: BoardAxisNumbering, n: number, m: number) => 
     const maxEdgeInset = getAxisNumberingMaxEdgeInset(item, n, m)
 
     return [
-        { name: 'orientation', Component: OrientationSelectField },
-        { name: 'edge', Component: createEdgeSelectField(item) },
-        { name: 'order', Component: OrderSelectField },
-        { name: 'format', Component: FormatSelectField },
+        { name: 'orientation', label: 'or', Component: OrientationSelectField, props: { title: 'ориентация' } },
+        { name: '_actionSpacer', gridSpacer: true },
+        { name: 'edge', label: 'ed', Component: createEdgeSelectField(item), props: { title: 'сторона' } },
+        { name: 'order', label: 'ord', Component: OrderSelectField, props: { title: 'порядок' } },
+        { name: 'format', label: 'fmt', Component: FormatSelectField, props: { title: 'формат' } },
         {
             name: 'skipCellsStart',
+            label: 's0',
             type: ParameterTypes.NumberInput,
             props: {
+                title: item.orientation === 'horizontal' ? 'пропуск столбцов (нач.)' : 'пропуск строк (нач.)',
                 placeholder: item.orientation === 'horizontal' ? 'пропуск столбцов (нач.)' : 'пропуск строк (нач.)',
                 ...nonNegative,
                 ...integerStep,
@@ -215,8 +216,10 @@ const numberingItemConfig = (item: BoardAxisNumbering, n: number, m: number) => 
         },
         {
             name: 'skipCellsEnd',
+            label: 's1',
             type: ParameterTypes.NumberInput,
             props: {
+                title: item.orientation === 'horizontal' ? 'пропуск столбцов (кон.)' : 'пропуск строк (кон.)',
                 placeholder: item.orientation === 'horizontal' ? 'пропуск столбцов (кон.)' : 'пропуск строк (кон.)',
                 ...nonNegative,
                 ...integerStep,
@@ -225,13 +228,18 @@ const numberingItemConfig = (item: BoardAxisNumbering, n: number, m: number) => 
         },
         {
             name: 'numberOffset',
+            label: 'n+',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: '+ к начальному числу', ...integerStep },
+            props: { title: '+ к начальному числу', placeholder: '+ к начальному числу', ...integerStep },
         },
         {
             name: 'edgeInsetCells',
+            label: 'in',
             type: ParameterTypes.NumberInput,
             props: {
+                title: item.orientation === 'horizontal'
+                    ? 'смещение внутрь (строк)'
+                    : 'смещение внутрь (столбцов)',
                 placeholder: item.orientation === 'horizontal'
                     ? 'смещение внутрь (строк)'
                     : 'смещение внутрь (столбцов)',
@@ -242,38 +250,44 @@ const numberingItemConfig = (item: BoardAxisNumbering, n: number, m: number) => 
         },
         {
             name: 'stripSize',
+            label: 'st',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: stripPlaceholder, ...atLeastOne },
+            props: { title: stripPlaceholder, placeholder: stripPlaceholder, ...atLeastOne },
         },
         {
             name: 'fontSize',
+            label: 'fs',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'font size', ...atLeastOne },
+            props: { title: 'font size', placeholder: 'font size', ...atLeastOne },
         },
         {
             name: 'color',
+            label: 'fg',
             type: ParameterTypes.ColorInput,
-            props: { placeholder: 'color', className: styles.fullWidth },
+            props: { title: 'color', placeholder: 'color' },
         },
-        { name: 'fontAssetId', Component: FontAssetSelectField },
+        { name: 'fontAssetId', label: 'fn', Component: FontAssetSelectField, props: { title: 'шрифт' } },
         {
             name: 'offsetX',
+            label: 'x',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'offset X' },
+            props: { title: 'offset X', placeholder: 'offset X' },
         },
         {
             name: 'offsetY',
+            label: 'y',
             type: ParameterTypes.NumberInput,
-            props: { placeholder: 'offset Y' },
+            props: { title: 'offset Y', placeholder: 'offset Y' },
         },
-        { name: 'align', Component: AlignSelectField },
-        { name: 'gutterAlign', Component: GutterAlignSelectField },
+        { name: 'align', label: 'al', Component: AlignSelectField, props: { title: 'выравнивание в клетке' } },
+        { name: 'gutterAlign', label: 'ga', Component: GutterAlignSelectField, props: { title: 'положение в полосе' } },
         {
             name: 'background',
+            label: 'bg',
             type: ParameterTypes.ColorInput,
-            props: { placeholder: 'фон', className: styles.fullWidth },
+            props: { title: 'фон', placeholder: 'фон' },
         },
-        { name: 'backgroundAssetId', Component: BackgroundAssetSelectField },
+        { name: 'backgroundAssetId', label: 'img', Component: BackgroundAssetSelectField, props: { title: 'фон' } },
     ]
 }
 
@@ -345,15 +359,13 @@ export const BoardAxisNumberingsForm: FC = () => {
 
     return (
         <div className={cn(ruleStyles.root, styles.axisNumberingsForm)}>
-            <div className={styles.axisNumberingFrameSection}>
-                <div className={styles.axisNumberingFrameTitle}>общий фон</div>
-                <Form1<BoardAxisNumberingFrameSettings>
-                    className={styles.axisNumberingFrameForm}
-                    value={frameSettings}
-                    config={createAxisNumberingFrameFormConfig}
-                    onChange={handleFrameChange}
-                />
-            </div>
+            <Form1<BoardAxisNumberingFrameSettings>
+                className={styles.boardParametersForm}
+                fieldLayout="labeled"
+                value={frameSettings}
+                config={createAxisNumberingFrameFormConfig}
+                onChange={handleFrameChange}
+            />
             <div className={ruleStyles.toolbar}>
                 <button type="button" onClick={handleAddNumbering}>+ numbering</button>
             </div>
@@ -361,7 +373,8 @@ export const BoardAxisNumberingsForm: FC = () => {
                 {numberings.map((item, index) => (
                     <FormItem<BoardAxisNumbering>
                         key={index}
-                        itemFormClassName={cn(ruleStyles.itemForm, styles.axisNumberingItemForm)}
+                        itemFormClassName={styles.axisNumberingItemForm}
+                        fieldLayout="labeled"
                         className={ruleStyles.item}
                         index={index}
                         value={item}

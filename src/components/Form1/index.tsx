@@ -55,7 +55,11 @@ export function Form1<StateType>(props: Form1Props<StateType>) {
             fieldLayout === 'labeled' && styles.labeledGridForm,
             className,
         )}>
-            {config.map(({ name, type, Component, props, propsByState, visibility, label, column }) => {
+            {config.map(({ name, type, Component, props, propsByState, visibility, label, column, gridSpacer }) => {
+                if (gridSpacer) {
+                    return <div key={name} className={styles.labeledGridSpacer} aria-hidden="true" />
+                }
+
                 return (
                     <ParameterComponent<StateType>
                         key={name}
@@ -153,6 +157,9 @@ export function ParameterComponent<StateType>(props: ParameterComponentProps<Sta
     )
 
     if (fieldLayout !== 'labeled' || !label) {
+        if (fieldLayout === 'labeled' && column === 'full') {
+            return <div className={styles.labeledFieldFull}>{control}</div>
+        }
         return control
     }
 

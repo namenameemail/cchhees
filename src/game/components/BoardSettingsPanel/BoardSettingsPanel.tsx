@@ -1,4 +1,5 @@
-import React, { FC, RefObject, useCallback, useMemo, useState } from 'react'
+import React, { FC, useCallback, useMemo, useState } from 'react'
+import cn from 'classnames'
 import { useGameContext } from '../../context'
 import { Form1, ParameterInputComponentProps } from '../../../components/Form1'
 import {
@@ -12,7 +13,6 @@ import { BoardStyleRules } from '../BoardStyleRules'
 import { BoardAxisNumberingsForm } from './BoardAxisNumberingsForm'
 import { BoardMarksForm } from './BoardMarksForm'
 import { normalizeAxisNumberingForBoard, resolveAxisNumberings } from '../../boardAxisLabels'
-import { BoardExportButton } from '../BoardExportButton'
 import styles from './styles.module.css'
 
 type BoardSectionTab = 'view' | 'cells' | 'numbering' | 'marks'
@@ -157,12 +157,8 @@ const viewParametersConfig = (value: BoardParameters): Form1FieldConfig<BoardPar
     ]
 }
 
-export interface BoardSettingsPanelProps {
-    boardRef: RefObject<SVGSVGElement | null>
-}
-
-export const BoardSettingsPanel: FC<BoardSettingsPanelProps> = ({ boardRef }) => {
-    const { state, setBoardParameters, boardParametersFormKey, undoBoard, redoBoard, boardHistory } = useGameContext()
+export const BoardSettingsPanel: FC = () => {
+    const { state, setBoardParameters, boardParametersFormKey } = useGameContext()
     const [activeSection, setActiveSection] = useState<BoardSectionTab>('view')
     const [pinnedSection, setPinnedSection] = useState<BoardSectionTab | null>(null)
 
@@ -212,42 +208,29 @@ export const BoardSettingsPanel: FC<BoardSettingsPanelProps> = ({ boardRef }) =>
                         {tab.label}
                     </button>
                 ))}
-                <div className={styles.sectionTabsSpacer} />
-                <div className={styles.sectionTabsActions}>
-                    <button
-                        type="button"
-                        className={styles.actionBtn}
-                        onClick={undoBoard}
-                        disabled={boardHistory.before.length === 0}
-                        title={`undo${boardHistory.before.length ? ` (${boardHistory.before.length})` : ''}`}
-                    >↩</button>
-                    <button
-                        type="button"
-                        className={styles.actionBtn}
-                        onClick={redoBoard}
-                        disabled={boardHistory.after.length === 0}
-                        title={`redo${boardHistory.after.length ? ` (${boardHistory.after.length})` : ''}`}
-                    >↪</button>
-                    <BoardExportButton boardRef={boardRef} iconMode className={styles.actionBtn} />
-                </div>
             </div>
-            {visibleSections.map(id => (
-                <div key={id} className={styles.sectionPanel}>
-                    {id === 'view' && (
-                        <Form1<BoardParameters>
-                            key={boardParametersFormKey}
-                            className={styles.boardParametersForm}
-                            fieldLayout="labeled"
-                            value={state.boardParameters}
-                            config={viewParametersConfig}
-                            onChange={handleViewChange}
-                        />
-                    )}
-                    {id === 'cells' && <BoardStyleRules />}
-                    {id === 'numbering' && <BoardAxisNumberingsForm />}
-                    {id === 'marks' && <BoardMarksForm />}
-                </div>
-            ))}
+            <div className={styles.sectionPanelsScroll}>
+                {visibleSections.map(id => (
+                    <div
+                        key={id}
+                        className={cn(styles.sectionPanel, id === 'view' && styles.viewSectionPanel)}
+                    >
+                        {id === 'view' && (
+                            <Form1<BoardParameters>
+                                key={boardParametersFormKey}
+                                className={styles.boardParametersForm}
+                                fieldLayout="labeled"
+                                value={state.boardParameters}
+                                config={viewParametersConfig}
+                                onChange={handleViewChange}
+                            />
+                        )}
+                        {id === 'cells' && <BoardStyleRules />}
+                        {id === 'numbering' && <BoardAxisNumberingsForm />}
+                        {id === 'marks' && <BoardMarksForm />}
+                    </div>
+                ))}
+            </div>
         </div>
     )
 }

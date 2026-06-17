@@ -1,6 +1,8 @@
 import React, { useCallback } from 'react'
+import cn from 'classnames'
 import { useGameContext } from '../../context'
 import { Form1 } from '../../../components/Form1'
+import formStyles from '../../../components/Form1/styles.module.css'
 import { Mode } from '../../types'
 import { ParameterTypes } from '../../../components/Form1/types'
 import { nonNegative } from '../../../components/Form1/numberInputConstraints'
@@ -62,7 +64,7 @@ export const ConnectionParametersForm: React.FC<ConnectionParametersFormProps> =
                     value={connectionParamsBrushState}
                     onChange={setConnectionParamsBrushState}
                 />
-                <ConnectionSVG connectionParams={connectionParamsBrushState}/>
+                <ConnectionSVG connectionParams={connectionParamsBrushState} />
             </div>
         </div>
     )
@@ -80,7 +82,7 @@ export const ConnectionParametersFormBase: React.FC<ConnectionParametersFormBase
 
     return (
         <Form1<ConnectionParams>
-            className={className}
+            className={cn(formStyles.compactGridForm, className)}
             config={parametersConfig}
             value={value}
             onChange={onChange}

@@ -3,6 +3,7 @@ import React, {
     FC,
     useCallback,
     useEffect,
+    useMemo,
     useRef,
     useState,
 } from 'react'
@@ -19,7 +20,6 @@ import {
     ASSET_UPLOAD_ACCEPT,
 } from '../assets/assetKinds'
 import { useFontAssetFamily } from '../assets/useFontAssetFamily'
-import { formatBytes } from '../formatBytes'
 import { ProjectAssetView } from '../assets/types'
 import styles from './AssetsPanel.module.css'
 
@@ -94,7 +94,7 @@ function AssetCard({ asset, isFont, onDeleteRequest, onPreview }: AssetCardProps
 
     useEffect(() => () => clearHold(), [clearHold])
 
-    const handleDoubleClick = useCallback(() => {
+    const handleOpenPreview = useCallback(() => {
         onPreview(asset)
     }, [asset, onPreview])
 
@@ -102,13 +102,13 @@ function AssetCard({ asset, isFont, onDeleteRequest, onPreview }: AssetCardProps
         <div
             className={cn(styles.item, isHolding && styles.itemHoldDeleting)}
             title={asset.name}
-            onDoubleClick={handleDoubleClick}
+            onClick={handleOpenPreview}
         >
             <button
                 type="button"
                 className={styles.deleteButton}
                 aria-label={`Удалить ${asset.name}`}
-                onDoubleClick={event => event.stopPropagation()}
+                onClick={event => event.stopPropagation()}
                 onPointerDown={handleDeletePointerDown}
                 onPointerUp={handleDeletePointerEnd}
                 onPointerCancel={handleDeletePointerEnd}
@@ -119,7 +119,6 @@ function AssetCard({ asset, isFont, onDeleteRequest, onPreview }: AssetCardProps
             <div className={styles.thumbnailWrap}>
                 <AssetThumbnail asset={asset} isFontAsset={isFont} />
             </div>
-            <div className={styles.size}>{formatBytes(asset.size)}</div>
         </div>
     )
 }
@@ -133,6 +132,8 @@ export const AssetsPanel: FC = () => {
     const [pendingDelete, setPendingDelete] = useState<PendingAssetDelete | null>(null)
     const [previewAsset, setPreviewAsset] = useState<ProjectAssetView | null>(null)
     const [isDragActive, setIsDragActive] = useState(false)
+
+    const displayAssets = useMemo(() => [...assets].reverse(), [assets])
 
     const addFiles = useCallback(async (files: File[]) => {
         for (const file of files) {
@@ -293,7 +294,7 @@ export const AssetsPanel: FC = () => {
                         </div>
                     ) : (
                         <div className={styles.list}>
-                            {[...assets].reverse().map(asset => (
+                            {displayAssets.map(asset => (
                                 <AssetCard
                                     key={asset.id}
                                     asset={asset}
@@ -309,6 +310,8 @@ export const AssetsPanel: FC = () => {
 
             <AssetPreviewModal
                 asset={previewAsset}
+                assets={displayAssets}
+                onSelectAsset={setPreviewAsset}
                 onClose={handleClosePreview}
             />
 

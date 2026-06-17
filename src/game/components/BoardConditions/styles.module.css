@@ -3,7 +3,10 @@
     flex-direction: column-reverse;
     align-items: flex-start;
 
-    min-width: 256px;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     border-top: 1px solid gray;
     margin: 0;
 }
@@ -16,15 +19,15 @@
     position: relative;
 }
 
-.array .item > button {
+.array .item>button {
     visibility: hidden;
 }
 
-.array .item:hover > div:nth-child(2) {
+.array .item:hover>div:nth-child(2) {
     visibility: visible;
 }
 
-.array .item > div:nth-child(2) {
+.array .item>div:nth-child(2) {
     visibility: hidden;
     position: absolute;
     top: 0;
@@ -32,10 +35,12 @@
     display: flex;
     flex-direction: row-reverse;
 }
-.array .item > div:nth-child(2):hover {
+
+.array .item>div:nth-child(2):hover {
     z-index: 1;
 }
-.array .item > div:nth-child(2) > button {
+
+.array .item>div:nth-child(2)>button {
     margin-left: -3px;
 }
 
@@ -75,7 +80,7 @@
     box-sizing: border-box;
 }
 
-.paramsByTypeForm > * {
+.paramsByTypeForm>* {
     flex: 0 0 50%;
     width: 50%;
     max-width: 50%;
@@ -91,7 +96,7 @@
     width: 100%;
 }
 
-.paramsByTypeItemForm > * {
+.paramsByTypeItemForm>* {
     flex: 0 0 50%;
     width: 50%;
     max-width: 50%;
@@ -100,6 +105,7 @@
 }
 
 .cellConditionsForm {
+    padding-bottom: 20px;
     flex: 0 0 152px;
     width: 152px;
     min-width: 152px;
@@ -120,17 +126,17 @@
     padding: 4px;
 }
 
-.cellConditionItemForm > div:nth-child(2) {
+.cellConditionItemForm>div:nth-child(2) {
     visibility: hidden;
 
 }
 
-.cellConditionItemForm:hover > div:nth-child(2) {
+.cellConditionItemForm:hover>div:nth-child(2) {
     visibility: visible;
 
 }
 
-.cellConditionItemForm > div:nth-child(2) > button {
+.cellConditionItemForm>div:nth-child(2)>button {
     position: absolute;
     right: 0;
     top: 0;
@@ -167,26 +173,13 @@
     padding: 4px;
 }
 
-.cellParamsForm > * {
+.cellParamsForm>* {
     width: 100%;
     box-sizing: border-box;
 }
 
 .connectionParamsForm {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    width: 152px;
-
-    border-right: 1px solid gray;
-    border-bottom: 1px solid gray;
     padding: 4px;
-}
-.connectionParamsForm > * {
-    flex: 0 0 50%;
-    width: 50%;
-    max-width: 50%;
-    min-width: 0;
     box-sizing: border-box;
 }
 

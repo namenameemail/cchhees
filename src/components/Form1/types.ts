@@ -29,4 +29,6 @@ export interface Form1FieldConfig<StateType> {
     label?: string
     /** Grid column span when fieldLayout is `labeled`. */
     column?: 'half' | 'full'
+    /** Empty grid cell (labeled two-column layout). */
+    gridSpacer?: boolean
 }

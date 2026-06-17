@@ -1,10 +1,10 @@
 import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useProjectContext } from '../ProjectContext'
-import { CollabPanel } from '../../collab/components/CollabPanel'
 import { HostSnapshotBar } from '../../collab/components/HostSnapshotBar'
 import { JoinProgressBar } from '../../collab/components/JoinProgressBar'
 import { useCollab } from '../../collab/CollabProvider'
 import { BoardTabs } from '../../game/components/BoardTabs'
+import { TOP_BAR_BOARD_ACTIONS_SLOT_ID } from '../../game/components/BoardTopBarActions'
 import styles from './TopBar.module.css'
 
 export const TOP_BAR_HEIGHT = 32
@@ -112,7 +112,7 @@ export const TopBar: FC<TopBarProps> = ({ onOpenProjects }) => {
                 </div>
             )}
 
-            <CollabPanel />
+            <div id={TOP_BAR_BOARD_ACTIONS_SLOT_ID} className={styles.topBarActionsSlot} />
             <HostSnapshotBar progress={hostSnapshotProgress} />
             <JoinProgressBar progress={joinProgress} />
         </header>

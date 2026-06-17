@@ -432,7 +432,7 @@ export const BoardStyleRules: React.FC<BoardStyleRulesProps> = () => {
         <div className={ruleStyles.root}>
             <div className={ruleStyles.toolbar}>
                 <button type="button" onClick={handleAddCell}>+ cell</button>
-                <button type="button" onClick={handleAddConnection}>+ connection</button>
+                <button type="button" onClick={handleAddConnection}>+conn</button>
             </div>
             <div className={ruleStyles.array}>
                 {state.styleRules.map((item, index) => (

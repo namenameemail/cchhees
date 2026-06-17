@@ -1,10 +1,15 @@
 import React, { FC, useCallback, useEffect, useState } from 'react'
+import cn from 'classnames'
 import { useCollab } from '../CollabProvider'
 import { useProjectContext } from '../../projects/ProjectContext'
 import { collabError, formatCollabError } from '../debug'
 import styles from './CollabPanel.module.css'
 
-export const CollabPanel: FC = () => {
+export interface CollabPanelProps {
+    layout?: 'bar' | 'panel'
+}
+
+export const CollabPanel: FC<CollabPanelProps> = ({ layout = 'bar' }) => {
     const { currentProject, switchProjectSession } = useProjectContext()
     const {
         status,
@@ -132,7 +137,7 @@ export const CollabPanel: FC = () => {
     const showOpenRoom = showJoinControls && Boolean(currentProject)
 
     return (
-        <div className={styles.collabPanel}>
+        <div className={cn(styles.collabPanel, layout === 'panel' && styles.collabPanelLayoutPanel)}>
             {(error || joinError) && (
                 <span className={styles.error} title={error ?? joinError ?? undefined}>
                     {error ?? joinError}

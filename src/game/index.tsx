@@ -10,12 +10,14 @@ import { CollabGameBridge } from '../collab/components/CollabGameBridge'
 import { ProjectPreviewBridge } from '../projects/components/ProjectPreviewBridge'
 import { getActiveBoard, getActiveBoardGameState } from '../projects/types'
 import { BoardSettingsPanel } from './components/BoardSettingsPanel/BoardSettingsPanel'
+import { BoardTopBarActions } from './components/BoardTopBarActions'
 import { Figures } from './components/Figures'
 import { Board } from './components/Board'
 import { Tray } from './components/Tray'
 import { History } from './components/History'
 import { CellParametersForm } from './components/CellParametersForm/CellParametersForm'
 import { MoveDebugWorkbench } from './components/MoveDebugWorkbench/MoveDebugWorkbench'
+import { CollabPanel } from '../collab/components/CollabPanel'
 // import { AutomaticConnectionsParametersForm } from './components/AutomaticConnectionsParametersForm'
 import { AssetsPanel } from '../projects/components/AssetsPanel'
 import { selectionDebugLog } from './selectionDebugLog'
@@ -107,11 +109,20 @@ export const Game: React.FC<GameProps> = () => {
         }
     }
 
-    const handleDebugTab = () => {
+    const handleRoomTab = () => {
         if (isToolsOpen && leftTab === 2) {
             setIsToolsOpen(false)
         } else {
             setLeftTab(2)
+            setIsToolsOpen(true)
+        }
+    }
+
+    const handleDebugTab = () => {
+        if (isToolsOpen && leftTab === 3) {
+            setIsToolsOpen(false)
+        } else {
+            setLeftTab(3)
             setIsToolsOpen(true)
         }
     }
@@ -138,6 +149,7 @@ export const Game: React.FC<GameProps> = () => {
             >
                 <CollabGameBridge />
                 <ProjectPreviewBridge boardRef={boardRef} />
+                <BoardTopBarActions boardRef={boardRef} />
 
                 <aside className={styles.toolsShell}>
                     <div className={styles.toolTabs}>
@@ -163,12 +175,23 @@ export const Game: React.FC<GameProps> = () => {
                         >
                             <span className={styles.settingTabText}>history</span>
                         </button>
+                        <button
+                            type="button"
+                            className={cn(
+                                styles.settingTab,
+                                isToolsOpen && leftTab === 2 && styles.settingTabActive,
+                            )}
+                            data-label="room"
+                            onClick={handleRoomTab}
+                        >
+                            <span className={styles.settingTabText}>room</span>
+                        </button>
                         {import.meta.env.DEV && (
                             <button
                                 type="button"
                                 className={cn(
                                     styles.settingTab,
-                                    isToolsOpen && leftTab === 2 && styles.settingTabActive,
+                                    isToolsOpen && leftTab === 3 && styles.settingTabActive,
                                 )}
                                 data-label="debug"
                                 onClick={handleDebugTab}
@@ -194,7 +217,12 @@ export const Game: React.FC<GameProps> = () => {
                                 <History />
                             </div>
                         )}
-                        {import.meta.env.DEV && leftTab === 2 && (
+                        {leftTab === 2 && (
+                            <div className={styles.toolsBody}>
+                                <CollabPanel layout="panel" />
+                            </div>
+                        )}
+                        {import.meta.env.DEV && leftTab === 3 && (
                             <div className={styles.toolsBody}>
                                 <MoveDebugWorkbench />
                             </div>
@@ -216,8 +244,8 @@ export const Game: React.FC<GameProps> = () => {
                         )}
                     >
                         {tab === 0 && (
-                            <div className={styles.settingsBody}>
-                                <BoardSettingsPanel boardRef={boardRef} />
+                            <div className={cn(styles.settingsBody, styles.settingsBodyFixedHeader)}>
+                                <BoardSettingsPanel />
                             </div>
                         )}
                         {tab === 1 && (

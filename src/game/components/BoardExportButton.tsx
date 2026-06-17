@@ -86,12 +86,12 @@ export const BoardExportButton: FC<BoardExportButtonProps> = ({ boardRef, iconMo
         <>
             <button
                 type="button"
-                className={className ?? styles.boardExportButton}
+                className={className ?? (iconMode ? undefined : styles.boardExportButton)}
                 onClick={() => void handleExport()}
                 disabled={isExporting}
                 title={isExporting ? 'экспорт...' : 'export png'}
             >
-                {iconMode ? '⬇' : (isExporting ? 'export...' : 'export png')}
+                {iconMode ? 'PNG' : (isExporting ? 'export...' : 'export png')}
             </button>
 
             <ConfirmModal

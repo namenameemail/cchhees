@@ -18,6 +18,9 @@ export interface FormArrayProps<ItemState> {
     onChange: (value: ItemState[], name?: string) => void
     getItemInitialValue: () => ItemState
     isUpDownEnabled?: boolean
+    fieldLayout?: 'default' | 'labeled'
+    instantRemove?: boolean
+    minItems?: number
 }
 
 export function FormArray<ItemState>(props: FormArrayProps<ItemState>) {
@@ -32,6 +35,9 @@ export function FormArray<ItemState>(props: FormArrayProps<ItemState>) {
         itemClassName,
         itemFormClassName,
         isUpDownEnabled,
+        fieldLayout,
+        instantRemove,
+        minItems = 0,
         addText = 'add',
         addButtonPrefix,
         addButtonClassName,
@@ -93,6 +99,9 @@ export function FormArray<ItemState>(props: FormArrayProps<ItemState>) {
                         onUp={handleItemUp}
                         onDown={handleItemDown}
                         isUpDownEnabled={isUpDownEnabled}
+                        fieldLayout={fieldLayout}
+                        instantRemove={instantRemove}
+                        canRemove={value.length > minItems}
                     />
                 )
             })}
