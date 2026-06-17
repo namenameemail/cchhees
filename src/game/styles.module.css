@@ -71,6 +71,10 @@ div {
     width: min(320px, calc(90vw - 40px));
 }
 
+.toolsPanelDiceOpen {
+    width: min(420px, calc(90vw - 40px));
+}
+
 .toolsBody {
     width: min(320px, calc(90vw - 40px));
     flex: 1;
@@ -79,6 +83,16 @@ div {
     overflow-x: hidden;
     scrollbar-gutter: stable;
     padding: 12px;
+}
+
+.toolsBodyDice {
+    width: min(420px, calc(90vw - 40px));
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
 }
 
 .toolTabs {

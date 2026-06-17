@@ -34,6 +34,7 @@ interface PendingAssetDelete {
 interface AssetCardProps {
     asset: ProjectAssetView
     isFont: boolean
+    isModel: boolean
     onDeleteRequest: (assetId: number, assetName: string) => void
     onPreview: (asset: ProjectAssetView) => void
 }
@@ -51,9 +52,29 @@ function FontAssetThumbnail({ asset }: { asset: ProjectAssetView }) {
     )
 }
 
-function AssetThumbnail({ asset, isFontAsset }: { asset: ProjectAssetView; isFontAsset: boolean }) {
+function ModelAssetThumbnail() {
+    return (
+        <div className={styles.modelThumbnail}>
+            3D
+        </div>
+    )
+}
+
+function AssetThumbnail({
+    asset,
+    isFontAsset,
+    isModelAsset,
+}: {
+    asset: ProjectAssetView
+    isFontAsset: boolean
+    isModelAsset: boolean
+}) {
     if (isFontAsset) {
         return <FontAssetThumbnail asset={asset} />
+    }
+
+    if (isModelAsset) {
+        return <ModelAssetThumbnail />
     }
 
     return (
@@ -65,7 +86,7 @@ function AssetThumbnail({ asset, isFontAsset }: { asset: ProjectAssetView; isFon
     )
 }
 
-function AssetCard({ asset, isFont, onDeleteRequest, onPreview }: AssetCardProps) {
+function AssetCard({ asset, isFont, isModel, onDeleteRequest, onPreview }: AssetCardProps) {
     const [isHolding, setIsHolding] = useState(false)
     const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -117,14 +138,14 @@ function AssetCard({ asset, isFont, onDeleteRequest, onPreview }: AssetCardProps
                 ×
             </button>
             <div className={styles.thumbnailWrap}>
-                <AssetThumbnail asset={asset} isFontAsset={isFont} />
+                <AssetThumbnail asset={asset} isFontAsset={isFont} isModelAsset={isModel} />
             </div>
         </div>
     )
 }
 
 export const AssetsPanel: FC = () => {
-    const { assets, isLoading, addAsset, removeAsset, isFontAsset } = useAssetsContext()
+    const { assets, isLoading, addAsset, removeAsset, isFontAsset, isModelAsset } = useAssetsContext()
     const { state, clearAssetReferences } = useGameContext()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const dragDepthRef = useRef(0)
@@ -264,7 +285,7 @@ export const AssetsPanel: FC = () => {
             >
                 {isDragActive && (
                     <div className={styles.dropOverlay}>
-                        Отпустите изображения или шрифты для добавления
+                        Отпустите изображения, шрифты или GLB для добавления
                     </div>
                 )}
 
@@ -299,6 +320,7 @@ export const AssetsPanel: FC = () => {
                                     key={asset.id}
                                     asset={asset}
                                     isFont={isFontAsset(asset)}
+                                    isModel={isModelAsset(asset)}
                                     onDeleteRequest={handleDeleteRequest}
                                     onPreview={handlePreview}
                                 />

@@ -15,7 +15,7 @@ import {
     getAssetsByProjectId,
     putAsset,
 } from '../db'
-import { isAllowedAssetFile, isFontAsset, isImageAsset } from './assetKinds'
+import { isAllowedAssetFile, isFontAsset, isImageAsset, isModelAsset } from './assetKinds'
 import { ProjectAssetView } from './types'
 import { importLiveAsset } from '../../collab/liveAsset'
 import { ProjectFileAsset } from '../projectFile'
@@ -31,6 +31,7 @@ export interface AssetsContextValue {
     isSvgAsset: (asset: ProjectAssetView) => boolean
     isFontAsset: (asset: ProjectAssetView) => boolean
     isImageAsset: (asset: ProjectAssetView) => boolean
+    isModelAsset: (asset: ProjectAssetView) => boolean
 }
 
 const defaultContextValue: AssetsContextValue = {
@@ -43,6 +44,7 @@ const defaultContextValue: AssetsContextValue = {
     isSvgAsset: () => false,
     isFontAsset: () => false,
     isImageAsset: () => false,
+    isModelAsset: () => false,
 }
 
 export const AssetsContext = createContext<AssetsContextValue>(defaultContextValue)
@@ -279,6 +281,7 @@ export function AssetsProvider({ children }: AssetsProviderProps) {
             isSvgAsset,
             isFontAsset,
             isImageAsset,
+            isModelAsset,
         }),
         [assets, isLoading, addAsset, removeAsset, getAssetUrl, getAssetById],
     )

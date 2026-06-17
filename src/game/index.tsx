@@ -17,6 +17,7 @@ import { Tray } from './components/Tray'
 import { History } from './components/History'
 import { CellParametersForm } from './components/CellParametersForm/CellParametersForm'
 import { MoveDebugWorkbench } from './components/MoveDebugWorkbench/MoveDebugWorkbench'
+import { DicePanel } from './components/Dice/DicePanel'
 import { CollabPanel } from '../collab/components/CollabPanel'
 // import { AutomaticConnectionsParametersForm } from './components/AutomaticConnectionsParametersForm'
 import { AssetsPanel } from '../projects/components/AssetsPanel'
@@ -118,11 +119,20 @@ export const Game: React.FC<GameProps> = () => {
         }
     }
 
-    const handleDebugTab = () => {
+    const handleDiceTab = () => {
         if (isToolsOpen && leftTab === 3) {
             setIsToolsOpen(false)
         } else {
             setLeftTab(3)
+            setIsToolsOpen(true)
+        }
+    }
+
+    const handleDebugTab = () => {
+        if (isToolsOpen && leftTab === 4) {
+            setIsToolsOpen(false)
+        } else {
+            setLeftTab(4)
             setIsToolsOpen(true)
         }
     }
@@ -186,12 +196,23 @@ export const Game: React.FC<GameProps> = () => {
                         >
                             <span className={styles.settingTabText}>room</span>
                         </button>
+                        <button
+                            type="button"
+                            className={cn(
+                                styles.settingTab,
+                                isToolsOpen && leftTab === 3 && styles.settingTabActive,
+                            )}
+                            data-label="dice"
+                            onClick={handleDiceTab}
+                        >
+                            <span className={styles.settingTabText}>dice</span>
+                        </button>
                         {import.meta.env.DEV && (
                             <button
                                 type="button"
                                 className={cn(
                                     styles.settingTab,
-                                    isToolsOpen && leftTab === 3 && styles.settingTabActive,
+                                    isToolsOpen && leftTab === 4 && styles.settingTabActive,
                                 )}
                                 data-label="debug"
                                 onClick={handleDebugTab}
@@ -205,6 +226,7 @@ export const Game: React.FC<GameProps> = () => {
                         className={cn(
                             styles.toolsPanel,
                             isToolsOpen && styles.toolsPanelOpen,
+                            isToolsOpen && leftTab === 3 && styles.toolsPanelDiceOpen,
                         )}
                     >
                         {leftTab === 0 && (
@@ -222,7 +244,12 @@ export const Game: React.FC<GameProps> = () => {
                                 <CollabPanel layout="panel" />
                             </div>
                         )}
-                        {import.meta.env.DEV && leftTab === 3 && (
+                        {leftTab === 3 && (
+                            <div className={styles.toolsBodyDice}>
+                                <DicePanel />
+                            </div>
+                        )}
+                        {import.meta.env.DEV && leftTab === 4 && (
                             <div className={styles.toolsBody}>
                                 <MoveDebugWorkbench />
                             </div>

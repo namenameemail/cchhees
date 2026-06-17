@@ -1,6 +1,12 @@
 import { ProjectAssetView } from './types'
 
 const FONT_EXTENSIONS = new Set(['woff', 'woff2', 'ttf', 'otf', 'eot'])
+const MODEL_EXTENSIONS = new Set(['glb'])
+
+const MODEL_MIME_TYPES = new Set([
+    'model/gltf-binary',
+    'application/octet-stream',
+])
 
 const FONT_MIME_TYPES = new Set([
     'font/woff',
@@ -64,8 +70,32 @@ export function isImageAsset(asset: Pick<ProjectAssetView, 'mimeType' | 'name'>)
         || extension === 'ico'
 }
 
+export function isModelFile(file: Pick<File, 'name' | 'type'>): boolean {
+    const extension = getFileExtension(file.name)
+
+    if (!MODEL_EXTENSIONS.has(extension)) {
+        return false
+    }
+
+    if (file.type.startsWith('image/') || file.type.startsWith('font/')) {
+        return false
+    }
+
+    return file.type === ''
+        || file.type === 'application/octet-stream'
+        || MODEL_MIME_TYPES.has(file.type)
+}
+
+export function isModelAsset(asset: Pick<ProjectAssetView, 'mimeType' | 'name'>): boolean {
+    if (MODEL_EXTENSIONS.has(getFileExtension(asset.name))) {
+        return true
+    }
+
+    return asset.mimeType === 'model/gltf-binary'
+}
+
 export function isAllowedAssetFile(file: File): boolean {
-    return file.type.startsWith('image/') || isFontFile(file)
+    return file.type.startsWith('image/') || isFontFile(file) || isModelFile(file)
 }
 
 export function collectAllowedAssetFiles(files: Iterable<File>): File[] {
@@ -152,4 +182,5 @@ export function getFontFormat(asset: Pick<ProjectAssetView, 'name' | 'mimeType'>
 
 export const FONT_UPLOAD_ACCEPT = '.woff,.woff2,.ttf,.otf,font/woff,font/woff2,font/ttf,font/otf'
 export const IMAGE_UPLOAD_ACCEPT = 'image/*'
-export const ASSET_UPLOAD_ACCEPT = `${IMAGE_UPLOAD_ACCEPT},${FONT_UPLOAD_ACCEPT}`
+export const MODEL_UPLOAD_ACCEPT = '.glb,model/gltf-binary'
+export const ASSET_UPLOAD_ACCEPT = `${IMAGE_UPLOAD_ACCEPT},${FONT_UPLOAD_ACCEPT},${MODEL_UPLOAD_ACCEPT}`

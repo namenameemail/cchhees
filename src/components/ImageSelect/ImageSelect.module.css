@@ -99,6 +99,20 @@
     object-fit: contain;
 }
 
+.modelThumbnail {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    max-width: 28px;
+    max-height: 28px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #444;
+    background: #eef2f7;
+}
+
 .empty {
     padding: 4px 6px;
     font-size: 12px;
