@@ -45,7 +45,16 @@
     align-items: start;
 }
 
-.labeledGridForm > * {
+.labeledColumnForm {
+    display: grid;
+    grid-template-columns: 1fr;
+    column-gap: 8px;
+    row-gap: 0;
+    align-items: start;
+}
+
+.labeledGridForm > *,
+.labeledColumnForm > * {
     width: auto;
 }
 

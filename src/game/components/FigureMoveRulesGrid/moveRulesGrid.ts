@@ -2,6 +2,7 @@ import { FigureMoveRule } from '../../types/figures'
 
 export const MAX_MOVE_GRID_N = 12
 export const MOVE_GRID_AREA_SIZE = 200
+export const MAX_MOVE_GRID_CELL_SIZE = 50
 export const MOVE_GRID_GAP = 0
 export const MOVE_GRID_PADDING = 0
 export const MIN_MOVE_RULE_N = 0

@@ -594,7 +594,7 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
                                         stateIndex={tileStateIndex}
                                         width={previewSize}
                                         height={previewSize}
-                                        highlighted={isSelected}
+                                        highlightSelection={isSelected}
                                     />
                                 </div>
                             )
@@ -636,7 +636,7 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
                                         stateIndex={index}
                                         width={previewSize}
                                         height={previewSize}
-                                        highlighted={isStateSelected}
+                                        highlightSelection={isStateSelected}
                                     />
                                 </button>
                                 )

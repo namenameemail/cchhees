@@ -128,7 +128,7 @@ export function isIntermediatePathClear(
 }
 
 export function resolveJumpOverPieces(state: Pick<FigureState, 'jumpOverPieces'>): boolean {
-    return state.jumpOverPieces === true
+    return state.jumpOverPieces !== false
 }
 
 function resolvePlayStateForActor(

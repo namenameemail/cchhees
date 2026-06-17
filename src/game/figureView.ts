@@ -79,7 +79,7 @@ export function createDefaultFigureState(figureId?: FigureId): FigureState {
     return {
         viewParams: getDefaultFigureViewParams(figureId),
         moveRules: [],
-        jumpOverPieces: false,
+        jumpOverPieces: true,
     }
 }
 
@@ -87,7 +87,7 @@ export function cloneFigureState(state: FigureState): FigureState {
     return {
         viewParams: { ...state.viewParams },
         moveRules: state.moveRules ? state.moveRules.map(rule => ({ ...rule })) : [],
-        jumpOverPieces: state.jumpOverPieces === true,
+        jumpOverPieces: state.jumpOverPieces !== false,
     }
 }
 
@@ -154,7 +154,7 @@ export function normalizeFigureState(state: FigureState, figureId: FigureId): Fi
             strokeDasharray: viewParams.strokeDasharray?.trim() || undefined,
         }),
         moveRules: normalizeFigureMoveRules(state.moveRules),
-        jumpOverPieces: state.jumpOverPieces === true,
+        jumpOverPieces: state.jumpOverPieces !== false,
     }
 }
 
@@ -468,7 +468,7 @@ export function migrateToFigureCatalog(state: {
                 states: [{
                     viewParams: viewParams ?? createPawnFigureViewParams(),
                     moveRules: [],
-                    jumpOverPieces: false,
+                    jumpOverPieces: true,
                 }],
             })),
         )

@@ -1,24 +1,111 @@
 .figureParametersFormLayout {
-    border: 1px solid black;
-    margin-top: 8px;
+    border-top: 1px solid gray;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    container-type: inline-size;
 }
 
-.figureParametersFormLayout .topRow {
+.sectionTabsRow {
     display: flex;
-    justify-content: space-between;
-    padding: 4px 6px;
+    flex-direction: row;
+    align-items: stretch;
+    border-bottom: 1px solid #ddd;
+    background: #f8f8f8;
+    flex-shrink: 0;
+}
+
+.sectionPanelsScroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.sectionTab,
+.sectionTabActive {
+    padding: 4px 10px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    margin-bottom: -1px;
+    background: transparent;
+    font-size: 12px;
+    line-height: 1.2;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.sectionTab:hover {
+    background: #f0f0f0;
+}
+
+.sectionTabActive {
+    background: lightgrey;
+    border-color: #ddd;
+    border-bottom-color: lightgrey;
+    font-weight: 600;
+}
+
+.sectionPanel {
+    min-height: 0;
+}
+
+.viewSectionPanel {
+    border-bottom: 1px solid gray;
+}
+
+.viewContent {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    gap: 8px;
+    align-items: start;
+    box-sizing: border-box;
+}
+
+.viewColumnLeft,
+.viewColumnRight {
+    min-width: 0;
+}
+
+.viewColumnRight {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.preview {
+    width: min(140px, 100%);
+    min-width: 64px;
+    aspect-ratio: var(--figure-cell-aspect, 1);
+    padding: 20px 0;
+    line-height: 0;
+    box-sizing: content-box;
+    border-bottom: 1px solid lightgrey;
+    border-right: 1px solid lightgrey;
+    border-top: 1px solid grey;
+    border-left: 1px solid grey;
+    background: white;
+}
+
+.previewSvg {
+    background: white;
 }
 
 .stateRow {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 2px 6px 4px;
-    border-bottom: 1px solid #ddd;
+    padding: 6px 8px 4px;
+    border-bottom: 1px solid #eee;
 }
 
 .stateRowLabel {
-    font-size: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #555;
     flex: 0 0 auto;
 }
 
@@ -59,67 +146,10 @@
     color: #900;
 }
 
-.sectionTabsRow {
-    display: flex;
-    align-items: stretch;
-    gap: 0;
-    padding: 0 6px;
-    border-bottom: 1px solid #ddd;
-}
-
-.sectionTab,
-.sectionTabActive {
-    padding: 4px 10px;
-    border: 1px solid transparent;
-    border-bottom: none;
-    margin-bottom: -1px;
-    background: transparent;
-    font-size: 12px;
-    line-height: 1.2;
-    cursor: pointer;
-}
-
-.sectionTab:hover {
-    background: #f5f5f5;
-}
-
-.sectionTabActive {
-    background: white;
-    border-color: #ddd;
-    border-bottom-color: white;
-    font-weight: 600;
-}
-
-.sectionPanel {
-    min-height: 0;
-}
-
-.figureParametersFormLayout .secondRow {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 8px;
-    overflow: visible;
-}
-
-.figureParametersFormLayout svg {
-    background: white;
-    border-bottom: 1px solid lightgrey;
-    border-right: 1px solid lightgrey;
-    border-top: 1px solid grey;
-    border-left: 1px solid grey;
-    flex: 0 0 auto;
-    overflow: visible;
-}
-
 .figureParametersForm {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 180px;
-    border-right: 1px solid gray;
-    border-bottom: 1px solid gray;
-    padding: 4px;
+    width: 100%;
+    padding: 6px 8px;
+    box-sizing: border-box;
 }
 
 .figureParametersFormByType {
@@ -150,44 +180,24 @@
     margin: 0;
 }
 
-.imageAssetField {
+.dimensionField {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 4px;
     width: 100%;
-}
-
-.imageAssetField > :first-child {
-    flex: 1 1 auto;
     min-width: 0;
 }
 
-.clearImageAsset {
-    flex: 0 0 auto;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    border: 1px solid #999;
-    background: white;
-    color: #666;
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
+.dimensionCheckbox {
+    margin: 0;
+    flex-shrink: 0;
 }
 
-.clearImageAsset:hover {
-    background: #f5d0d0;
-    border-color: #c44;
-    color: #900;
+.dimensionField :global(.number-drag-pointer-lock-input) {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
 }
-
-.hint {
-    padding: 8px;
-    font-size: 12px;
-    color: #555;
-}
-
-/* --- Move rules --- */
 
 .moveRulesSection {
     padding: 4px 6px;
@@ -215,8 +225,6 @@
 .jumpOverPiecesField input {
     margin: 0;
 }
-
-/* --- Event rules table --- */
 
 .eventRulesSection {
     padding: 4px 6px;

@@ -20,6 +20,7 @@ import {
     resolveCollabStateIndex,
     updateFigureCatalogStateAtIndex,
 } from '../game/figureView'
+import { resolveJumpOverPieces } from '../game/moveRules'
 import { GameState } from '../game/types/gameState'
 
 /** Minimal collaborative edit operation — only what changed. */
@@ -142,8 +143,8 @@ export function applyCollabOp(
                     ...state,
                     moveRules: normalizeFigureMoveRules(op.moveRules),
                     jumpOverPieces: op.jumpOverPieces !== undefined
-                        ? op.jumpOverPieces === true
-                        : state.jumpOverPieces === true,
+                        ? op.jumpOverPieces !== false
+                        : resolveJumpOverPieces(state),
                 })),
             }
         }

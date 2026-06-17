@@ -20,6 +20,7 @@ import {
     isCenterOffset,
     iterGridCells,
     MAX_MOVE_GRID_N,
+    MAX_MOVE_GRID_CELL_SIZE,
     MOVE_GRID_AREA_SIZE,
     removeRule,
     upsertRule,
@@ -43,6 +44,7 @@ function getRuleNDragValue(n: number | undefined): number {
 }
 
 const MOVE_RULES_DRAG_PIXELS_PER_STEP = 8
+const GRID_BORDER_DRAG_PIXELS_PER_STEP = 20
 
 type GridBorder = 'top' | 'bottom' | 'left' | 'right'
 
@@ -70,6 +72,7 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
     const [gridN, setGridN] = useState(minGridN)
     const [gridAreaSize, setGridAreaSize] = useState(MOVE_GRID_AREA_SIZE)
     const gridAreaRef = useRef<HTMLDivElement>(null)
+    const suppressCellClickRef = useRef(false)
 
     useEffect(() => {
         setGridN(getMinGridN(moveRules))
@@ -115,15 +118,20 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
         const direction = GRID_BORDER_DRAG_DIRECTION[border]
         const delta = scaleNumberDragDelta(
             getNumberDragDelta[direction](event.x, event.y),
-            MOVE_RULES_DRAG_PIXELS_PER_STEP,
+            GRID_BORDER_DRAG_PIXELS_PER_STEP,
         )
 
         setGridN(clampGridN(savedValue + delta, moveRules))
     }, [minGridN, moveRules])
 
-    const handleCellDoubleClick = useCallback((event: React.MouseEvent, x: number, y: number) => {
+    const handleCellClick = useCallback((event: React.MouseEvent, x: number, y: number) => {
         event.preventDefault()
         event.stopPropagation()
+
+        if (suppressCellClickRef.current) {
+            suppressCellClickRef.current = false
+            return
+        }
 
         if (isCenterOffset(x, y)) {
             return
@@ -156,6 +164,11 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
             getNumberDragDelta[NumberDragDirection.ny](event.x, event.y),
             MOVE_RULES_DRAG_PIXELS_PER_STEP,
         )
+
+        if (delta !== 0) {
+            suppressCellClickRef.current = true
+        }
+
         const nextN = clampMoveRuleN(savedValue + delta)
 
         emitChange(upsertRule(moveRules, {
@@ -167,11 +180,14 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
     const cells = useMemo(() => iterGridCells(gridN), [gridN])
     const gridSize = getMoveGridSize(gridN)
     const cellSize = useMemo(
-        () => getMoveGridCellSize(gridN, gridAreaSize),
+        () => Math.min(
+            MAX_MOVE_GRID_CELL_SIZE,
+            getMoveGridCellSize(gridN, gridAreaSize),
+        ),
         [gridAreaSize, gridN],
     )
     const previewSize = Math.max(1, Math.floor(cellSize))
-    const cellFontSize = Math.max(8, Math.floor(cellSize * 0.38))
+    const cellFontSize = Math.min(12, Math.max(9, Math.floor(cellSize * 0.26)))
 
     return (
         <div className={styles.moveRulesGrid}>
@@ -194,7 +210,10 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
                     />
                 </label>
             </div>
-            <div className={styles.gridFrame}>
+            <div
+                className={styles.gridFrame}
+                style={{ '--grid-size': gridSize } as React.CSSProperties}
+            >
                 <div
                     ref={gridAreaRef}
                     className={styles.gridArea}
@@ -232,9 +251,9 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
                             key={`${gi},${gj}`}
                             className={cellClassName}
                             title={rule
-                                ? `Ход (${x}, ${y}), n=${formatRuleN(rule.n)}. Двойной клик — удалить. Перетаскивание — изменить n.`
-                                : `Двойной клик — добавить ход (${x}, ${y})`}
-                            onDoubleClick={event => handleCellDoubleClick(event, x, y)}
+                                ? `Ход (${x}, ${y}), n=${formatRuleN(rule.n)}. Клик — удалить. Перетаскивание — изменить n.`
+                                : `Клик — добавить ход (${x}, ${y})`}
+                            onClick={event => handleCellClick(event, x, y)}
                         >
                             {rule ? (
                                 <DragHandler<number>

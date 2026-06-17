@@ -1,11 +1,11 @@
-import React, { FC, useCallback, useEffect, useRef } from 'react'
-import cn from 'classnames'
+import React, { FC, useCallback, useEffect, useMemo, useRef } from 'react'
 import { HiddenScroll } from 'bbuutoonnss'
 import { useGameContext } from '../context'
 import { FigureButton } from './FigureButton'
 import { FigureId } from '../types/figures'
 import { Mode } from '../types'
 import { FigureParametersForm } from './FigureParametersForm/FigureParametersForm'
+import { resolveStripCellPixelSize } from '../figureCellFit'
 import { scrollDebugLog } from '../scrollDebugLog'
 import styles from './Figures.module.css'
 
@@ -13,10 +13,12 @@ const SCROLL_SOURCE = 'figures'
 
 export const Figures: FC = () => {
     const {
-        mode,
         setMode,
         activeFigure,
         setActiveFigure,
+        isFigureArrangeEnabled,
+        toggleFigureArrange,
+        getFigureStateIndex,
         state,
         addFigure,
         removeFigure,
@@ -24,20 +26,61 @@ export const Figures: FC = () => {
 
     const scrollRef = useRef<HTMLDivElement>(null)
     const catalogLengthRef = useRef(state.figureCatalog.length)
-    const isArrangeMode = mode === Mode.FiguresArrange
     const canDeleteFigure = state.figureCatalog.length > 1
+    const { cellXDistance, cellYDistance } = state.boardParameters
+    const stripCellSize = useMemo(
+        () => resolveStripCellPixelSize(cellXDistance, cellYDistance),
+        [cellXDistance, cellYDistance],
+    )
+    const figureCellAspect = stripCellSize.height > 0
+        ? stripCellSize.width / stripCellSize.height
+        : 1
+    const figuresPanelStyle = {
+        '--figure-cell-aspect': figureCellAspect,
+        '--figure-cell-height': `${stripCellSize.height}px`,
+        '--figure-cell-width': `${stripCellSize.width}px`,
+    } as React.CSSProperties
 
     const handleFigureClick = useCallback((figureId: FigureId) => {
-        setActiveFigure(activeFigure === figureId ? undefined : figureId)
-    }, [activeFigure, setActiveFigure])
+        if (activeFigure === figureId) {
+            toggleFigureArrange(figureId)
+            return
+        }
 
-    const handleArrangeModeClick = useCallback(() => {
-        setMode(isArrangeMode ? Mode.Game : Mode.FiguresArrange)
-    }, [setMode, isArrangeMode])
+        setActiveFigure(figureId)
+    }, [activeFigure, setActiveFigure, toggleFigureArrange])
+
+    useEffect(() => {
+        const { figureCatalog } = state
+
+        if (figureCatalog.length === 0) {
+            if (activeFigure !== undefined) {
+                setActiveFigure(undefined)
+            }
+            return
+        }
+
+        const isCurrentValid = activeFigure != null
+            && figureCatalog.some(entry => entry.id === activeFigure)
+
+        if (!isCurrentValid) {
+            setActiveFigure(figureCatalog[0].id)
+        }
+    }, [state.figureCatalog, activeFigure, setActiveFigure])
 
     const handleAddFigure = useCallback(() => {
         addFigure()
     }, [addFigure])
+
+    useEffect(() => {
+        if (activeFigure && isFigureArrangeEnabled(activeFigure)) {
+            setMode(Mode.FiguresArrange)
+        } else {
+            setMode(Mode.Game)
+        }
+    }, [activeFigure, isFigureArrangeEnabled, setMode])
+
+    useEffect(() => () => setMode(Mode.Game), [setMode])
 
     const handleRemoveFigure = useCallback((figureId: FigureId) => {
         removeFigure(figureId)
@@ -93,26 +136,16 @@ export const Figures: FC = () => {
     }, [state.figureCatalog.length, activeFigure])
 
     return (
-        <div className={styles.figuresPanel}>
+        <div className={styles.figuresPanel} style={figuresPanelStyle}>
             <div className={styles.figureStrip}>
-                <div className={styles.figureStripAside}>
-                    <button
-                        type="button"
-                        className={styles.addButton}
-                        onClick={handleAddFigure}
-                    >
-                        add
-                    </button>
-                    <button
-                        type="button"
-                        className={cn(styles.arrangeButton, isArrangeMode && styles.arrangeButtonActive)}
-                        onClick={handleArrangeModeClick}
-                        disabled={!activeFigure}
-                        title="Расставить выбранную фигуру на доске"
-                    >
-                        расстановка{isArrangeMode ? ' <' : ''}
-                    </button>
-                </div>
+                <button
+                    type="button"
+                    className={styles.addButton}
+                    onClick={handleAddFigure}
+                    title="Добавить фигуру"
+                >
+                    +
+                </button>
                 <HiddenScroll
                     ref={scrollRef}
                     direction="horizontal"
@@ -139,16 +172,23 @@ export const Figures: FC = () => {
                         })
                     }}
                 >
-                    {state.figureCatalog.map(entry => (
-                        <FigureButton
-                            key={entry.id}
-                            figureId={entry.id}
-                            onClick={handleFigureClick}
-                            isActive={activeFigure === entry.id}
-                            canDelete={canDeleteFigure}
-                            onDelete={handleRemoveFigure}
-                        />
-                    ))}
+                    {state.figureCatalog.map(entry => {
+                        const isActive = activeFigure === entry.id
+                        const isArrange = isActive && isFigureArrangeEnabled(entry.id)
+
+                        return (
+                            <FigureButton
+                                key={entry.id}
+                                figureId={entry.id}
+                                onClick={handleFigureClick}
+                                isActive={isActive}
+                                highlightArrange={isArrange}
+                                stateIndex={isActive ? getFigureStateIndex(entry.id) : 0}
+                                canDelete={canDeleteFigure}
+                                onDelete={handleRemoveFigure}
+                            />
+                        )
+                    })}
                 </HiddenScroll>
             </div>
             <FigureParametersForm />

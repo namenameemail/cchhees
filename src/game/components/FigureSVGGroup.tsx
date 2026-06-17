@@ -68,28 +68,29 @@ export const FigureSVGGroup: FC<FigureSVGGroupProps> = ({
     const strokeWidth = resolveFigureStrokeWidth(viewParams)
     const strokeEnabled = hasFigureStroke(viewParams)
 
-    const imageSize = hasFigureImage(viewParams) && imageHref
-        ? resolveSvgCellPixelSize(viewParams, cellXDistance, cellYDistance, aspectRatio)
-        : null
+    const frameSize = resolveSvgCellPixelSize(
+        viewParams,
+        cellXDistance,
+        cellYDistance,
+        aspectRatio,
+    )
 
-    const imageBounds = imageSize
-        ? {
-            x: x - imageSize.width / 2,
-            y: y - imageSize.height / 2,
-            width: imageSize.width,
-            height: imageSize.height,
-        }
-        : null
+    const frameBounds = {
+        x: x - frameSize.width / 2,
+        y: y - frameSize.height / 2,
+        width: frameSize.width,
+        height: frameSize.height,
+    }
 
-    const strokeBounds = imageBounds && strokeEnabled
+    const strokeBounds = strokeEnabled
         ? (() => {
             const halfStroke = strokeWidth / 2
 
             return {
-                x: imageBounds.x + halfStroke,
-                y: imageBounds.y + halfStroke,
-                width: Math.max(0, imageBounds.width - strokeWidth),
-                height: Math.max(0, imageBounds.height - strokeWidth),
+                x: frameBounds.x + halfStroke,
+                y: frameBounds.y + halfStroke,
+                width: Math.max(0, frameBounds.width - strokeWidth),
+                height: Math.max(0, frameBounds.height - strokeWidth),
                 rx: Math.max(0, borderRadius - halfStroke),
                 ry: Math.max(0, borderRadius - halfStroke),
             }
@@ -108,16 +109,16 @@ export const FigureSVGGroup: FC<FigureSVGGroupProps> = ({
 
     return (
         <g style={{ pointerEvents: 'none' } as CSSProperties}>
-            {imageHref && imageBounds && (
+            {imageHref && (
                 <>
                     {borderRadius > 0 && (
                         <defs>
                             <clipPath id={clipId}>
                                 <rect
-                                    x={imageBounds.x}
-                                    y={imageBounds.y}
-                                    width={imageBounds.width}
-                                    height={imageBounds.height}
+                                    x={frameBounds.x}
+                                    y={frameBounds.y}
+                                    width={frameBounds.width}
+                                    height={frameBounds.height}
                                     rx={borderRadius}
                                     ry={borderRadius}
                                 />
@@ -127,28 +128,28 @@ export const FigureSVGGroup: FC<FigureSVGGroupProps> = ({
                     <image
                         xlinkHref={imageHref}
                         href={imageHref}
-                        width={imageBounds.width}
-                        height={imageBounds.height}
-                        x={imageBounds.x}
-                        y={imageBounds.y}
+                        width={frameBounds.width}
+                        height={frameBounds.height}
+                        x={frameBounds.x}
+                        y={frameBounds.y}
                         preserveAspectRatio="none"
                         clipPath={borderRadius > 0 ? `url(#${clipId})` : undefined}
                     />
-                    {strokeBounds && (
-                        <rect
-                            x={strokeBounds.x}
-                            y={strokeBounds.y}
-                            width={strokeBounds.width}
-                            height={strokeBounds.height}
-                            rx={strokeBounds.rx}
-                            ry={strokeBounds.ry}
-                            fill="none"
-                            stroke={resolveColorValue(resolveFigureStrokeColor(viewParams))}
-                            strokeWidth={strokeWidth}
-                            strokeDasharray={resolveFigureStrokeDasharray(viewParams)}
-                        />
-                    )}
                 </>
+            )}
+            {strokeBounds && (
+                <rect
+                    x={strokeBounds.x}
+                    y={strokeBounds.y}
+                    width={strokeBounds.width}
+                    height={strokeBounds.height}
+                    rx={strokeBounds.rx}
+                    ry={strokeBounds.ry}
+                    fill="none"
+                    stroke={resolveColorValue(resolveFigureStrokeColor(viewParams))}
+                    strokeWidth={strokeWidth}
+                    strokeDasharray={resolveFigureStrokeDasharray(viewParams)}
+                />
             )}
             {textShadowEnabled && (
                 <defs>

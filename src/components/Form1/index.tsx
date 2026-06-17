@@ -18,8 +18,8 @@ export interface Form1Props<StateType> {
     value: StateType
     config: Form1FieldConfig<StateType>[] | ((value: StateType) => Form1FieldConfig<StateType>[])
     onChange: (value: StateType, name?: any) => void
-    /** Short label left of each field; parent uses `.labeledGridForm` for two-column layout. */
-    fieldLayout?: 'default' | 'labeled'
+    /** Short label left of each field; `labeledColumn` is a single-column variant. */
+    fieldLayout?: 'default' | 'labeled' | 'labeledColumn' | 'labeledColumn'
 }
 
 export function Form1<StateType>(props: Form1Props<StateType>) {
@@ -53,6 +53,7 @@ export function Form1<StateType>(props: Form1Props<StateType>) {
             styles.form1,
             fieldLayout === 'default' && !className && styles.form1Column,
             fieldLayout === 'labeled' && styles.labeledGridForm,
+            fieldLayout === 'labeledColumn' && styles.labeledColumnForm,
             className,
         )}>
             {config.map(({ name, type, Component, props, propsByState, visibility, label, column, gridSpacer }) => {
@@ -114,7 +115,7 @@ export interface ParameterComponentProps<StateType> {
     onFieldsChange?: (fields: Record<string, unknown>) => void
     label?: string
     column?: 'half' | 'full'
-    fieldLayout?: 'default' | 'labeled'
+    fieldLayout?: 'default' | 'labeled' | 'labeledColumn'
 }
 
 export function ParameterComponent<StateType>(props: ParameterComponentProps<StateType>) {
@@ -156,8 +157,10 @@ export function ParameterComponent<StateType>(props: ParameterComponentProps<Sta
         />
     )
 
-    if (fieldLayout !== 'labeled' || !label) {
-        if (fieldLayout === 'labeled' && column === 'full') {
+    const isLabeledLayout = fieldLayout === 'labeled' || fieldLayout === 'labeledColumn'
+
+    if (!isLabeledLayout || !label) {
+        if (isLabeledLayout && column === 'full') {
             return <div className={styles.labeledFieldFull}>{control}</div>
         }
         return control

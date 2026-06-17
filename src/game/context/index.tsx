@@ -25,6 +25,7 @@ import { ActiveBoardPersistPayload } from '../../projects/projectPersist'
 import { Mode } from '../types'
 import { BoardParameters } from '../types/boardParameters'
 import { normalizeBoardFigureAnimationSettings } from '../figureAnimation/resolveFigureAnimationSettings'
+import { resolveJumpOverPieces } from '../moveRules'
 import { ConnectionParams } from '../types/connections'
 import { BoardStyleRule } from '../types/styleRules'
 import { cellParametersBrushStateInitialValue, connectionParamsBrushStateInitialValue } from './constants'
@@ -118,7 +119,30 @@ export function GameProvider({
         }
     }, [mode])
     const [activeFigure, setActiveFigure] = useState<FigureId | undefined>(undefined)
+    const [figureStateIndexById, setFigureStateIndexById] = useState<Partial<Record<FigureId, number>>>({})
+    const [isArrangeMode, setIsArrangeMode] = useState(false)
+
     const [previewCellStyleRuleIndex, setPreviewCellStyleRuleIndex] = useState<number | undefined>(undefined)
+
+    const isFigureArrangeEnabled = useCallback(
+        (_figureId: FigureId) => isArrangeMode,
+        [isArrangeMode],
+    )
+
+    const toggleFigureArrange = useCallback((_figureId: FigureId) => {
+        setIsArrangeMode(prev => !prev)
+    }, [])
+
+    const getFigureStateIndex = useCallback((figureId: FigureId) => {
+        return figureStateIndexById[figureId] ?? 0
+    }, [figureStateIndexById])
+
+    const setFigureStateIndex = useCallback((figureId: FigureId, stateIndex: number) => {
+        setFigureStateIndexById(prev => ({
+            ...prev,
+            [figureId]: Math.max(0, Math.trunc(stateIndex)),
+        }))
+    }, [])
 
     const setActiveCell = useCallback((value: CellCoord | undefined, reason = 'unknown') => {
         setActiveCellState(previous => {
@@ -302,7 +326,7 @@ export function GameProvider({
         })
     }, [figuresSlice, pushFiguresChange])
 
-    const replace = useCallback((coord: CellCoord, figure: FigureId) => {
+    const replace = useCallback((coord: CellCoord, figure: FigureId, stateIndex?: number) => {
         const topFigure = getTopOfStack(figuresSlice, coord)
         if (!topFigure) {
             return
@@ -311,24 +335,26 @@ export function GameProvider({
         const withoutTop = removePlacementFromBoard(figuresSlice, topFigure, coord)
 
         pushFiguresChange({
-            ...pushToStack(withoutTop, coord, createFigurePlacement(figure)),
+            ...pushToStack(withoutTop, coord, createFigurePlacement(figure, stateIndex)),
             tray: [topFigure, ...figuresSlice.tray],
         })
     }, [figuresSlice, pushFiguresChange])
 
-    const setFigure = useCallback((coord: CellCoord, figure: FigureId) => {
+    const setFigure = useCallback((coord: CellCoord, figure: FigureId, stateIndex?: number) => {
         pushFiguresChange(
-            pushToStack(figuresSlice, coord, createFigurePlacement(figure)),
+            pushToStack(figuresSlice, coord, createFigurePlacement(figure, stateIndex)),
         )
     }, [figuresSlice, pushFiguresChange])
 
     const setCellFigure = useCallback((coord: CellCoord, figure: FigureId) => {
+        const stateIndex = figureStateIndexById[figure] ?? 0
+
         if (isStackOccupied(figuresSlice, coord)) {
-            replace(coord, figure)
+            replace(coord, figure, stateIndex)
         } else {
-            setFigure(coord, figure)
+            setFigure(coord, figure, stateIndex)
         }
-    }, [figuresSlice, replace, setFigure])
+    }, [figuresSlice, replace, setFigure, figureStateIndexById])
 
     const setCellParameters = useCallback((coord: CellCoord) => {
         const key = coordKey(coord)
@@ -381,7 +407,7 @@ export function GameProvider({
             updateFigureCatalogStateAtIndex(figureCatalog, figureId, stateIndex, state => ({
                 ...state,
                 moveRules,
-                jumpOverPieces: jumpOverPieces ?? state.jumpOverPieces === true,
+                jumpOverPieces: jumpOverPieces ?? resolveJumpOverPieces(state),
             })),
             true,
             {
@@ -389,7 +415,7 @@ export function GameProvider({
                 figureId,
                 stateIndex,
                 moveRules,
-                jumpOverPieces: jumpOverPieces ?? currentState?.jumpOverPieces === true,
+                jumpOverPieces: jumpOverPieces ?? (currentState ? resolveJumpOverPieces(currentState) : true),
             },
         )
     }, [figureCatalog, applyCatalogChange])
@@ -627,6 +653,10 @@ export function GameProvider({
             setConnectionParamsBrushState,
             activeFigure,
             setActiveFigure,
+            getFigureStateIndex,
+            setFigureStateIndex,
+            isFigureArrangeEnabled,
+            toggleFigureArrange,
             activeCell,
             setActiveCell,
             previewCellStyleRuleIndex,
@@ -668,6 +698,10 @@ export function GameProvider({
             cellParametersBrushState,
             connectionParamsBrushState,
             activeFigure,
+            isFigureArrangeEnabled,
+            toggleFigureArrange,
+            getFigureStateIndex,
+            setFigureStateIndex,
             activeCell,
             previewCellStyleRuleIndex,
             moveActiveCellFigureTo,

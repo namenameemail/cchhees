@@ -160,7 +160,7 @@ const viewParametersConfig = (value: BoardParameters): Form1FieldConfig<BoardPar
 export const BoardSettingsPanel: FC = () => {
     const { state, setBoardParameters, boardParametersFormKey } = useGameContext()
     const [activeSection, setActiveSection] = useState<BoardSectionTab>('view')
-    const [pinnedSection, setPinnedSection] = useState<BoardSectionTab | null>(null)
+    const [pinnedSections, setPinnedSections] = useState<BoardSectionTab[]>([])
 
     const handleViewChange = useCallback((value: BoardParameters) => {
         const numberings = resolveAxisNumberings(state.boardParameters).map(item =>
@@ -174,21 +174,23 @@ export const BoardSettingsPanel: FC = () => {
     }, [])
 
     const handleTabDoubleClick = useCallback((id: BoardSectionTab) => {
-        setPinnedSection(prev => prev === id ? null : id)
+        setPinnedSections(prev => (
+            prev.includes(id)
+                ? prev.filter(section => section !== id)
+                : [...prev, id]
+        ))
         setActiveSection(id)
     }, [])
 
     const visibleSections = useMemo((): BoardSectionTab[] => {
-        if (!pinnedSection || pinnedSection === activeSection) return [activeSection]
-        const pinnedIndex = BOARD_SECTION_TABS.findIndex(t => t.id === pinnedSection)
-        const activeIndex = BOARD_SECTION_TABS.findIndex(t => t.id === activeSection)
-        return activeIndex < pinnedIndex
-            ? [activeSection, pinnedSection]
-            : [pinnedSection, activeSection]
-    }, [activeSection, pinnedSection])
+        const visible = new Set<BoardSectionTab>([activeSection, ...pinnedSections])
+        return BOARD_SECTION_TABS
+            .filter(tab => visible.has(tab.id))
+            .map(tab => tab.id)
+    }, [activeSection, pinnedSections])
 
     const tabClass = (id: BoardSectionTab) => {
-        if (id === pinnedSection) return styles.sectionTabPinned
+        if (pinnedSections.includes(id)) return styles.sectionTabPinned
         if (id === activeSection) return styles.sectionTabActive
         return styles.sectionTab
     }
@@ -203,7 +205,7 @@ export const BoardSettingsPanel: FC = () => {
                         className={tabClass(tab.id)}
                         onClick={() => handleTabClick(tab.id)}
                         onDoubleClick={() => handleTabDoubleClick(tab.id)}
-                        title={tab.id === pinnedSection ? 'двойной клик — открепить' : 'двойной клик — закрепить'}
+                        title={pinnedSections.includes(tab.id) ? 'двойной клик — открепить' : 'двойной клик — закрепить'}
                     >
                         {tab.label}
                     </button>

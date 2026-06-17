@@ -2,62 +2,59 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    flex: 1 1 auto;
     min-height: 0;
-    overflow: visible;
+    overflow: hidden;
 }
 
 .figureStrip {
     display: flex;
     align-items: stretch;
-    gap: 8px;
+    gap: 6px;
+    flex: 0 0 auto;
     min-width: 0;
+    height: var(--figure-cell-height);
     overflow: visible;
 }
 
-.figureStripAside {
-    display: flex;
-    flex-direction: column;
+.addButton {
     flex: 0 0 auto;
-    gap: 6px;
-}
-
-.addButton,
-.arrangeButton {
-    padding: 8px 12px;
-    font-size: 12px;
-    cursor: pointer;
-    border: 1px solid black;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--figure-cell-width);
+    height: var(--figure-cell-height);
+    padding: 0;
+    border: 1px solid #bbb;
     background: white;
-    white-space: nowrap;
+    font-size: clamp(16px, calc(var(--figure-cell-height) * 0.55), 24px);
+    line-height: 1;
+    cursor: pointer;
+    box-sizing: border-box;
 }
 
-.addButton:disabled,
-.arrangeButton:disabled {
-    opacity: 0.5;
-    cursor: default;
-}
-
-.arrangeButtonActive {
-    background: antiquewhite;
-    border-color: #666;
+.addButton:hover {
+    background: #f5f5f5;
 }
 
 .figureStripScroll {
     flex: 1 1 auto;
     min-width: 0;
-    padding-block: 6px;
+    height: 100%;
+    align-self: stretch;
     overflow-y: visible;
 }
 
 .figureStripScroll:global(.bb-hidden-scroll--horizontal) {
+    height: 100%;
     overflow-y: visible;
 }
 
 .figureStripTrack {
     display: flex;
     flex-wrap: nowrap;
-    align-items: center;
+    align-items: stretch;
+    height: 100%;
     gap: 6px;
-    padding-block: 2px;
     overflow: visible;
 }

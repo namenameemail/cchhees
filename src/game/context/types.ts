@@ -38,6 +38,12 @@ export interface GameContextValue {
     activeFigure?: FigureId
     setActiveFigure: (value: FigureId | undefined) => void
 
+    getFigureStateIndex: (figureId: FigureId) => number
+    setFigureStateIndex: (figureId: FigureId, stateIndex: number) => void
+
+    isFigureArrangeEnabled: (figureId: FigureId) => boolean
+    toggleFigureArrange: (figureId: FigureId) => void
+
     activeCell?: CellCoord
     setActiveCell: (value: CellCoord | undefined, reason?: string) => void
 

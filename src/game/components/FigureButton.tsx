@@ -1,8 +1,7 @@
 import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import cn from 'classnames'
-import { useGameContext } from '../context'
 import { FigureId } from '../types/figures'
-import { FigureSVG } from './FigureSVG'
+import { ScalableFigurePreview } from './ScalableFigurePreview'
 import styles from './FigureButton.module.css'
 
 const DELETE_HOLD_MS = 1000
@@ -11,6 +10,8 @@ export interface FigureButtonProps {
     figureId: FigureId
     onClick: (figureId: FigureId) => void
     isActive?: boolean
+    highlightArrange?: boolean
+    stateIndex?: number
     canDelete?: boolean
     onDelete?: (figureId: FigureId) => void
 }
@@ -19,15 +20,11 @@ export const FigureButton: FC<FigureButtonProps> = ({
     figureId,
     onClick,
     isActive,
+    highlightArrange,
+    stateIndex = 0,
     canDelete = false,
     onDelete,
 }) => {
-    const {
-        state: {
-            boardParameters: { cellXDistance, cellYDistance },
-        },
-    } = useGameContext()
-
     const [isHolding, setIsHolding] = useState(false)
     const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -72,12 +69,22 @@ export const FigureButton: FC<FigureButtonProps> = ({
             className={cn(styles.item, isHolding && styles.itemHoldDeleting)}
             title={figureId}
             data-figure-id={figureId}
+            onClick={handleClick}
+            onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    handleClick()
+                }
+            }}
+            role="button"
+            tabIndex={0}
         >
             {showDelete ? (
                 <button
                     type="button"
                     className={styles.deleteButton}
                     aria-label={`Удалить ${figureId}`}
+                    onClick={event => event.stopPropagation()}
                     onDoubleClick={event => event.stopPropagation()}
                     onPointerDown={handleDeletePointerDown}
                     onPointerUp={handleDeletePointerEnd}
@@ -87,18 +94,13 @@ export const FigureButton: FC<FigureButtonProps> = ({
                     ×
                 </button>
             ) : null}
-            <button
-                type="button"
-                className={cn(styles.figureButton, isActive && styles.figureButtonActive)}
-                onClick={handleClick}
-            >
-                <FigureSVG
+            <div className={cn(styles.figureButton, isActive && styles.figureButtonActive)}>
+                <ScalableFigurePreview
                     figureId={figureId}
-                    width={cellXDistance}
-                    height={cellYDistance}
-                    highlighted={isActive}
+                    stateIndex={stateIndex}
+                    highlightSelection={highlightArrange}
                 />
-            </button>
+            </div>
         </div>
     )
 }

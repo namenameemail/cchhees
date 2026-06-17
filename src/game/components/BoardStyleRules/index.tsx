@@ -209,6 +209,7 @@ function ConditionsArrayEditor(props: ParameterInputComponentProps) {
             itemClassName={fieldProps.itemClassName}
             itemConfig={fieldProps.itemConfig}
             getItemInitialValue={fieldProps.getItemInitialValue}
+            instantRemove
         />
     )
 }

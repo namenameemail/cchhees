@@ -98,8 +98,11 @@ export const BoardCell: FC<CellProps> = (props) => {
     }, [canHoldDelete, coord, toTray])
 
     const handleArrangeDeletePointerEnd = useCallback(() => {
+        if (isHoldingDelete || holdTimerRef.current) {
+            suppressClickRef.current = true
+        }
         clearHoldDelete()
-    }, [clearHoldDelete])
+    }, [clearHoldDelete, isHoldingDelete])
 
     const isActive = activeCell !== undefined && coordsEqual(activeCell, coord)
     const isDisabled = false
@@ -134,7 +137,7 @@ export const BoardCell: FC<CellProps> = (props) => {
         selectionDebugLog.cellClick(coord, Mode[mode] ?? String(mode), activeCell, hasFigure)
 
         if (mode === Mode.FiguresArrange) {
-            if (activeFigure) {
+            if (activeFigure && !topFigure) {
                 setCellFigure(coord, activeFigure)
             }
         } else if (mode === Mode.Game) {

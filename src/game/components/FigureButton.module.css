@@ -2,13 +2,17 @@
     position: relative;
     display: inline-flex;
     flex: 0 0 auto;
-    align-items: center;
+    align-items: stretch;
     justify-content: center;
+    width: var(--figure-cell-width);
+    height: var(--figure-cell-height);
     padding: 0;
     border: 1px solid #bbb;
     background: white;
     overflow: visible;
     line-height: 0;
+    cursor: pointer;
+    box-sizing: border-box;
 }
 
 .itemHoldDeleting {
@@ -51,17 +55,20 @@
 }
 
 .figureButton {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
+    width: 100%;
+    height: 100%;
     margin: 0;
     padding: 0;
     border: none;
     background: transparent;
-    cursor: pointer;
     line-height: 0;
     vertical-align: middle;
     overflow: visible;
+    pointer-events: none;
+    box-sizing: border-box;
 }
 
 .figureButtonActive {

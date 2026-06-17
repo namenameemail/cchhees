@@ -1,6 +1,9 @@
 import React, { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import cn from 'classnames'
 import { useGameContext } from '../../context'
+import { NumberDragPointerLockInput } from 'bbuutoonnss'
 import { Form1, ParameterInputComponentProps } from '../../../components/Form1'
+import form1Styles from '../../../components/Form1/styles.module.css'
 import { Form1FieldConfig } from '../../../components/Form1/types'
 import { ParameterTypes } from '../../../components/Form1/types'
 import { atLeastOne, integerStep, nonNegative } from '../../../components/Form1/numberInputConstraints'
@@ -18,7 +21,7 @@ import {
     StackPositionMode,
     StackTargetMode,
 } from '../../types/events'
-import { FigureSVG } from '../FigureSVG'
+import { ScalableFigurePreview } from '../ScalableFigurePreview'
 import {
     createFigureFilterArrayFieldConfig,
     createFigureStateFieldConfig,
@@ -26,6 +29,7 @@ import {
 import { createFigureAreaGridFieldConfig } from '../FigureAreaGrid/FigureAreaGridField'
 import { FIGURE_FILTER_ANY, canonicalizeFigureFilterArray } from '../../figureFilter'
 import { FigureMoveRulesGrid } from '../FigureMoveRulesGrid/FigureMoveRulesGrid'
+import { resolveJumpOverPieces } from '../../moveRules'
 import { FormArray } from '../../../components/FormArray'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
 import { ProjectFontSelect } from '../../../projects/components/ProjectFontSelect'
@@ -73,29 +77,18 @@ const FontAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, o
     )
 }
 
-const ImageAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
+const FigureAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
     const hasAsset = typeof value === 'number'
 
     return (
-        <div className={styles.imageAssetField}>
-            <ProjectImageSelect
-                name={name}
-                value={hasAsset ? value : null}
-                placeholder="image asset"
-                title="image asset"
-                onChange={(assetId) => onChange(name, assetId)}
-            />
-            {hasAsset && (
-                <button
-                    type="button"
-                    className={styles.clearImageAsset}
-                    title="Удалить изображение"
-                    onClick={() => onChange(name, null)}
-                >
-                    ×
-                </button>
-            )}
-        </div>
+        <ProjectImageSelect
+            name={name}
+            value={hasAsset ? value : null}
+            placeholder="image"
+            title="image"
+            clearable
+            onChange={(assetId) => onChange(name, assetId)}
+        />
     )
 }
 
@@ -114,91 +107,164 @@ const SvgManualDimensionCheckbox: FC<ParameterInputComponentProps> = ({ name, va
     )
 }
 
+type SvgDimension = 'width' | 'height'
+
+const svgDimensionMeta: Record<SvgDimension, {
+    manualKey: 'manualWidth' | 'manualHeight'
+    placeholder: string
+    isManual: (state: FigureViewParams) => boolean
+}> = {
+    width: {
+        manualKey: 'manualWidth',
+        placeholder: 'width %',
+        isManual: isSvgManualWidth,
+    },
+    height: {
+        manualKey: 'manualHeight',
+        placeholder: 'height %',
+        isManual: isSvgManualHeight,
+    },
+}
+
+const SvgDimensionField: FC<ParameterInputComponentProps> = ({
+    name,
+    value,
+    onChange,
+    props,
+    formState,
+    onFieldsChange,
+}) => {
+    const dimension = props?.dimension as SvgDimension
+    const { manualKey, placeholder, isManual } = svgDimensionMeta[dimension]
+    const manual = isManual(formState ?? {})
+    const numericValue = typeof value === 'number' && Number.isFinite(value) ? value : 0
+
+    const handleToggle = () => {
+        const next = !manual
+        if (onFieldsChange) {
+            onFieldsChange({ [manualKey]: next })
+        } else {
+            onChange(manualKey, next)
+        }
+    }
+
+    const handleChange = useCallback((nextValue: number) => {
+        onChange(name, nextValue)
+    }, [onChange, name])
+
+    return (
+        <div className={styles.dimensionField}>
+            <input
+                type="checkbox"
+                className={styles.dimensionCheckbox}
+                checked={manual}
+                onChange={handleToggle}
+            />
+            <NumberDragPointerLockInput
+                value={numericValue}
+                onChange={handleChange}
+                min={props?.min}
+                max={props?.max}
+                step={props?.step}
+                direction={props?.direction}
+                dragPixelsPerStep={props?.dragPixelsPerStep}
+                pointerLock={props?.pointerLock ?? true}
+                placeholder={placeholder}
+                title={placeholder}
+                disabled={!manual}
+                changeOnBlur={props?.changeOnBlur ?? true}
+                changeOnChange={props?.changeOnChange ?? true}
+                changeOnEnter={props?.changeOnEnter ?? true}
+                resetOnBlur={props?.resetOnBlur ?? false}
+                className={form1Styles.fieldInput}
+            />
+        </div>
+    )
+}
+
 const figureParametersConfig: Form1FieldConfig<FigureViewParams>[] = [
     {
         name: 'assetId',
-        Component: ImageAssetSelectField,
-    },
-    {
-        name: 'manualWidth',
-        Component: SvgManualDimensionCheckbox,
-        props: { text: 'width' },
+        label: 'img',
+        Component: FigureAssetSelectField,
     },
     {
         name: 'width',
-        type: ParameterTypes.NumberInput,
-        props: { placeholder: 'width %', ...nonNegative },
-        propsByState: (state: FigureViewParams) => ({
-            disabled: !isSvgManualWidth(state),
-        }),
-    },
-    {
-        name: 'manualHeight',
-        Component: SvgManualDimensionCheckbox,
-        props: { text: 'height' },
+        label: 'w',
+        Component: SvgDimensionField,
+        props: { dimension: 'width', ...nonNegative },
     },
     {
         name: 'height',
-        type: ParameterTypes.NumberInput,
-        props: { placeholder: 'height %', ...nonNegative },
-        propsByState: (state: FigureViewParams) => ({
-            disabled: !isSvgManualHeight(state),
-        }),
+        label: 'h',
+        Component: SvgDimensionField,
+        props: { dimension: 'height', ...nonNegative },
     },
     {
         name: 'borderRadius',
+        label: 'r',
         type: ParameterTypes.NumberInput,
         props: { placeholder: 'border radius', ...nonNegative },
     },
     {
         name: 'strokeWidth',
+        label: 'sw',
         type: ParameterTypes.NumberInput,
         props: { placeholder: 'strokeWidth', ...nonNegative },
     },
     {
         name: 'strokeColor',
+        label: 'sc',
         type: ParameterTypes.ColorInput,
         props: { placeholder: 'strokeColor' },
     },
     {
         name: 'strokeDasharray',
+        label: 'ds',
         type: ParameterTypes.TextInput,
         props: { placeholder: 'strokeDasharray' },
     },
     {
         name: 'symbol',
+        label: 'sym',
         type: ParameterTypes.TextInput,
         props: { placeholder: 'symbol' },
     },
     {
         name: 'fontSize',
+        label: 'fs',
         type: ParameterTypes.NumberInput,
         props: { placeholder: 'font size', ...atLeastOne },
     },
     {
         name: 'fontAssetId',
+        label: 'fn',
         Component: FontAssetSelectField,
     },
     {
         name: 'color',
+        label: 'fg',
         type: ParameterTypes.ColorInput,
-        props: { placeholder: 'color', label: 'color' },
+        props: { title: 'color', placeholder: 'color' },
     },
     {
         name: 'textShadowEnabled',
+        label: 'ts',
         Component: SvgManualDimensionCheckbox,
         props: { text: 'text shadow' },
     },
     {
         name: 'textShadowColor',
+        label: 'sh',
         type: ParameterTypes.ColorInput,
-        props: { placeholder: 'shadow color', label: 'shadow color' },
+        props: { title: 'shadow color', placeholder: 'shadow color' },
         propsByState: (state: FigureViewParams) => ({
             disabled: !isFigureTextShadowEnabled(state),
         }),
     },
     {
         name: 'textShadowOffsetX',
+        label: 'sx',
         type: ParameterTypes.NumberInput,
         props: { placeholder: 'shadow x' },
         propsByState: (state: FigureViewParams) => ({
@@ -207,6 +273,7 @@ const figureParametersConfig: Form1FieldConfig<FigureViewParams>[] = [
     },
     {
         name: 'textShadowOffsetY',
+        label: 'sy',
         type: ParameterTypes.NumberInput,
         props: { placeholder: 'shadow y' },
         propsByState: (state: FigureViewParams) => ({
@@ -215,6 +282,7 @@ const figureParametersConfig: Form1FieldConfig<FigureViewParams>[] = [
     },
     {
         name: 'textShadowBlur',
+        label: 'sb',
         type: ParameterTypes.NumberInput,
         props: { placeholder: 'shadow blur', ...nonNegative },
         propsByState: (state: FigureViewParams) => ({
@@ -713,6 +781,7 @@ export const FigureParametersFormBase: FC<FigureParametersFormBaseProps> = ({
     return (
         <Form1
             className={className}
+            fieldLayout="labeledColumn"
             config={figureParametersConfig}
             value={value}
             onChange={handleChange}
@@ -723,6 +792,8 @@ export const FigureParametersFormBase: FC<FigureParametersFormBaseProps> = ({
 export const FigureParametersForm: FC = () => {
     const {
         activeFigure,
+        getFigureStateIndex,
+        setFigureStateIndex,
         state,
         setFigureStateViewParams,
         setFigureStateMoveRules,
@@ -731,8 +802,21 @@ export const FigureParametersForm: FC = () => {
         removeFigureState,
     } = useGameContext()
 
-    const [activeStateIndex, setActiveStateIndex] = useState(0)
     const [activeSection, setActiveSection] = useState<FigureSectionTab>('view')
+
+    const activeStateIndex = activeFigure != null ? getFigureStateIndex(activeFigure) : 0
+
+    const setActiveStateIndex = useCallback((index: number | ((prev: number) => number)) => {
+        if (!activeFigure) {
+            return
+        }
+
+        const next = typeof index === 'function'
+            ? index(getFigureStateIndex(activeFigure))
+            : index
+
+        setFigureStateIndex(activeFigure, next)
+    }, [activeFigure, getFigureStateIndex, setFigureStateIndex])
 
     const figureDefinition = useMemo(() => {
         if (!activeFigure) {
@@ -743,17 +827,23 @@ export const FigureParametersForm: FC = () => {
     }, [activeFigure, state.figureCatalog])
 
     const stateCount = figureDefinition?.states.length ?? 1
+    const { cellXDistance, cellYDistance } = state.boardParameters
+    const figureCellAspect = cellYDistance > 0 ? cellXDistance / cellYDistance : 1
+    const layoutStyle = {
+        '--figure-cell-aspect': figureCellAspect,
+    } as React.CSSProperties
 
     useEffect(() => {
-        setActiveStateIndex(0)
         setActiveSection('view')
     }, [activeFigure])
 
     useEffect(() => {
-        if (activeStateIndex >= stateCount) {
-            setActiveStateIndex(Math.max(0, stateCount - 1))
+        if (!activeFigure || activeStateIndex < stateCount) {
+            return
         }
-    }, [activeStateIndex, stateCount])
+
+        setFigureStateIndex(activeFigure, Math.max(0, stateCount - 1))
+    }, [activeFigure, activeStateIndex, stateCount, setFigureStateIndex])
 
     useEffect(() => {
         if (import.meta.env.DEV) {
@@ -781,7 +871,9 @@ export const FigureParametersForm: FC = () => {
         return activeFigureState?.moveRules ?? []
     }, [activeFigureState])
 
-    const jumpOverPieces = activeFigureState?.jumpOverPieces === true
+    const jumpOverPieces = activeFigureState
+        ? resolveJumpOverPieces(activeFigureState)
+        : true
 
     const figureOptions = useMemo(() => {
         return state.figureCatalog.map(entry => entry.id)
@@ -1005,53 +1097,47 @@ export const FigureParametersForm: FC = () => {
     }, [activeFigure, activeStateIndex, stateCount, removeFigureState])
 
     if (!activeFigure) {
-        return (
-            <div className={styles.hint}>
-                Выберите фигуру выше, чтобы настроить её внешний вид
-            </div>
-        )
+        return null
     }
 
-    return (
-        <div className={styles.figureParametersFormLayout}>
-            <div className={styles.topRow}>
-                <div>figure: {activeFigure}</div>
+    const stateTabs = (
+        <div className={styles.stateRow}>
+            <span className={styles.stateRowLabel}>state</span>
+            <div className={styles.stateTabs}>
+                {figureDefinition?.states.map((_, index) => (
+                    <button
+                        key={index}
+                        type="button"
+                        className={index === activeStateIndex ? styles.stateTabActive : styles.stateTab}
+                        onClick={() => setActiveStateIndex(index)}
+                    >
+                        {index}
+                    </button>
+                ))}
+                <button
+                    type="button"
+                    className={styles.stateTabAdd}
+                    title="Добавить состояние"
+                    onClick={handleAddState}
+                >
+                    +
+                </button>
+                {activeStateIndex > 0 && stateCount > 1 && (
+                    <button
+                        type="button"
+                        className={styles.stateTabRemove}
+                        title="Удалить состояние"
+                        onClick={handleRemoveState}
+                    >
+                        ×
+                    </button>
+                )}
             </div>
-            {activeSection !== 'events' && (
-                <div className={styles.stateRow}>
-                    <span className={styles.stateRowLabel}>state</span>
-                    <div className={styles.stateTabs}>
-                        {figureDefinition?.states.map((_, index) => (
-                            <button
-                                key={index}
-                                type="button"
-                                className={index === activeStateIndex ? styles.stateTabActive : styles.stateTab}
-                                onClick={() => setActiveStateIndex(index)}
-                            >
-                                {index}
-                            </button>
-                        ))}
-                        <button
-                            type="button"
-                            className={styles.stateTabAdd}
-                            title="Добавить состояние"
-                            onClick={handleAddState}
-                        >
-                            +
-                        </button>
-                        {activeStateIndex > 0 && stateCount > 1 && (
-                            <button
-                                type="button"
-                                className={styles.stateTabRemove}
-                                title="Удалить состояние"
-                                onClick={handleRemoveState}
-                            >
-                                ×
-                            </button>
-                        )}
-                    </div>
-                </div>
-            )}
+        </div>
+    )
+
+    return (
+        <div className={styles.figureParametersFormLayout} style={layoutStyle}>
             <div className={styles.sectionTabsRow}>
                 {FIGURE_SECTION_TABS.map(tab => (
                     <button
@@ -1064,77 +1150,87 @@ export const FigureParametersForm: FC = () => {
                     </button>
                 ))}
             </div>
-            {activeSection === 'view' && (
-                <div className={styles.sectionPanel}>
-                    <div className={styles.secondRow}>
-                        <FigureParametersFormBase
-                            className={styles.figureParametersForm}
-                            figureId={activeFigure}
-                            value={viewParams}
-                            onChange={handleChange}
-                        />
-                        <FigureSVG
-                            figureId={activeFigure}
-                            highlighted
-                            stateIndex={activeStateIndex}
-                        />
-                    </div>
-                </div>
-            )}
-            {activeSection === 'moves' && (
-                <div
-                    className={styles.sectionPanel}
-                    title="Пустой список — свободное перемещение. n по умолчанию 1; 0 — бесконечно по лучу."
-                >
-                    <div className={styles.moveRulesSection}>
-                        <div className={styles.moveRulesHeader}>
-                            <label className={styles.jumpOverPiecesField}>
-                                <input
-                                    type="checkbox"
-                                    checked={jumpOverPieces}
-                                    onChange={handleJumpOverPiecesChange}
-                                />
-                                <span>через фигуры</span>
-                            </label>
-                        </div>
-                        <FigureMoveRulesGrid
-                            figureId={activeFigure}
-                            stateIndex={activeStateIndex}
-                            moveRules={moveRules}
-                            onChange={handleMoveRulesChange}
-                        />
-                    </div>
-                </div>
-            )}
-            {activeSection === 'events' && (
-                <div
-                    className={styles.sectionPanel}
-                    title="События срабатывают при ходе в режиме игры. Действия применяются после базового перемещения."
-                >
-                    <div className={styles.eventRulesSection}>
-                        <div className={styles.eventRulesTableHeader}>
-                            <span>Событие</span>
-                            <span>Действия</span>
-                        </div>
-                        <div className={styles.eventRulesArray}>
-                            {eventRules.map((rule, index) => (
-                                <EventRuleRow
-                                    key={rule.id}
-                                    rule={rule}
-                                    index={index}
+            <div className={styles.sectionPanelsScroll}>
+                {activeSection === 'view' && (
+                    <div className={cn(styles.sectionPanel, styles.viewSectionPanel)}>
+                        {stateTabs}
+                        <div className={styles.viewContent}>
+                            <div className={styles.viewColumnLeft}>
+                                <FigureParametersFormBase
+                                    className={styles.figureParametersForm}
                                     figureId={activeFigure}
-                                    figureOptions={figureOptions}
-                                    onChange={handleEventRuleChange}
-                                    onRemove={handleEventRuleRemove}
+                                    value={viewParams}
+                                    onChange={handleChange}
                                 />
-                            ))}
-                            <div className={styles.eventRulesAddRow}>
-                                <button type="button" onClick={handleAddEventRule}>+</button>
+                            </div>
+                            <div className={styles.viewColumnRight}>
+                                <div className={styles.preview}>
+                                    <ScalableFigurePreview
+                                        figureId={activeFigure}
+                                        stateIndex={activeStateIndex}
+                                        svgClassName={styles.previewSvg}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+                {activeSection === 'moves' && (
+                    <div
+                        className={styles.sectionPanel}
+                        title="Пустой список — свободное перемещение. n по умолчанию 1; 0 — бесконечно по лучу."
+                    >
+                        {stateTabs}
+                        <div className={styles.moveRulesSection}>
+                            <div className={styles.moveRulesHeader}>
+                                <label className={styles.jumpOverPiecesField}>
+                                    <input
+                                        type="checkbox"
+                                        checked={jumpOverPieces}
+                                        onChange={handleJumpOverPiecesChange}
+                                    />
+                                    <span>через фигуры</span>
+                                </label>
+                            </div>
+                            <FigureMoveRulesGrid
+                                figureId={activeFigure}
+                                stateIndex={activeStateIndex}
+                                moveRules={moveRules}
+                                onChange={handleMoveRulesChange}
+                            />
+                        </div>
+                    </div>
+                )}
+                {activeSection === 'events' && (
+                    <div
+                        className={styles.sectionPanel}
+                        title="События срабатывают при ходе в режиме игры. Действия применяются после базового перемещения."
+                    >
+                        <div className={styles.eventRulesSection}>
+                            <div className={styles.eventRulesTableHeader}>
+                                <span>Событие</span>
+                                <span>Действия</span>
+                            </div>
+                            <div className={styles.eventRulesArray}>
+                                {eventRules.map((rule, index) => (
+                                    <EventRuleRow
+                                        key={rule.id}
+                                        rule={rule}
+                                        index={index}
+                                        figureId={activeFigure}
+                                        figureOptions={figureOptions}
+                                        onChange={handleEventRuleChange}
+                                        onRemove={handleEventRuleRemove}
+                                    />
+                                ))}
+                                <div className={styles.eventRulesAddRow}>
+                                    <button type="button" onClick={handleAddEventRule}>+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     )
 }
