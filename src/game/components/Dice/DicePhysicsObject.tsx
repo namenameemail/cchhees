@@ -20,6 +20,7 @@ import {
     SETTLED_FRAMES_REQUIRED,
     SETTLED_SPEED_THRESHOLD,
 } from './dicePhysics'
+import { BreakSnapshot, GLASS_BREAK_IMPACT_THRESHOLD } from './glassFracture'
 
 interface DicePhysicsObjectProps {
     modelUrl: string | null
@@ -28,6 +29,7 @@ interface DicePhysicsObjectProps {
     bodyKey: number
     onDrop: () => void
     onSettled: () => void
+    onBreak: (snapshot: BreakSnapshot) => void
 }
 
 function randomSpin(maxSpin: number): Vector3 {
@@ -100,14 +102,17 @@ export const DicePhysicsObject: FC<DicePhysicsObjectProps> = ({
     bodyKey,
     onDrop,
     onSettled,
+    onBreak,
 }) => {
     const rigidBodyRef = useRef<RapierRigidBody>(null)
     const settledFramesRef = useRef(0)
     const launchedRef = useRef(false)
+    const brokenRef = useRef(false)
 
     useEffect(() => {
         launchedRef.current = false
         settledFramesRef.current = 0
+        brokenRef.current = false
     }, [bodyKey])
 
     useEffect(() => {
@@ -138,7 +143,7 @@ export const DicePhysicsObject: FC<DicePhysicsObjectProps> = ({
 
     useFrame(() => {
         const body = rigidBodyRef.current
-        if (!body || simState !== 'running') {
+        if (!body || simState !== 'running' || brokenRef.current) {
             return
         }
 
@@ -158,6 +163,41 @@ export const DicePhysicsObject: FC<DicePhysicsObjectProps> = ({
         settledFramesRef.current = 0
     })
 
+    const handleCollisionEnter = (payload: { other: { rigidBody?: { bodyType: () => RigidBodyType } } }) => {
+        if (!params.glassBreak || brokenRef.current || simState !== 'running') {
+            return
+        }
+
+        const otherBody = payload.other.rigidBody
+        if (!otherBody || otherBody.bodyType() !== RigidBodyType.Fixed) {
+            return
+        }
+
+        const body = rigidBodyRef.current
+        if (!body) {
+            return
+        }
+
+        const linvel = body.linvel()
+        const impactSpeed = Math.hypot(linvel.x, linvel.y, linvel.z)
+        if (impactSpeed < GLASS_BREAK_IMPACT_THRESHOLD) {
+            return
+        }
+
+        brokenRef.current = true
+        const translation = body.translation()
+        const rotation = body.rotation()
+        const angularVelocity = body.angvel()
+
+        onBreak({
+            position: [translation.x, translation.y, translation.z],
+            rotation: [rotation.x, rotation.y, rotation.z, rotation.w],
+            linearVelocity: [linvel.x, linvel.y, linvel.z],
+            angularVelocity: [angularVelocity.x, angularVelocity.y, angularVelocity.z],
+            modelUrl,
+        })
+    }
+
     const handlePointerDown = () => {
         if (simState === 'idle') {
             onDrop()
@@ -176,6 +216,7 @@ export const DicePhysicsObject: FC<DicePhysicsObjectProps> = ({
             friction={params.friction}
             linearDamping={params.linearDamping}
             angularDamping={params.angularDamping}
+            onCollisionEnter={handleCollisionEnter}
         >
             {modelUrl ? (
                 <Suspense fallback={null}>

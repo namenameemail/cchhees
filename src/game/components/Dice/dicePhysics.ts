@@ -1,4 +1,4 @@
-export type DiceSimState = 'idle' | 'running' | 'settled'
+export type DiceSimState = 'idle' | 'running' | 'broken' | 'settled'
 
 export interface DicePhysicsParams {
     gravity: number
@@ -9,6 +9,7 @@ export interface DicePhysicsParams {
     angularDamping: number
     spawnHeight: number
     spawnSpin: number
+    glassBreak: boolean
 }
 
 export const DEFAULT_DICE_PHYSICS_PARAMS: DicePhysicsParams = {
@@ -20,6 +21,7 @@ export const DEFAULT_DICE_PHYSICS_PARAMS: DicePhysicsParams = {
     angularDamping: 0.2,
     spawnHeight: 3,
     spawnSpin: 8,
+    glassBreak: false,
 }
 
 export const SETTLED_SPEED_THRESHOLD = 0.08

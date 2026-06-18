@@ -3,7 +3,9 @@ import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier'
 import { DicePhysicsObject } from './DicePhysicsObject'
+import { DiceGlassFragments } from './DiceGlassFragments'
 import { DicePhysicsParams, DiceSimState } from './dicePhysics'
+import { BreakSnapshot } from './glassFracture'
 import styles from './DicePanel.module.css'
 
 interface DiceSceneProps {
@@ -11,8 +13,10 @@ interface DiceSceneProps {
     params: DicePhysicsParams
     simState: DiceSimState
     bodyKey: number
+    breakSnapshot: BreakSnapshot | null
     onDrop: () => void
     onSettled: () => void
+    onBreak: (snapshot: BreakSnapshot) => void
 }
 
 function SceneContent({
@@ -20,8 +24,10 @@ function SceneContent({
     params,
     simState,
     bodyKey,
+    breakSnapshot,
     onDrop,
     onSettled,
+    onBreak,
 }: DiceSceneProps) {
     return (
         <>
@@ -40,14 +46,23 @@ function SceneContent({
                 <CuboidCollider args={[6, 0.05, 6]} position={[0, -0.05, 0]} />
             </RigidBody>
 
-            <DicePhysicsObject
-                modelUrl={modelUrl}
-                params={params}
-                simState={simState}
-                bodyKey={bodyKey}
-                onDrop={onDrop}
-                onSettled={onSettled}
-            />
+            {breakSnapshot ? (
+                <DiceGlassFragments
+                    snapshot={breakSnapshot}
+                    params={params}
+                    onSettled={onSettled}
+                />
+            ) : (
+                <DicePhysicsObject
+                    modelUrl={modelUrl}
+                    params={params}
+                    simState={simState}
+                    bodyKey={bodyKey}
+                    onDrop={onDrop}
+                    onSettled={onSettled}
+                    onBreak={onBreak}
+                />
+            )}
 
             <OrbitControls
                 target={[0, 0, 0]}

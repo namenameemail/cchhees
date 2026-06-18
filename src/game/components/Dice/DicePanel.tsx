@@ -9,6 +9,7 @@ import {
     DicePhysicsParams,
     DiceSimState,
 } from './dicePhysics'
+import { BreakSnapshot } from './glassFracture'
 import styles from './DicePanel.module.css'
 
 interface DicePanelState extends DicePhysicsParams {
@@ -85,11 +86,18 @@ const dicePanelConfig: Form1FieldConfig<DicePanelState>[] = [
         type: ParameterTypes.NumberInput,
         props: { placeholder: 'spawn spin', step: 0.5, min: 0 },
     },
+    {
+        name: 'glassBreak',
+        label: 'gl',
+        type: ParameterTypes.Checkbox,
+        props: { text: 'стеклянный' },
+    },
 ]
 
 const STATUS_LABELS: Record<DiceSimState, string> = {
     idle: 'Готов к броску',
     running: 'Падение...',
+    broken: 'Разбился',
     settled: 'Остановился',
 }
 
@@ -98,6 +106,7 @@ export const DicePanel: FC = () => {
     const [state, setState] = useState<DicePanelState>(DEFAULT_STATE)
     const [simState, setSimState] = useState<DiceSimState>('idle')
     const [bodyKey, setBodyKey] = useState(0)
+    const [breakSnapshot, setBreakSnapshot] = useState<BreakSnapshot | null>(null)
 
     const modelUrl = useMemo(() => {
         if (state.modelAssetId == null) {
@@ -115,6 +124,7 @@ export const DicePanel: FC = () => {
         angularDamping: state.angularDamping,
         spawnHeight: state.spawnHeight,
         spawnSpin: state.spawnSpin,
+        glassBreak: state.glassBreak,
     }), [state])
 
     const handleDrop = useCallback(() => {
@@ -128,8 +138,14 @@ export const DicePanel: FC = () => {
         setSimState('settled')
     }, [])
 
+    const handleBreak = useCallback((snapshot: BreakSnapshot) => {
+        setBreakSnapshot(snapshot)
+        setSimState('broken')
+    }, [])
+
     const handleReset = useCallback(() => {
         setSimState('idle')
+        setBreakSnapshot(null)
         setBodyKey(key => key + 1)
     }, [])
 
@@ -147,8 +163,10 @@ export const DicePanel: FC = () => {
                 params={physicsParams}
                 simState={simState}
                 bodyKey={bodyKey}
+                breakSnapshot={breakSnapshot}
                 onDrop={handleDrop}
                 onSettled={handleSettled}
+                onBreak={handleBreak}
             />
 
             <div className={styles.controls}>
