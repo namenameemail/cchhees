@@ -33,21 +33,30 @@ export interface FigureViewParams extends SvgCellSizeParams {
     strokeDasharray?: string
 }
 
+export type FigureMoveRuleLanding = 'empty' | 'capture' | 'any'
+
+export type FigureMoveDirection = 'up' | 'down' | 'left' | 'right'
+
 export interface FigureMoveRule {
     x: number
     y: number
     n?: number
+    landing?: FigureMoveRuleLanding
 }
 
 export interface FigureState {
     viewParams: FigureViewParams
     moveRules?: FigureMoveRule[]
     jumpOverPieces?: boolean
+    canStepOnOwnTeam?: boolean
 }
 
 export interface FigureDefinition {
     id: FigureId
     states: FigureState[]
+    team?: number
+    moveDirection?: FigureMoveDirection
+    /** @deprecated use board.eventRules */
     eventRules?: FigureEventRule[]
 }
 
@@ -57,6 +66,7 @@ export interface LegacyFigureDefinition {
     viewParams: FigureViewParams
     moveRules?: FigureMoveRule[]
     jumpOverPieces?: boolean
+    canStepOnOwnTeam?: boolean
 }
 
 export type FigureCatalog = FigureDefinition[]

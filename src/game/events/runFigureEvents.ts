@@ -1,4 +1,3 @@
-import { FigureCatalog } from '../types/figures'
 import { FiguresSlice } from '../state/slices'
 import { cloneFigurePlacement } from '../figureView'
 import { cloneFiguresByCoord } from '../figureStack'
@@ -8,7 +7,18 @@ import { MoveEventContext } from './types'
 import { recordFigureStep } from '../figureAnimation/figureStepRecorder'
 import { gameMovesDebugLog } from '../gameMovesDebugLog'
 import { logFigureEventRuntime } from '../figureEventRulesDebugLog'
-import { resolveActionQueue, SteppedOnQueueItem } from './steppedOnQueue'
+import { drainActionQueue, SteppedOnQueueItem } from './steppedOnQueue'
+import { resolveEventRule } from './migrateEventRules'
+
+function resolveRuleOwnerFigureId(
+    ctx: MoveEventContext,
+    event: ReturnType<typeof collectTriggeredFigureEvents>[number],
+): string | undefined {
+    return event.subjectPlacement?.figureId
+        ?? event.stepOnTarget?.figureId
+        ?? ctx.areaSubjectPlacement?.figureId
+        ?? ctx.actorPlacement.figureId
+}
 
 export function runFigureEvents(
     figures: FiguresSlice,
@@ -26,7 +36,6 @@ export function runFigureEvents(
             from: ctx.from,
             to: ctx.to,
             triggered: triggered.map(event => ({
-                ownerFigureId: event.ownerFigureId,
                 ruleId: event.ruleId,
                 areaAnchor: event.areaAnchor,
                 subjectCoord: event.subjectCoord,
@@ -41,22 +50,26 @@ export function runFigureEvents(
         tray: figures.tray.map(cloneFigurePlacement),
     }
 
-    const catalogById = new Map<FigureCatalog[number]['id'], FigureCatalog[number]>(
-        ctx.catalog.map(entry => [entry.id, entry]),
+    const rulesById = new Map(
+        ctx.eventRules.map(rawRule => {
+            const rule = resolveEventRule(rawRule)
+            return [rule.id, rule]
+        }),
     )
     const deferredQueue: SteppedOnQueueItem[] = []
 
     for (const event of triggered) {
-        const definition = catalogById.get(event.ownerFigureId)
-        const rule = definition?.eventRules?.find(item => item.id === event.ruleId)
+        const rule = rulesById.get(event.ruleId)
 
         if (!rule) {
             continue
         }
 
+        const ownerFigureId = resolveRuleOwnerFigureId(ctx, event) ?? ctx.actorPlacement.figureId
+
         gameMovesDebugLog.figureEvent({
             eventType: rule.type,
-            ownerFigureId: event.ownerFigureId,
+            ownerFigureId,
             ruleId: event.ruleId,
             actions: rule.actions,
             areaAnchor: event.areaAnchor,
@@ -65,7 +78,7 @@ export function runFigureEvents(
         logFigureEventRuntime({
             phase: 'trigger',
             eventType: rule.type,
-            ownerFigureId: event.ownerFigureId,
+            ownerFigureId,
             ruleId: event.ruleId,
             actions: rule.actions,
             areaAnchor: event.areaAnchor,
@@ -82,14 +95,15 @@ export function runFigureEvents(
             eventType: rule.type,
             areaSubjectCoord: event.subjectCoord,
             areaSubjectPlacement: event.subjectPlacement,
-            ownerFigureId: event.ownerFigureId,
+            ownerFigureId,
             targetAtTo: event.stepOnTarget ?? ctx.targetAtTo,
+            triggerConditionType: event.triggerConditionType,
         }
 
         logFigureEventRuntime({
             phase: 'apply-start',
             eventType: rule.type,
-            ownerFigureId: event.ownerFigureId,
+            ownerFigureId,
             ruleId: event.ruleId,
             actions: rule.actions,
             areaAnchor: event.areaAnchor,
@@ -101,7 +115,7 @@ export function runFigureEvents(
         logFigureEventRuntime({
             phase: 'apply-done',
             eventType: rule.type,
-            ownerFigureId: event.ownerFigureId,
+            ownerFigureId,
             ruleId: event.ruleId,
             actions: rule.actions,
             areaAnchor: event.areaAnchor,
@@ -119,14 +133,18 @@ export function runFigureEvents(
             ruleId: '—',
             detail: {
                 queueSize: deferredQueue.length,
+                unexpected: true,
             },
         })
-        nextFigures = resolveActionQueue(
+        nextFigures = drainActionQueue(
             nextFigures,
             deferredQueue,
-            ctx.catalog,
-            ctx.boardParameters,
-            ctx.onStep,
+            {
+                catalog: ctx.catalog,
+                eventRules: ctx.eventRules,
+                boardParameters: ctx.boardParameters,
+                onStep: ctx.onStep,
+            },
         )
         recordFigureStep(ctx.onStep, nextFigures)
     }

@@ -4,9 +4,11 @@ import { cloneFigureState, cloneFigurePlacement, normalizeFigurePlacement, norma
 import { GameState } from '../types/gameState'
 import { BoardParameters } from '../types/boardParameters'
 import { BoardStyleRule } from '../types/styleRules'
+import { FigureEventRule } from '../types/events'
 import { coordKey, coordToIndex, indexToCoord, isCoordInGrid, iterGridCoords } from '../types/coords'
 import { initialGameState } from '../utils'
 import { cloneFiguresByCoord, getCellStack, getTopOfStack, isStackArray, normalizeStackEntry } from '../figureStack'
+import { migrateBoardAndCatalogEventRules } from './boardEventRules'
 
 export interface FiguresSlice {
     figuresByCoord: Record<string, FigurePlacement[]>
@@ -17,6 +19,7 @@ export interface BoardSlice {
     boardParameters: BoardParameters
     styleRules: BoardStyleRule[]
     cellParametersByCoord: Record<string, CellParameters>
+    eventRules?: FigureEventRule[]
 }
 
 function normalizeCellFigures(cell: Cell | undefined): FigurePlacement[] {
@@ -72,6 +75,7 @@ export function splitGameState(state: GameState): { figures: FiguresSlice; board
             boardParameters: { ...state.boardParameters },
             styleRules: [...(state.styleRules ?? [])],
             cellParametersByCoord,
+            eventRules: state.eventRules ? [...state.eventRules] : undefined,
         },
     }
 }
@@ -95,13 +99,22 @@ export function composeGameState(
         }
     })
 
+    const { board: migratedBoard, catalog: migratedCatalog } = migrateBoardAndCatalogEventRules(
+        board,
+        normalizeFigureCatalog(catalog),
+    )
+
     return {
-        boardParameters: board.boardParameters,
-        styleRules: board.styleRules,
-        figureCatalog: catalog.map(entry => ({
+        boardParameters: migratedBoard.boardParameters,
+        styleRules: migratedBoard.styleRules,
+        eventRules: migratedBoard.eventRules,
+        figureCatalog: migratedCatalog.map(entry => ({
             id: entry.id,
+            ...(entry.team !== undefined ? { team: entry.team } : {}),
+            ...(entry.moveDirection !== undefined && entry.moveDirection !== 'up'
+                ? { moveDirection: entry.moveDirection }
+                : {}),
             states: entry.states.map(state => cloneFigureState(state)),
-            eventRules: entry.eventRules ? [...entry.eventRules] : undefined,
         })),
         cells,
         tray: normalizedFigures.tray.map(cloneFigurePlacement),
@@ -135,15 +148,11 @@ export function createInitialBoardSlice(): BoardSlice {
 export function cloneFigureCatalog(catalog: FigureCatalog): FigureCatalog {
     return normalizeFigureCatalog(catalog).map(entry => ({
         id: entry.id,
+        ...(entry.team !== undefined ? { team: entry.team } : {}),
+        ...(entry.moveDirection !== undefined && entry.moveDirection !== 'up'
+            ? { moveDirection: entry.moveDirection }
+            : {}),
         states: entry.states.map(state => cloneFigureState(state)),
-        eventRules: entry.eventRules?.map(rule => ({
-            ...rule,
-            params: rule.params ? { ...rule.params } : undefined,
-            actions: rule.actions.map(action => ({
-                ...action,
-                params: { ...action.params },
-            })),
-        })),
     }))
 }
 

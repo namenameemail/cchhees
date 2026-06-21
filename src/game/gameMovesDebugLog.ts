@@ -6,12 +6,14 @@ import {
     GameAction,
     GameActionType,
     FigureEventType,
-    SetOtherStateActionParams,
     SetSelfStateActionParams,
     SpawnFigureActionParams,
+    MoveToCellActionParams,
 } from './types/events'
 import { FigurePlacement } from './types/figures'
 import { resolvePlacementStateIndex } from './figureView'
+import type { FigureMoveDebugInfo } from './moveDebug/figureMoveDebugInfo'
+import { formatFigureMoveDebugBrief } from './moveDebug/figureMoveDebugInfo'
 
 const MAX_CONSOLE_LINES = 200
 const MAX_MOVE_EVENTS = 200
@@ -57,8 +59,12 @@ function formatAction(action: GameAction): string {
             return `setSelfState → ${params.stateIndex}`
         }
         case GameActionType.setOtherState: {
-            const params = action.params as SetOtherStateActionParams
-            return `setOtherState ${params.target} → ${params.stateIndex}`
+            const params = action.params as SetSelfStateActionParams
+            return `setOtherState → ${params.stateIndex}`
+        }
+        case GameActionType.moveToCell: {
+            const params = action.params as MoveToCellActionParams
+            return `moveToCell @${params.x},${params.y}`
         }
         case GameActionType.moveToTray:
             return 'moveToTray'
@@ -120,6 +126,8 @@ export const gameMovesDebugLog = {
         actor: FigurePlacement
         target?: FigurePlacement
         swapOnEat: boolean
+        actorFigure?: FigureMoveDebugInfo
+        targetFigure?: FigureMoveDebugInfo
     }): void {
         if (!isDebugEnabled()) {
             return
@@ -131,9 +139,12 @@ export const gameMovesDebugLog = {
             ? ` steppedOn=${formatPlacement(input.target)}`
             : ''
         const swapPart = input.swapOnEat ? ' swap' : ''
+        const actorConfigPart = input.actorFigure
+            ? ` {${formatFigureMoveDebugBrief(input.actorFigure)}}`
+            : ''
 
         append(
-            `MOVE ${formatPlacement(input.actor)} ${formatDebugCoord(input.from)}→${formatDebugCoord(input.to)}${targetPart}${swapPart}`,
+            `MOVE ${formatPlacement(input.actor)} ${formatDebugCoord(input.from)}→${formatDebugCoord(input.to)}${targetPart}${swapPart}${actorConfigPart}`,
             {
                 kind: 'move',
                 from: input.from,
@@ -141,6 +152,8 @@ export const gameMovesDebugLog = {
                 actor: input.actor,
                 target: input.target,
                 swapOnEat: input.swapOnEat,
+                actorFigure: input.actorFigure,
+                targetFigure: input.targetFigure,
             },
         )
     },

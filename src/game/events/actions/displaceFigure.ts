@@ -3,6 +3,7 @@ import {
     DisplaceFigureActionParams,
     GameAction,
     GameActionType,
+    FigureEventConditionType,
     FigureEventType,
 } from '../../types/events'
 import { FiguresSlice } from '../../state/slices'
@@ -29,6 +30,12 @@ import {
 import { MoveEventContext } from '../types'
 import { gameMovesDebugLog } from '../../gameMovesDebugLog'
 import { logFigureActionApply, logFigureDisplaceDebug } from '../../figureActionsDebugLog'
+import {
+    buildActionSubjectResolutionContext,
+    buildLeaveBoardActionSubjectContext,
+    buildSteppedOnActionSubjectContext,
+    resolveActionSubjects,
+} from './resolveActionSubjects'
 
 function placementMatchesOwner(placement: FigurePlacement, ownerFigureId: FigureId): boolean {
     return placement.figureId === ownerFigureId
@@ -39,18 +46,8 @@ function resolveOwnerDisplaceTarget(
     ctx: MoveEventContext,
     ownerFigureId: FigureId,
 ): { fromCoord: CellCoord; placement: FigurePlacement } | null {
-    switch (ctx.eventType) {
-        case FigureEventType.steppedOnBy: {
-            if (!ctx.targetAtTo || !placementMatchesOwner(ctx.targetAtTo, ownerFigureId)) {
-                return null
-            }
-
-            return {
-                fromCoord: ctx.to,
-                placement: resolvePlacementSnapshot(figures, ctx.to, ctx.targetAtTo),
-            }
-        }
-        case FigureEventType.stepOnFigure: {
+    switch (ctx.triggerConditionType) {
+        case FigureEventConditionType.landedOnFigure: {
             const ownerPlacement = ctx.stepperPlacement
                 && placementMatchesOwner(ctx.stepperPlacement, ownerFigureId)
                 ? ctx.stepperPlacement
@@ -65,7 +62,7 @@ function resolveOwnerDisplaceTarget(
                 placement: resolvePlacementSnapshot(figures, ctx.to, ownerPlacement),
             }
         }
-        case FigureEventType.enterFigureArea: {
+        case FigureEventConditionType.landedInFigureArea: {
             if (!ctx.areaSubjectCoord || !ctx.areaSubjectPlacement) {
                 return null
             }
@@ -83,7 +80,7 @@ function resolveOwnerDisplaceTarget(
                 ),
             }
         }
-        case FigureEventType.areaEnteredBy: {
+        case FigureEventConditionType.figureEnteredArea: {
             if (!ctx.areaAnchor) {
                 return null
             }
@@ -101,6 +98,17 @@ function resolveOwnerDisplaceTarget(
             }
         }
         default: {
+            if (ctx.eventType === FigureEventType.steppedOnBy) {
+                if (!ctx.targetAtTo || !placementMatchesOwner(ctx.targetAtTo, ownerFigureId)) {
+                    return null
+                }
+
+                return {
+                    fromCoord: ctx.to,
+                    placement: resolvePlacementSnapshot(figures, ctx.to, ctx.targetAtTo),
+                }
+            }
+
             if (!placementMatchesOwner(ctx.actorPlacement, ownerFigureId)) {
                 return null
             }
@@ -140,7 +148,7 @@ function enqueueSteppedOnForOccupiedLanding(
     return nextFigures
 }
 
-function movePlacementToCoord(
+export function movePlacementToCoord(
     figures: FiguresSlice,
     placement: FigurePlacement,
     fromCoord: CellCoord,
@@ -150,53 +158,17 @@ function movePlacementToCoord(
     return pushToStack(withoutBoard, toCoord, placement)
 }
 
-export function applyMoveEventDisplaceFigure(
+export function applyDisplaceFromCoord(
     figures: FiguresSlice,
     params: DisplaceFigureActionParams,
+    fromCoord: CellCoord,
+    placement: FigurePlacement,
     ctx: MoveEventContext,
     queue: SteppedOnQueueItem[],
 ): FiguresSlice {
-    const ownerFigureId = ctx.ownerFigureId
-
-    if (!ownerFigureId) {
-        logFigureActionApply({
-            context: 'applyMoveEventDisplaceFigure',
-            gameAction: { type: GameActionType.displaceFigure, params },
-            subject: ctx.actorPlacement.figureId,
-            result: 'skipped',
-            reason: 'missing ownerFigureId in event context',
-            detail: {
-                eventType: ctx.eventType,
-                actor: ctx.actorPlacement.figureId,
-            },
-        })
-        return figures
-    }
-
-    const target = resolveOwnerDisplaceTarget(figures, ctx, ownerFigureId)
-
-    if (!target) {
-        logFigureActionApply({
-            context: 'applyMoveEventDisplaceFigure',
-            gameAction: { type: GameActionType.displaceFigure, params },
-            subject: ownerFigureId,
-            result: 'skipped',
-            reason: 'owner figure not found for displace',
-            detail: {
-                eventType: ctx.eventType,
-                ownerFigureId,
-                areaAnchor: ctx.areaAnchor,
-                to: ctx.to,
-                from: ctx.from,
-            },
-        })
-        return figures
-    }
-
-    const { fromCoord, placement } = target
     const displaced = resolvePlacementSnapshot(figures, fromCoord, placement)
     const displaceLogDetail = {
-        ownerFigureId,
+        ownerFigureId: ctx.ownerFigureId,
         eventType: ctx.eventType,
     }
 
@@ -208,11 +180,11 @@ export function applyMoveEventDisplaceFigure(
             params,
             offBoard: true,
             blocked: true,
-            ownerFigureId,
+            ownerFigureId: ctx.ownerFigureId,
             eventType: ctx.eventType,
         })
         logFigureDisplaceDebug({
-            context: 'applyMoveEventDisplaceFigure',
+            context: 'applyDisplaceFromCoord',
             subject: displaced.figureId,
             from: fromCoord,
             params,
@@ -235,7 +207,6 @@ export function applyMoveEventDisplaceFigure(
         params.dy,
         ctx.boardParameters,
     )
-    const landingKey = coordKey(landing)
     const landingOccupied = isStackOccupied(figures, landing)
     const topOccupant = getTopOfStack(figures, landing)
 
@@ -246,11 +217,11 @@ export function applyMoveEventDisplaceFigure(
             to: landing,
             params,
             blocked: true,
-            ownerFigureId,
+            ownerFigureId: ctx.ownerFigureId,
             eventType: ctx.eventType,
         })
         logFigureDisplaceDebug({
-            context: 'applyMoveEventDisplaceFigure',
+            context: 'applyDisplaceFromCoord',
             subject: displaced.figureId,
             from: fromCoord,
             to: landing,
@@ -267,11 +238,11 @@ export function applyMoveEventDisplaceFigure(
         from: fromCoord,
         to: landing,
         params,
-        ownerFigureId,
+        ownerFigureId: ctx.ownerFigureId,
         eventType: ctx.eventType,
     })
     logFigureDisplaceDebug({
-        context: 'applyMoveEventDisplaceFigure',
+        context: 'applyDisplaceFromCoord',
         subject: displaced.figureId,
         from: fromCoord,
         to: landing,
@@ -280,7 +251,7 @@ export function applyMoveEventDisplaceFigure(
         detail: displaceLogDetail,
     })
     logFigureActionApply({
-        context: 'applyGameAction',
+        context: 'applyDisplaceFromCoord',
         gameAction: { type: GameActionType.displaceFigure, params },
         subject: displaced.figureId,
         result: 'applied',
@@ -288,6 +259,51 @@ export function applyMoveEventDisplaceFigure(
     })
 
     return movePlacementToCoord(figures, displaced, fromCoord, landing)
+}
+
+export function applyMoveEventDisplaceFigure(
+    figures: FiguresSlice,
+    action: GameAction,
+    ctx: MoveEventContext,
+    queue: SteppedOnQueueItem[],
+): FiguresSlice {
+    const params = action.params as DisplaceFigureActionParams
+    const subjectCtx = buildActionSubjectResolutionContext(ctx, figures.figuresByCoord)
+    let instances = resolveActionSubjects(action, subjectCtx)
+
+    if (instances.length === 0 && !action.subject?.entries?.length && ctx.ownerFigureId) {
+        const target = resolveOwnerDisplaceTarget(figures, ctx, ctx.ownerFigureId)
+
+        if (target) {
+            instances = [{
+                placement: target.placement,
+                coord: target.fromCoord,
+            }]
+        }
+    }
+
+    if (instances.length === 0) {
+        logFigureActionApply({
+            context: 'applyMoveEventDisplaceFigure',
+            gameAction: action,
+            subject: ctx.ownerFigureId ?? ctx.actorPlacement.figureId,
+            result: 'skipped',
+            reason: 'no subject instances for displace',
+        })
+        return figures
+    }
+
+    return instances.reduce(
+        (current, instance) => applyDisplaceFromCoord(
+            current,
+            params,
+            instance.coord,
+            instance.placement,
+            ctx,
+            queue,
+        ),
+        figures,
+    )
 }
 
 export function steppedOnToMoveContext(ctx: SteppedOnActionContext): MoveEventContext {
@@ -298,6 +314,7 @@ export function steppedOnToMoveContext(ctx: SteppedOnActionContext): MoveEventCo
         targetAtTo: ctx.stepperPlacement,
         boardParameters: ctx.boardParameters,
         catalog: ctx.catalog,
+        eventRules: ctx.eventRules,
         stepCause: ctx.stepCause,
         stepperPlacement: ctx.stepperPlacement,
         stepperCoord: ctx.targetCoord,
@@ -409,163 +426,84 @@ export function applyMoveToTray(
 
 export function applyDisplaceFigure(
     figures: FiguresSlice,
-    params: DisplaceFigureActionParams,
+    action: GameAction,
     ctx: SteppedOnActionContext,
     queue: SteppedOnQueueItem[],
 ): FiguresSlice {
-    const displaced = resolvePlacementSnapshot(figures, ctx.targetCoord, ctx.targetPlacement)
-    const displaceLogDetail = {
-        ownerFigureId: ctx.targetPlacement.figureId,
-        eventType: FigureEventType.steppedOnBy,
-    }
-
-    if (isDisplaceLeavingBoard(ctx.targetCoord, params, ctx.boardParameters)) {
-        gameMovesDebugLog.displace({
-            placement: displaced,
-            from: ctx.targetCoord,
-            to: ctx.targetCoord,
-            params,
-            offBoard: true,
-            blocked: true,
-            ownerFigureId: ctx.targetPlacement.figureId,
-            eventType: FigureEventType.steppedOnBy,
-        })
-        logFigureDisplaceDebug({
-            context: 'applyDisplaceFigure',
-            subject: displaced.figureId,
-            from: ctx.targetCoord,
-            params,
-            result: 'off-board',
-            reason: 'landing leaves board; queued leaveBoard',
-            detail: displaceLogDetail,
-        })
-        queue.unshift({
-            kind: 'leaveBoard',
-            placement: displaced,
-            fromCoord: ctx.targetCoord,
-            displaceParams: params,
-        })
-        return figures
-    }
-
-    const landing = computeDisplaceLanding(
-        ctx.targetCoord,
-        params.dx,
-        params.dy,
-        ctx.boardParameters,
+    const params = action.params as DisplaceFigureActionParams
+    const subjectCtx = buildSteppedOnActionSubjectContext(
+        {
+            stepperPlacement: ctx.stepperPlacement,
+            stepperCoord: ctx.stepperCoord,
+            targetPlacement: ctx.targetPlacement,
+            targetCoord: ctx.targetCoord,
+            cause: ctx.stepCause,
+        },
+        figures.figuresByCoord,
+        ctx.targetPlacement.figureId,
     )
+    let instances = resolveActionSubjects(action, subjectCtx)
 
-    const topOccupant = getTopOfStack(figures, landing)
-
-    if (isStackOccupied(figures, landing) && topOccupant && topOccupant.instanceId !== displaced.instanceId) {
-        gameMovesDebugLog.displace({
-            placement: displaced,
-            from: ctx.targetCoord,
-            to: landing,
-            params,
-            blocked: true,
-            ownerFigureId: ctx.targetPlacement.figureId,
-            eventType: FigureEventType.steppedOnBy,
-        })
-        logFigureDisplaceDebug({
-            context: 'applyDisplaceFigure',
-            subject: displaced.figureId,
-            from: ctx.targetCoord,
-            to: landing,
-            params,
-            result: 'blocked',
-            reason: 'landing occupied; queued steppedOn displacement chain',
-            detail: { occupant: topOccupant.figureId, ...displaceLogDetail },
-        })
-        return enqueueSteppedOnForOccupiedLanding(
-            figures,
-            displaced,
-            ctx.targetCoord,
-            landing,
-            queue,
-        )
+    if (instances.length === 0) {
+        instances = [{
+            placement: ctx.targetPlacement,
+            coord: ctx.targetCoord,
+        }]
     }
 
-    gameMovesDebugLog.displace({
-        placement: displaced,
-        from: ctx.targetCoord,
-        to: landing,
-        params,
-        ownerFigureId: ctx.targetPlacement.figureId,
-        eventType: FigureEventType.steppedOnBy,
-    })
-    logFigureDisplaceDebug({
-        context: 'applyDisplaceFigure',
-        subject: displaced.figureId,
-        from: ctx.targetCoord,
-        to: landing,
-        params,
-        result: 'moved',
-        detail: displaceLogDetail,
-    })
+    const moveCtx = steppedOnToMoveContext(ctx)
 
-    return movePlacementToCoord(figures, displaced, ctx.targetCoord, landing)
+    return instances.reduce(
+        (current, instance) => applyDisplaceFromCoord(
+            current,
+            params,
+            instance.coord,
+            instance.placement,
+            moveCtx,
+            queue,
+        ),
+        figures,
+    )
 }
 
 export function applyLeaveBoardDisplace(
     figures: FiguresSlice,
-    params: DisplaceFigureActionParams,
+    action: GameAction,
     ctx: LeaveBoardActionContext,
     queue: SteppedOnQueueItem[],
 ): FiguresSlice {
-    const placement = resolvePlacementSnapshot(figures, ctx.fromCoord, ctx.placement)
+    const params = action.params as DisplaceFigureActionParams
     const wrapParams = ctx.displaceParams ?? params
-    const landing = computeWrappedDisplaceLanding(
-        ctx.fromCoord,
-        wrapParams.dx,
-        wrapParams.dy,
-        ctx.boardParameters,
-    )
-    const topOccupant = getTopOfStack(figures, landing)
+    const subjectCtx = buildLeaveBoardActionSubjectContext(ctx, figures.figuresByCoord)
+    let instances = resolveActionSubjects(action, subjectCtx)
 
-    if (isStackOccupied(figures, landing) && topOccupant && topOccupant.instanceId !== placement.instanceId) {
-        gameMovesDebugLog.displace({
-            placement,
-            from: ctx.fromCoord,
-            to: landing,
-            params: wrapParams,
-            wrapped: true,
-            blocked: true,
-        })
-        logFigureDisplaceDebug({
-            context: 'applyLeaveBoardDisplace',
-            subject: placement.figureId,
-            from: ctx.fromCoord,
-            to: landing,
-            params: wrapParams,
-            result: 'blocked',
-            reason: 'wrapped landing occupied; queued displacement chain',
-            detail: { occupant: topOccupant.figureId, wrapped: true },
-        })
-        return enqueueSteppedOnForOccupiedLanding(
-            figures,
-            placement,
-            ctx.fromCoord,
-            landing,
-            queue,
-        )
+    if (instances.length === 0) {
+        instances = [{
+            placement: ctx.placement,
+            coord: ctx.fromCoord,
+        }]
     }
 
-    gameMovesDebugLog.displace({
-        placement,
-        from: ctx.fromCoord,
-        to: landing,
-        params: wrapParams,
-        wrapped: true,
-    })
-    logFigureDisplaceDebug({
-        context: 'applyLeaveBoardDisplace',
-        subject: placement.figureId,
-        from: ctx.fromCoord,
-        to: landing,
-        params: wrapParams,
-        result: 'wrapped',
-    })
+    return instances.reduce((current, instance) => {
+        const placement = resolvePlacementSnapshot(current, instance.coord, instance.placement)
+        const landing = computeWrappedDisplaceLanding(
+            instance.coord,
+            wrapParams.dx,
+            wrapParams.dy,
+            ctx.boardParameters,
+        )
+        const topOccupant = getTopOfStack(current, landing)
 
-    return movePlacementToCoord(figures, placement, ctx.fromCoord, landing)
+        if (isStackOccupied(current, landing) && topOccupant && topOccupant.instanceId !== placement.instanceId) {
+            return enqueueSteppedOnForOccupiedLanding(
+                current,
+                placement,
+                instance.coord,
+                landing,
+                queue,
+            )
+        }
+
+        return movePlacementToCoord(current, placement, instance.coord, landing)
+    }, figures)
 }

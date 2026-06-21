@@ -2,8 +2,14 @@ import { CellCoord } from '../types/coords'
 import { FigurePlacement } from '../types/figures'
 import { BoardParameters } from '../types/boardParameters'
 import { FigureCatalog } from '../types/figures'
+import { FigureEventRule } from '../types/events'
 import { FiguresSlice } from '../state/slices'
-import { cloneFigurePlacement } from '../figureView'
+import { cloneFigurePlacement, normalizeFigureMoveRules, resolveFigureMoveDirection, resolveFigureState, resolvePlacementStateIndex } from '../figureView'
+import { buildFigureMoveDebugInfo } from '../moveDebug/figureMoveDebugInfo'
+import {
+    collectHoppedFigures,
+    resolveJumpOverPieces,
+} from '../moveRules'
 import { recordFigureStep, FigureStepRecorder } from '../figureAnimation/figureStepRecorder'
 import { runFigureEvents } from './runFigureEvents'
 import { resolveSteppedOnQueue, SteppedOnEvent } from './steppedOnQueue'
@@ -23,6 +29,7 @@ export interface ApplyFigureMoveInput {
     swapOnEat: boolean
     boardParameters: BoardParameters
     catalog: FigureCatalog
+    eventRules: FigureEventRule[]
     onStep?: FigureStepRecorder
 }
 
@@ -36,6 +43,10 @@ export function applyFigureMove(
         actor: input.actorPlacement,
         target: input.targetAtTo,
         swapOnEat: input.swapOnEat,
+        actorFigure: buildFigureMoveDebugInfo(input.catalog, input.actorPlacement),
+        targetFigure: input.targetAtTo
+            ? buildFigureMoveDebugInfo(input.catalog, input.targetAtTo)
+            : undefined,
     })
 
     const figuresBeforeMove = cloneFiguresByCoord(figures.figuresByCoord)
@@ -75,11 +86,29 @@ export function applyFigureMove(
 
     recordFigureStep(input.onStep, afterMove)
 
+    const actorDefinition = input.catalog.find(entry => entry.id === input.actorPlacement.figureId)
+    const actorState = actorDefinition
+        ? resolveFigureState(actorDefinition, resolvePlacementStateIndex(input.actorPlacement))
+        : undefined
+    const moveRules = normalizeFigureMoveRules(actorState?.moveRules)
+    const hoppedFigures = collectHoppedFigures(
+        input.from,
+        input.to,
+        moveRules,
+        resolveJumpOverPieces(actorState ?? {}),
+        figuresBeforeMove,
+        resolveFigureMoveDirection(actorDefinition),
+    )
+    const eatedFigures = input.swapOnEat && input.targetAtTo
+        ? [cloneFigurePlacement(input.targetAtTo)]
+        : undefined
+
     if (steppedOnQueue.length > 0) {
         afterMove = resolveSteppedOnQueue(
             afterMove,
             steppedOnQueue,
             input.catalog,
+            input.eventRules,
             input.boardParameters,
             input.onStep,
         )
@@ -93,10 +122,13 @@ export function applyFigureMove(
         swappedTargetCoord,
         boardParameters: input.boardParameters,
         catalog: input.catalog,
+        eventRules: input.eventRules,
         stepCause: 'manual',
         stepperPlacement: input.actorPlacement,
         stepperCoord: input.to,
         figuresBeforeMove,
+        hoppedFigures,
+        eatedFigures,
         onStep: input.onStep,
     }
 

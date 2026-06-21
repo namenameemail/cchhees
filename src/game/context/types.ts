@@ -44,6 +44,9 @@ export interface GameContextValue {
     isFigureArrangeEnabled: (figureId: FigureId) => boolean
     toggleFigureArrange: (figureId: FigureId) => void
 
+    isFreeMoveEnabled: boolean
+    toggleFreeMove: () => void
+
     activeCell?: CellCoord
     setActiveCell: (value: CellCoord | undefined, reason?: string) => void
 
@@ -68,10 +71,13 @@ export interface GameContextValue {
         stateIndex: number,
         moveRules: FigureMoveRule[],
         jumpOverPieces?: boolean,
+        canStepOnOwnTeam?: boolean,
     ) => void
     addFigureState: (figureId: FigureId) => void
     removeFigureState: (figureId: FigureId, stateIndex: number) => void
-    setFigureEventRules: (figureId: FigureId, eventRules: FigureEventRule[]) => void
+    setFigureTeam: (figureId: FigureId, team: number | undefined) => void
+    setFigureMoveDirection: (figureId: FigureId, moveDirection: FigureMoveDirection) => void
+    setBoardEventRules: (eventRules: FigureEventRule[]) => void
     addFigure: () => void
     removeFigure: (figureId: FigureId) => void
     clearAssetReferences: (assetId: number) => void

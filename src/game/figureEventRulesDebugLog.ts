@@ -1,18 +1,17 @@
-import { createChannelDebugLog, isDebugEnabled } from '../channelDebugLog'
-import { isProfilerPanelChannel, profiler, profileDebug } from '../profiler'
-import { FigureEventRule, GameAction } from './types/events'
+import { isDebugEnabled } from '../channelDebugLog'
+import { profiler } from '../profiler'
+import { FigureEventCondition, FigureEventRule, GameAction } from './types/events'
 import { FigureId } from './types/figures'
 
-const MAX_EVENTS = 80
-const MAX_CONSOLE_LINES = 120
-const CONSOLE_PREFIX = '[events] '
+const MAX_EVENTS = 120
+const CONSOLE_PREFIX = '[figure-events] '
 
-const channelLog = createChannelDebugLog({
-    channel: 'events',
-    consolePrefix: CONSOLE_PREFIX,
-    maxConsoleLines: MAX_CONSOLE_LINES,
-    profileDebugMaxChars: 160,
-})
+const PROFILE_ACTIONS = new Set([
+    'conditions-change',
+    'condition-dropped',
+    'conditions-normalize-diff',
+    'normalize-rejected',
+])
 
 export type FigureEventRulesDebugEvent = {
     at: number
@@ -32,6 +31,18 @@ if (typeof window !== 'undefined') {
         .__FIGURE_EVENT_RULES_DEBUG__ = []
 }
 
+function summarizeCondition(condition: FigureEventCondition | undefined) {
+    if (!condition) {
+        return null
+    }
+
+    return {
+        type: condition.type,
+        subject: condition.subject,
+        params: condition.params,
+    }
+}
+
 function summarizeRule(rule: FigureEventRule | undefined) {
     if (!rule) {
         return null
@@ -40,6 +51,8 @@ function summarizeRule(rule: FigureEventRule | undefined) {
     return {
         id: rule.id,
         type: rule.type,
+        params: rule.params,
+        conditions: rule.conditions?.map(summarizeCondition),
         actions: rule.actions?.map(action => ({
             type: action.type,
             params: action.params,
@@ -76,33 +89,20 @@ function pushEvent(event: Omit<FigureEventRulesDebugEvent, 'at'>) {
 
     console.log(line)
 
-    if (typeof window !== 'undefined') {
-        (window as Window & { __FIGURE_EVENT_RULES_DEBUG__?: FigureEventRulesDebugEvent[] })
-            .__FIGURE_EVENT_RULES_DEBUG__ = [...events]
-    }
-
-    if (isProfilerPanelChannel('events')) {
-        profiler.appendPanelText('console', line)
-        channelLog.trimConsoleLines()
-    }
-
-    profileDebug('events', event.action.slice(0, 160), {
-        figureId: event.figureId,
-        ruleId: event.ruleId,
-        ruleIndex: event.ruleIndex,
-        ...event.detail,
-    })
-
-    if (profiler.isRecording) {
+    if (PROFILE_ACTIONS.has(event.action)) {
         profiler.log(`events ${event.action}`, {
             figureId: event.figureId,
             ruleId: event.ruleId,
             ruleIndex: event.ruleIndex,
             before: event.before,
             after: event.after,
-            detail: event.detail,
+            ...event.detail,
         })
-        profiler.flushLatest('events')
+    }
+
+    if (typeof window !== 'undefined') {
+        (window as Window & { __FIGURE_EVENT_RULES_DEBUG__?: FigureEventRulesDebugEvent[] })
+            .__FIGURE_EVENT_RULES_DEBUG__ = [...events]
     }
 }
 
@@ -115,6 +115,57 @@ export function logFigureEventRulesDebug(
 
 export function getFigureEventRulesDebugEvents(): FigureEventRulesDebugEvent[] {
     return [...events]
+}
+
+export function logFigureConditionDropped(input: {
+    figureId?: FigureId
+    ruleId?: string
+    ruleIndex?: number
+    conditionIndex: number
+    condition: FigureEventCondition
+    reason: string
+}) {
+    logFigureEventRulesDebug('condition-dropped', {
+        figureId: input.figureId,
+        ruleId: input.ruleId,
+        ruleIndex: input.ruleIndex,
+        before: summarizeCondition(input.condition),
+        detail: {
+            conditionIndex: input.conditionIndex,
+            reason: input.reason,
+            subjectEntries: input.condition.subject?.entries,
+            subjectMatchMode: input.condition.subject?.matchMode,
+            conditionType: input.condition.type,
+        },
+    })
+}
+
+export function logFigureConditionsNormalize(input: {
+    figureId?: FigureId
+    ruleId?: string
+    ruleIndex?: number
+    before: FigureEventCondition[] | undefined
+    after: FigureEventCondition[]
+}) {
+    const beforeCount = input.before?.length ?? 0
+    const afterCount = input.after.length
+
+    if (beforeCount === afterCount) {
+        return
+    }
+
+    logFigureEventRulesDebug('conditions-normalize-diff', {
+        figureId: input.figureId,
+        ruleId: input.ruleId,
+        ruleIndex: input.ruleIndex,
+        before: input.before?.map(summarizeCondition),
+        after: input.after.map(summarizeCondition),
+        detail: {
+            beforeCount,
+            afterCount,
+            droppedCount: beforeCount - afterCount,
+        },
+    })
 }
 
 export function logFigureEventRulesBatchChange(input: {

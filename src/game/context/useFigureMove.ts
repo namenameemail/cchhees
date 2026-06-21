@@ -3,8 +3,9 @@ import type { MutableRefObject } from 'react'
 import { Mode } from '../types'
 import { CellCoord, coordsEqual } from '../types/coords'
 import { FigureCatalog } from '../types/figures'
+import { FigureEventRule } from '../types/events'
 import { BoardParameters } from '../types/boardParameters'
-import { FiguresSlice } from '../state/slices'
+import { BoardSlice, FiguresSlice } from '../state/slices'
 import { applyFigureMove } from '../events/applyFigureMove'
 import { computeFigureMoveSteps } from '../figureAnimation/figureStepRecorder'
 import {
@@ -20,6 +21,7 @@ export function useFigureMove(options: {
     activeCell: CellCoord | undefined
     figuresSlice: FiguresSlice
     figureCatalog: FigureCatalog
+    eventRules: FigureEventRule[]
     boardParameters: BoardParameters
     isFigureAnimating: boolean
     isMoveAnimatingRef: MutableRefObject<boolean>
@@ -27,12 +29,14 @@ export function useFigureMove(options: {
     setActiveCell: (value: CellCoord | undefined, reason?: string) => void
     pushFiguresChange: (nextFigures: FiguresSlice) => void
     playFigureStepSequenceLocal: (steps: FiguresSlice[], boardParameters: BoardParameters) => Promise<void>
+    freeMove?: boolean
 }) {
     const {
         mode,
         activeCell,
         figuresSlice,
         figureCatalog,
+        eventRules,
         boardParameters,
         isFigureAnimating,
         isMoveAnimatingRef,
@@ -40,6 +44,7 @@ export function useFigureMove(options: {
         setActiveCell,
         pushFiguresChange,
         playFigureStepSequenceLocal,
+        freeMove,
     } = options
 
     return useCallback((to: CellCoord) => {
@@ -71,6 +76,8 @@ export function useFigureMove(options: {
             figuresSlice.figuresByCoord,
             boardParameters,
             fromPlacement,
+            figureCatalog,
+            freeMove,
         )) {
             return
         }
@@ -86,6 +93,7 @@ export function useFigureMove(options: {
             swapOnEat: boardParameters.swapOnEat,
             boardParameters,
             catalog: figureCatalog,
+            eventRules,
         }
 
         const animationSettings = resolveFigureAnimationSettings(boardParameters)
@@ -111,6 +119,7 @@ export function useFigureMove(options: {
         activeCell,
         figuresSlice,
         figureCatalog,
+        eventRules,
         boardParameters,
         pushFiguresChange,
         setActiveCell,
@@ -119,5 +128,6 @@ export function useFigureMove(options: {
         playFigureStepSequenceLocal,
         isMoveAnimatingRef,
         prevFiguresSliceRef,
+        freeMove,
     ])
 }

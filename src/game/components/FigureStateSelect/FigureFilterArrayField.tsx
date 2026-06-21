@@ -17,11 +17,13 @@ import { FigureEventFigureFilter } from '../../types/events'
 import { FigureId } from '../../types/figures'
 import {
     canonicalizeFigureFilterArray,
+    clearFigureFilterArray,
     getFigureFilterEntryKey,
     isConcreteFigureFilter,
     isFigureFilterAny,
+    isFigureFilterNone,
     removeFigureFromFilterArray,
-    setFigureFilterArrayAll,
+    toggleFigureFilterArrayAll,
     toggleFigureStateInFilterArray,
 } from '../../figureFilter'
 import { FigureSVG } from '../FigureSVG'
@@ -103,6 +105,9 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
         () => entries.length === 1 && isFigureFilterAny(entries[0].figureId),
         [entries],
     )
+
+    const isEmptyMode = entries.length === 0
+    const isNoneMode = entries.length === 1 && isFigureFilterNone(entries[0].figureId)
 
     const selectedFigureIds = useMemo(() => {
         if (isAllMode) {
@@ -193,7 +198,14 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
     const handleSelectAll = useCallback((event: MouseEvent) => {
         event.preventDefault()
         event.stopPropagation()
-        commitEntries(setFigureFilterArrayAll(), 'select-all')
+        commitEntries(toggleFigureFilterArrayAll(entries), 'toggle-all')
+        closeStatesPanel()
+    }, [closeStatesPanel, commitEntries, entries])
+
+    const handleClearFigures = useCallback((event: MouseEvent) => {
+        event.preventDefault()
+        event.stopPropagation()
+        commitEntries(clearFigureFilterArray(), 'clear-figures')
         closeStatesPanel()
     }, [closeStatesPanel, commitEntries])
 
@@ -216,7 +228,7 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
     }, [commitEntries, entries])
 
     const estimatePanelHeight = useCallback(() => {
-        const itemCount = figureCatalog.length + (allowAny ? 1 : 0)
+        const itemCount = figureCatalog.length + (allowAny ? 2 : 0)
         const rows = Math.max(1, Math.ceil(itemCount / FIGURES_PER_ROW))
         const gridHeight = rows * previewSize + Math.max(0, rows - 1) * FIGURES_GRID_GAP
 
@@ -489,8 +501,18 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
                     <div
                         className={cn(selectStyles.previewTile, styles.triggerTile, itemClassName)}
                         style={{ width: previewSize, height: previewSize }}
+                        title="любая — снять"
+                        onClick={handleSelectAll}
                     >
                         <span className={selectStyles.filterPlaceholder}>all</span>
+                    </div>
+                ) : isEmptyMode || isNoneMode ? (
+                    <div
+                        className={cn(selectStyles.previewTile, styles.triggerTile, itemClassName)}
+                        style={{ width: previewSize, height: previewSize }}
+                        title="не задано"
+                    >
+                        <span className={selectStyles.filterPlaceholder}>?</span>
                     </div>
                 ) : (
                     entries.map((entry, index) => {
@@ -537,18 +559,32 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
                         style={{ gridTemplateColumns: `repeat(${FIGURES_PER_ROW}, ${previewSize}px)` }}
                     >
                         {allowAny && (
-                            <div
-                                className={cn(
-                                    selectStyles.previewTile,
-                                    selectStyles.figureTile,
-                                    isAllMode && selectStyles.previewTileActive,
-                                )}
-                                style={{ width: previewSize, height: previewSize }}
-                                title="любая"
-                                onClick={handleSelectAll}
-                            >
-                                <span className={selectStyles.filterPlaceholder}>all</span>
-                            </div>
+                            <>
+                                <div
+                                    className={cn(
+                                        selectStyles.previewTile,
+                                        selectStyles.figureTile,
+                                        isAllMode && selectStyles.previewTileActive,
+                                    )}
+                                    style={{ width: previewSize, height: previewSize }}
+                                    title="любая"
+                                    onClick={handleSelectAll}
+                                >
+                                    <span className={selectStyles.filterPlaceholder}>all</span>
+                                </div>
+                                <div
+                                    className={cn(
+                                        selectStyles.previewTile,
+                                        selectStyles.figureTile,
+                                        (isEmptyMode || isNoneMode) && selectStyles.previewTileActive,
+                                    )}
+                                    style={{ width: previewSize, height: previewSize }}
+                                    title="не задано"
+                                    onClick={handleClearFigures}
+                                >
+                                    <span className={selectStyles.filterPlaceholder}>?</span>
+                                </div>
+                            </>
                         )}
 
                         {figureCatalog.map(entry => {

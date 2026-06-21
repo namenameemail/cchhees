@@ -2,6 +2,7 @@ import { CellCoord } from '../types/coords'
 import { getFigureActionsDebugEvents } from '../figureActionsDebugLog'
 import { getFigureEventRulesDebugEvents } from '../figureEventRulesDebugLog'
 import { getGameMovesDebugEvents } from '../gameMovesDebugLog'
+import type { FigureMoveDebugInfo } from './figureMoveDebugInfo'
 
 export type MoveDebugChainChannel = 'moves' | 'events' | 'actions'
 
@@ -15,6 +16,8 @@ export interface MoveDebugChainStep {
 export interface MoveDebugMoveInfo {
     from: CellCoord
     to: CellCoord
+    actorFigure?: FigureMoveDebugInfo
+    targetFigure?: FigureMoveDebugInfo
 }
 
 let chainStartAt = 0

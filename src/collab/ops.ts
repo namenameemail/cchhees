@@ -4,6 +4,7 @@ import {
     FigureCatalog,
     FigureDefinition,
     FigureId,
+    FigureMoveDirection,
     FigureMoveRule,
     FigureState,
     FigureViewParams,
@@ -13,14 +14,9 @@ import { BoardStyleRule } from '../game/types/styleRules'
 import { BoardSlice, FiguresSlice, composeGameState, cloneFigureCatalog } from '../game/state/slices'
 import { cloneBoardSlice, cloneFiguresSlice } from '../game/state/reconcile'
 import { removeFigureFromBoard } from '../game/state/figureReferences'
-import {
-    normalizeFigureCatalog,
-    normalizeFigureEventRules,
-    normalizeFigureMoveRules,
-    resolveCollabStateIndex,
-    updateFigureCatalogStateAtIndex,
-} from '../game/figureView'
-import { resolveJumpOverPieces } from '../game/moveRules'
+import { normalizeFigureCatalog, normalizeFigureEventRules, normalizeFigureMoveDirection, normalizeFigureMoveRules, resolveCollabStateIndex, updateFigureCatalogStateAtIndex } from '../game/figureView'
+import { stripCatalogEventRules } from '../game/state/boardEventRules'
+import { resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../game/moveRules'
 import { GameState } from '../game/types/gameState'
 
 /** Minimal collaborative edit operation — only what changed. */
@@ -30,8 +26,12 @@ export type CollabOp =
     | { kind: 'style-rules'; boardId: string; styleRules: BoardStyleRule[] }
     | { kind: 'cell-parameters'; boardId: string; coordKey: string; parameters: CellParameters | null }
     | { kind: 'figure-view-params'; figureId: FigureId; viewParams: FigureViewParams; stateIndex?: number }
-    | { kind: 'figure-move-rules'; figureId: FigureId; moveRules: FigureMoveRule[]; jumpOverPieces?: boolean; stateIndex?: number }
+    | { kind: 'figure-move-rules'; figureId: FigureId; moveRules: FigureMoveRule[]; jumpOverPieces?: boolean; canStepOnOwnTeam?: boolean; stateIndex?: number }
     | { kind: 'figure-states'; figureId: FigureId; states: FigureState[] }
+    | { kind: 'figure-team'; figureId: FigureId; team?: number }
+    | { kind: 'figure-move-direction'; figureId: FigureId; moveDirection?: FigureMoveDirection }
+    | { kind: 'board-event-rules'; boardId: string; eventRules: FigureEventRule[] }
+    /** @deprecated migrated to board-event-rules */
     | { kind: 'figure-event-rules'; figureId: FigureId; eventRules: FigureEventRule[] }
     | { kind: 'figure-add'; figure: FigureDefinition }
     | { kind: 'figure-remove'; figureId: FigureId }
@@ -42,6 +42,9 @@ export function isBoardScopedCollabOp(op: CollabOp): boolean {
     return op.kind !== 'figure-view-params'
         && op.kind !== 'figure-move-rules'
         && op.kind !== 'figure-states'
+        && op.kind !== 'figure-team'
+        && op.kind !== 'figure-move-direction'
+        && op.kind !== 'board-event-rules'
         && op.kind !== 'figure-event-rules'
         && op.kind !== 'figure-add'
         && op.kind !== 'figure-remove'
@@ -145,6 +148,9 @@ export function applyCollabOp(
                     jumpOverPieces: op.jumpOverPieces !== undefined
                         ? op.jumpOverPieces !== false
                         : resolveJumpOverPieces(state),
+                    canStepOnOwnTeam: op.canStepOnOwnTeam !== undefined
+                        ? op.canStepOnOwnTeam === true
+                        : resolveCanStepOnOwnTeam(state),
                 })),
             }
         }
@@ -158,15 +164,57 @@ export function applyCollabOp(
                         : entry
                 )),
             }
-        case 'figure-event-rules':
+        case 'figure-team': {
+            const team = op.team === undefined ? undefined : Math.trunc(op.team)
+
             return {
                 figures: figuresSlice,
                 board: boardSlice,
-                catalog: catalog.map(entry => (
-                    entry.id === op.figureId
-                        ? { ...entry, eventRules: normalizeFigureEventRules(op.eventRules) }
-                        : entry
-                )),
+                catalog: catalog.map(entry => {
+                    if (entry.id !== op.figureId) {
+                        return entry
+                    }
+
+                    if (team === undefined) {
+                        const { team: _removed, ...rest } = entry
+                        return rest
+                    }
+
+                    return { ...entry, team }
+                }),
+            }
+        }
+        case 'figure-move-direction': {
+            const moveDirection = op.moveDirection === undefined
+                ? undefined
+                : normalizeFigureMoveDirection(op.moveDirection)
+
+            return {
+                figures: figuresSlice,
+                board: boardSlice,
+                catalog: catalog.map(entry => {
+                    if (entry.id !== op.figureId) {
+                        return entry
+                    }
+
+                    if (moveDirection === undefined || moveDirection === 'up') {
+                        const { moveDirection: _removed, ...rest } = entry
+                        return rest
+                    }
+
+                    return { ...entry, moveDirection }
+                }),
+            }
+        }
+        case 'board-event-rules':
+        case 'figure-event-rules':
+            return {
+                figures: figuresSlice,
+                board: cloneBoardSlice({
+                    ...boardSlice,
+                    eventRules: normalizeFigureEventRules(op.eventRules),
+                }),
+                catalog: stripCatalogEventRules(catalog),
             }
         case 'figure-add':
             return {

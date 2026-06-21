@@ -7,15 +7,16 @@ import form1Styles from '../../../components/Form1/styles.module.css'
 import { Form1FieldConfig } from '../../../components/Form1/types'
 import { ParameterTypes } from '../../../components/Form1/types'
 import { atLeastOne, integerStep, nonNegative } from '../../../components/Form1/numberInputConstraints'
-import { FigureId, FigureMoveRule, FigureViewParams } from '../../types/figures'
+import { FigureId, FigureMoveDirection, FigureMoveRule, FigureViewParams } from '../../types/figures'
 import {
+    FigureEventCondition,
+    FigureEventConditionType,
     FigureEventRule,
     FigureEventType,
     GameAction,
-    GameActionTarget,
     GameActionType,
-    DisplaceFigureActionParams,
-    SetOtherStateActionParams,
+    FigureEventParamsOnMove,
+    FigureEventParamsSteppedOnBy,
     SpawnFigureActionParams,
     StepCause,
     StackPositionMode,
@@ -23,13 +24,14 @@ import {
 } from '../../types/events'
 import { ScalableFigurePreview } from '../ScalableFigurePreview'
 import {
+    createConditionSubjectFieldConfig,
     createFigureFilterArrayFieldConfig,
     createFigureStateFieldConfig,
 } from '../FigureStateSelect/FigureStateSelectField'
 import { createFigureAreaGridFieldConfig } from '../FigureAreaGrid/FigureAreaGridField'
-import { FIGURE_FILTER_ANY, canonicalizeFigureFilterArray } from '../../figureFilter'
+import { FIGURE_FILTER_ANY, FIGURE_SUBJECT_MOVED, FIGURE_SUBJECT_STEPPED_ON } from '../../figureFilter'
 import { FigureMoveRulesGrid } from '../FigureMoveRulesGrid/FigureMoveRulesGrid'
-import { resolveJumpOverPieces } from '../../moveRules'
+import { resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../../moveRules'
 import { FormArray } from '../../../components/FormArray'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
 import { ProjectFontSelect } from '../../../projects/components/ProjectFontSelect'
@@ -40,11 +42,10 @@ import {
 } from '../../cellSvgSize'
 import {
     getDefaultFigureViewParams,
-    normalizeFigureEventParamsAreaEnteredBy,
-    normalizeFigureEventParamsEnterFigureArea,
     normalizeFigureEventRule,
     normalizeGameAction,
     resolveFigureDefinition,
+    resolveFigureMoveDirection,
     resolveFigureState,
     resolveFigureViewParams,
 } from '../../figureView'
@@ -53,16 +54,14 @@ import {
     logFigureEventRulesBatchChange,
     logFigureEventRulesDebug,
 } from '../../figureEventRulesDebugLog'
-import { setProfilerPanelChannel } from '../../../profiler'
 import { isFigureTextShadowEnabled } from '../../figureTextShadow'
 import styles from './styles.module.css'
 
-type FigureSectionTab = 'view' | 'moves' | 'events'
+type FigureSectionTab = 'view' | 'moves'
 
 const FIGURE_SECTION_TABS: Array<{ id: FigureSectionTab; label: string }> = [
     { id: 'view', label: 'вид' },
     { id: 'moves', label: 'ходы' },
-    { id: 'events', label: 'события' },
 ]
 
 const FontAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
@@ -292,13 +291,48 @@ const figureParametersConfig: Form1FieldConfig<FigureViewParams>[] = [
 ]
 
 const figureEventTypeOptions = Object.values(FigureEventType)
-const gameActionTypeOptions = Object.values(GameActionType)
-const gameActionTargetOptions = Object.values<GameActionTarget>([
-    'steppedOn',
-    'steppedBy',
-    'areaAnchor',
-])
-const VALID_ACTION_TARGETS = new Set<GameActionTarget>(gameActionTargetOptions)
+const figureEventConditionTypeOptions = Object.values(FigureEventConditionType)
+
+const figureEventConditionTypeLabels: Record<FigureEventConditionType, string> = {
+    [FigureEventConditionType.inBoardArea]: 'находится в области доски',
+    [FigureEventConditionType.inFigureArea]: 'находится в области фигуры',
+    [FigureEventConditionType.onCells]: 'находится на клетках',
+    [FigureEventConditionType.aboveFigures]: 'находится над фигурами',
+    [FigureEventConditionType.belowFigures]: 'находится под фигурами',
+    [FigureEventConditionType.leftCell]: 'ушла с клетки',
+    [FigureEventConditionType.movedBy]: 'сдвинулась на',
+    [FigureEventConditionType.landedInBoardArea]: 'встала в области доски',
+    [FigureEventConditionType.landedInFigureArea]: 'встала в области фигуры',
+    [FigureEventConditionType.landedOnCell]: 'встала на клетку',
+    [FigureEventConditionType.landedOnFigure]: 'встала на фигуру',
+    [FigureEventConditionType.figureEnteredArea]: 'в область владельца вошла сф',
+    [FigureEventConditionType.steppedOnByFigure]: 'на неё наступила фигура',
+    [FigureEventConditionType.isFigure]: 'является',
+    [FigureEventConditionType.isNotFigure]: 'не является',
+    [FigureEventConditionType.exitedBoard]: 'вышла за границу доски',
+    [FigureEventConditionType.hoppedOverFigures]: 'перепрыгнула фигуры',
+}
+const conditionMatchModeOptions = ['any', 'all'] as const
+const gameActionTypeOptions = Object.values(GameActionType).filter(
+    type => type !== GameActionType.setOtherState,
+)
+
+const gameActionTypeLabels: Record<GameActionType, string> = {
+    [GameActionType.setSelfState]: 'сменить состояние на',
+    [GameActionType.setOtherState]: 'сменить состояние на',
+    [GameActionType.moveToCell]: 'переместить на (xy)',
+    [GameActionType.displaceFigure]: 'переместить на (dx,dy)',
+    [GameActionType.moveToTray]: 'убрать в трей',
+    [GameActionType.spawnFigure]: 'создать фигуру',
+}
+
+function defaultActionSubject(eventType: FigureEventType): GameAction['subject'] {
+    const entries = eventType === FigureEventType.steppedOnBy
+        ? [{ figureId: FIGURE_SUBJECT_STEPPED_ON }]
+        : [{ figureId: FIGURE_SUBJECT_MOVED }]
+
+    return { entries, matchMode: 'any' }
+}
 const stepCauseOptions: StepCause[] = ['any', 'manual', 'displacement']
 const stackPositionOptions: StackPositionMode[] = ['any', 'top', 'bottom', 'fromTop', 'fromBottom']
 const stackTargetOptions: StackTargetMode[] = ['all', 'top', 'bottom', 'fromTop', 'fromBottom']
@@ -317,19 +351,20 @@ const eventNumberInputProps = {
     resetOnBlur: false,
 } as const
 
-function getEventParamsConfig(
-    type: FigureEventType,
-    ownerFigureId?: FigureId,
-) {
+function getEventParamsConfig(type: FigureEventType) {
     switch (type) {
+        case FigureEventType.onMove:
+            return [{
+                name: 'cause',
+                type: ParameterTypes.SelectArray,
+                props: {
+                    className: styles.eventTypeSelect,
+                    options: stepCauseOptions,
+                    title: 'cause',
+                },
+            }]
         case FigureEventType.steppedOnBy:
             return [
-                createFigureFilterArrayFieldConfig('stepperFigures', {
-                    allowAny: true,
-                    title: 'stepper (любая = ?)',
-                    className: styles.figureFilterArray,
-                    itemClassName: styles.figureFilterArrayItem,
-                }),
                 {
                     name: 'cause',
                     type: ParameterTypes.SelectArray,
@@ -354,21 +389,128 @@ function getEventParamsConfig(
                     props: { placeholder: 'stack index', ...nonNegative, ...integerStep, ...eventNumberInputProps },
                 },
             ]
-        case FigureEventType.stepOnFigure:
+        default:
+            return []
+    }
+}
+
+function getConditionParamsConfig(
+    type: FigureEventConditionType,
+    ownerFigureId?: FigureId,
+) {
+    switch (type) {
+        case FigureEventConditionType.inBoardArea:
+        case FigureEventConditionType.landedInBoardArea:
             return [
-                createFigureFilterArrayFieldConfig('targetFigures', {
+                { name: 'x1', type: ParameterTypes.NumberInput, props: { placeholder: 'x1', ...atLeastOne, ...eventNumberInputProps } },
+                { name: 'y1', type: ParameterTypes.NumberInput, props: { placeholder: 'y1', ...atLeastOne, ...eventNumberInputProps } },
+                { name: 'x2', type: ParameterTypes.NumberInput, props: { placeholder: 'x2', ...atLeastOne, ...eventNumberInputProps } },
+                { name: 'y2', type: ParameterTypes.NumberInput, props: { placeholder: 'y2', ...atLeastOne, ...eventNumberInputProps } },
+            ]
+        case FigureEventConditionType.inFigureArea:
+        case FigureEventConditionType.landedInFigureArea:
+            return [
+                createFigureFilterArrayFieldConfig('anchorFigures', {
                     allowAny: true,
-                    title: 'target (любая = ?)',
+                    title: 'anchor',
+                    className: styles.figureFilterArray,
+                    itemClassName: styles.figureFilterArrayItem,
+                }),
+                createFigureAreaGridFieldConfig('cells', {
+                    className: styles.figureAreaGridField,
+                    previewFigureId: type === FigureEventConditionType.landedInFigureArea ? ownerFigureId : undefined,
+                }),
+                ...(type === FigureEventConditionType.landedInFigureArea
+                    ? [{
+                        name: 'includePassive',
+                        Component: SvgManualDimensionCheckbox,
+                        props: { text: 'пассивный вход' },
+                    }]
+                    : []),
+            ]
+        case FigureEventConditionType.figureEnteredArea:
+            return [
+                createFigureAreaGridFieldConfig('cells', {
+                    className: styles.figureAreaGridField,
+                    previewFigureId: ownerFigureId,
+                }),
+                {
+                    name: 'includePassive',
+                    Component: SvgManualDimensionCheckbox,
+                    props: { text: 'пассивный вход' },
+                },
+            ]
+        case FigureEventConditionType.onCells:
+            return [
+                {
+                    name: 'cells',
+                    type: ParameterTypes.Array,
+                    props: {
+                        className: styles.conditionCellsArray,
+                        itemClassName: styles.conditionCellItem,
+                        itemConfig: () => [
+                            { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne, ...eventNumberInputProps } },
+                            { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne, ...eventNumberInputProps } },
+                        ],
+                        getItemInitialValue: () => ({ x: 1, y: 1 }),
+                    },
+                },
+                {
+                    name: 'matchMode',
+                    type: ParameterTypes.SelectArray,
+                    props: {
+                        className: styles.eventTypeSelect,
+                        options: conditionMatchModeOptions,
+                        title: 'match',
+                    },
+                },
+            ]
+        case FigureEventConditionType.aboveFigures:
+        case FigureEventConditionType.belowFigures:
+        case FigureEventConditionType.hoppedOverFigures:
+            return [
+                createFigureFilterArrayFieldConfig('figures', {
+                    allowAny: true,
+                    title: 'figures',
                     className: styles.figureFilterArray,
                     itemClassName: styles.figureFilterArrayItem,
                 }),
                 {
-                    name: 'cause',
+                    name: 'matchMode',
                     type: ParameterTypes.SelectArray,
                     props: {
                         className: styles.eventTypeSelect,
-                        options: stepCauseOptions,
-                        title: 'cause',
+                        options: conditionMatchModeOptions,
+                        title: 'match',
+                    },
+                },
+            ]
+        case FigureEventConditionType.leftCell:
+        case FigureEventConditionType.landedOnCell:
+            return [
+                { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne, ...eventNumberInputProps } },
+                { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne, ...eventNumberInputProps } },
+            ]
+        case FigureEventConditionType.movedBy:
+            return [
+                { name: 'dx', type: ParameterTypes.NumberInput, props: { placeholder: 'dx', ...integerStep, ...eventNumberInputProps } },
+                { name: 'dy', type: ParameterTypes.NumberInput, props: { placeholder: 'dy', ...integerStep, ...eventNumberInputProps } },
+            ]
+        case FigureEventConditionType.landedOnFigure:
+            return [
+                createFigureFilterArrayFieldConfig('figures', {
+                    allowAny: true,
+                    title: 'figures',
+                    className: styles.figureFilterArray,
+                    itemClassName: styles.figureFilterArrayItem,
+                }),
+                {
+                    name: 'matchMode',
+                    type: ParameterTypes.SelectArray,
+                    props: {
+                        className: styles.eventTypeSelect,
+                        options: conditionMatchModeOptions,
+                        title: 'match',
                     },
                 },
                 {
@@ -377,7 +519,7 @@ function getEventParamsConfig(
                     props: {
                         className: styles.eventTypeSelect,
                         options: stackTargetOptions,
-                        title: 'stack target',
+                        title: 'stack',
                     },
                 },
                 {
@@ -386,65 +528,135 @@ function getEventParamsConfig(
                     props: { placeholder: 'stack index', ...nonNegative, ...integerStep, ...eventNumberInputProps },
                 },
             ]
-        case FigureEventType.enterCell:
-        case FigureEventType.leaveCell:
+        case FigureEventConditionType.steppedOnByFigure:
             return [
-                { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne, ...eventNumberInputProps } },
-                { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne, ...eventNumberInputProps } },
-            ]
-        case FigureEventType.enterRect:
-            return [
-                { name: 'x1', type: ParameterTypes.NumberInput, props: { placeholder: 'x1', ...atLeastOne, ...eventNumberInputProps } },
-                { name: 'y1', type: ParameterTypes.NumberInput, props: { placeholder: 'y1', ...atLeastOne, ...eventNumberInputProps } },
-                { name: 'x2', type: ParameterTypes.NumberInput, props: { placeholder: 'x2', ...atLeastOne, ...eventNumberInputProps } },
-                { name: 'y2', type: ParameterTypes.NumberInput, props: { placeholder: 'y2', ...atLeastOne, ...eventNumberInputProps } },
-            ]
-        case FigureEventType.enterFigureArea:
-            return [
-                createFigureFilterArrayFieldConfig('anchorFigures', {
+                createFigureFilterArrayFieldConfig('stepperFigures', {
                     allowAny: true,
-                    title: 'anchor (любая = ?)',
+                    title: 'stepper',
                     className: styles.figureFilterArray,
                     itemClassName: styles.figureFilterArrayItem,
                 }),
-                createFigureAreaGridFieldConfig('cells', {
-                    className: styles.figureAreaGridField,
-                }),
                 {
-                    name: 'includePassive',
-                    Component: SvgManualDimensionCheckbox,
-                    props: { text: 'триггер если стояла / вошли в область' },
-                },
-            ]
-        case FigureEventType.areaEnteredBy:
-            return [
-                createFigureFilterArrayFieldConfig('entererFigures', {
-                    allowAny: true,
-                    title: 'enterer (любая = ?)',
-                    className: styles.figureFilterArray,
-                    itemClassName: styles.figureFilterArrayItem,
-                }),
-                createFigureAreaGridFieldConfig('cells', {
-                    className: styles.figureAreaGridField,
-                    previewFigureId: ownerFigureId,
-                }),
-                {
-                    name: 'includePassive',
-                    Component: SvgManualDimensionCheckbox,
-                    props: { text: 'триггер если стояла / вошли в область' },
-                },
-                {
-                    name: 'cause',
+                    name: 'matchMode',
                     type: ParameterTypes.SelectArray,
                     props: {
                         className: styles.eventTypeSelect,
-                        options: stepCauseOptions,
-                        title: 'cause',
+                        options: conditionMatchModeOptions,
+                        title: 'match',
                     },
                 },
             ]
+        case FigureEventConditionType.isFigure:
+        case FigureEventConditionType.isNotFigure:
+            return [
+                createFigureFilterArrayFieldConfig('figures', {
+                    allowAny: true,
+                    title: 'figure',
+                    className: styles.figureFilterArray,
+                    itemClassName: styles.figureFilterArrayItem,
+                }),
+            ]
+        case FigureEventConditionType.exitedBoard:
+            return []
         default:
             return []
+    }
+}
+
+function getDefaultConditionParams(type: FigureEventConditionType) {
+    switch (type) {
+        case FigureEventConditionType.landedOnFigure:
+        case FigureEventConditionType.aboveFigures:
+        case FigureEventConditionType.belowFigures:
+        case FigureEventConditionType.hoppedOverFigures:
+            return { figures: [{ figureId: FIGURE_FILTER_ANY }], matchMode: 'any' }
+        case FigureEventConditionType.steppedOnByFigure:
+            return { stepperFigures: [{ figureId: FIGURE_FILTER_ANY }], matchMode: 'any' }
+        case FigureEventConditionType.isFigure:
+        case FigureEventConditionType.isNotFigure:
+            return { figures: [{ figureId: FIGURE_FILTER_ANY }] }
+        case FigureEventConditionType.onCells:
+            return { cells: [{ x: 1, y: 1 }], matchMode: 'any' }
+        case FigureEventConditionType.movedBy:
+            return { dx: 1, dy: 0 }
+        case FigureEventConditionType.leftCell:
+        case FigureEventConditionType.landedOnCell:
+            return { x: 1, y: 1 }
+        case FigureEventConditionType.inBoardArea:
+        case FigureEventConditionType.landedInBoardArea:
+            return { x1: 1, y1: 1, x2: 1, y2: 1 }
+        case FigureEventConditionType.landedInFigureArea:
+        case FigureEventConditionType.figureEnteredArea:
+            return { includePassive: true }
+        default:
+            return {}
+    }
+}
+
+function createEventConditionsArrayProps(ownerFigureId?: FigureId) {
+    return {
+        className: styles.eventConditionsArray,
+        itemClassName: styles.eventConditionItem,
+        itemFormClassName: styles.eventConditionItemForm,
+        addButtonClassName: styles.eventConditionsAddRow,
+        itemConfig: (item: FigureEventCondition) => {
+            const paramsConfig = getConditionParamsConfig(item.type, ownerFigureId)
+            const fields: Form1FieldConfig<FigureEventCondition>[] = [
+                {
+                    name: 'subject',
+                    type: ParameterTypes.Form1,
+                    props: {
+                        className: styles.eventParamsForm,
+                        config: [
+                            createConditionSubjectFieldConfig({
+                                title: 'subject',
+                            }) as unknown as Form1FieldConfig<FigureEventCondition['subject']>,
+                            {
+                                name: 'matchMode',
+                                type: ParameterTypes.SelectArray,
+                                props: {
+                                    className: styles.eventTypeSelect,
+                                    options: conditionMatchModeOptions,
+                                    title: 'match',
+                                },
+                                visibility: (subject) => (subject.entries?.length ?? 0) > 1,
+                            },
+                        ],
+                    },
+                },
+                {
+                    name: 'type',
+                    type: ParameterTypes.SelectArray,
+                    props: {
+                        className: styles.eventTypeSelect,
+                        options: figureEventConditionTypeOptions,
+                        optionLabels: figureEventConditionTypeLabels,
+                        title: 'condition',
+                    },
+                },
+            ]
+
+            if (paramsConfig.length > 0) {
+                fields.push({
+                    name: 'params',
+                    type: ParameterTypes.Form1,
+                    props: {
+                        className: styles.eventParamsForm,
+                        config: paramsConfig,
+                    },
+                })
+            }
+
+            return fields
+        },
+        getItemInitialValue: (): FigureEventCondition => ({
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                matchMode: 'any',
+            },
+            type: FigureEventConditionType.landedOnFigure,
+            params: getDefaultConditionParams(FigureEventConditionType.landedOnFigure),
+        }),
     }
 }
 
@@ -452,6 +664,11 @@ function getActionParamsConfig(type: GameActionType) {
     switch (type) {
         case GameActionType.moveToTray:
             return []
+        case GameActionType.moveToCell:
+            return [
+                { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne, ...eventNumberInputProps } },
+                { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne, ...eventNumberInputProps } },
+            ]
         case GameActionType.displaceFigure:
             return [
                 { name: 'dx', type: ParameterTypes.NumberInput, props: { placeholder: 'dx', ...integerStep, ...eventNumberInputProps } },
@@ -474,15 +691,6 @@ function getActionParamsConfig(type: GameActionType) {
         case GameActionType.setOtherState:
             return [
                 { name: 'stateIndex', type: ParameterTypes.NumberInput, props: { placeholder: 'state', ...nonNegative, ...eventNumberInputProps } },
-                {
-                    name: 'target',
-                    type: ParameterTypes.SelectArray,
-                    props: {
-                        className: styles.eventTypeSelect,
-                        options: gameActionTargetOptions,
-                        title: 'target',
-                    },
-                },
             ]
         default:
             return []
@@ -496,20 +704,6 @@ function sanitizeEventActions(
     const fallbackFigureId = options.defaultFigureId ?? options.figureOptions?.[0]
 
     return actions.map(action => {
-        if (action.type === GameActionType.setOtherState) {
-            const params = (action.params ?? { stateIndex: 0, target: 'steppedOn' }) as SetOtherStateActionParams
-
-            return {
-                type: action.type,
-                params: {
-                    stateIndex: Math.max(0, Math.trunc(params.stateIndex ?? 0)),
-                    target: params.target && VALID_ACTION_TARGETS.has(params.target)
-                        ? params.target
-                        : 'steppedOn',
-                },
-            }
-        }
-
         if (action.type === GameActionType.spawnFigure) {
             const params = (action.params ?? {}) as Partial<SpawnFigureActionParams>
             const figureId = typeof params.figureId === 'string' && params.figureId.trim()
@@ -538,28 +732,13 @@ function sanitizeEventActions(
             }
         }
 
-        if (action.type === GameActionType.displaceFigure) {
-            const params = (action.params ?? {}) as Partial<DisplaceFigureActionParams>
-            let dx = Number.isFinite(params.dx) ? Math.trunc(params.dx!) : 1
-            let dy = Number.isFinite(params.dy) ? Math.trunc(params.dy!) : 0
-
-            if (dx === 0 && dy === 0) {
-                dx = 1
-                dy = 0
-            }
-
-            return {
-                type: action.type,
-                params: { dx, dy },
-            }
-        }
-
         return action
     })
 }
 
 function createEventActionsArrayProps(
     figureOptions: FigureId[],
+    eventType: FigureEventType,
     defaultAction: GameActionType = GameActionType.setSelfState,
     actionTypeOptions: GameActionType[] = gameActionTypeOptions,
 ) {
@@ -567,10 +746,12 @@ function createEventActionsArrayProps(
         switch (defaultAction) {
             case GameActionType.moveToTray:
                 return {}
+            case GameActionType.moveToCell:
+                return { x: 1, y: 1 }
             case GameActionType.displaceFigure:
                 return { dx: 1, dy: 0 }
             case GameActionType.setOtherState:
-                return { stateIndex: 0, target: 'steppedOn' as GameActionTarget }
+                return { stateIndex: 0 }
             case GameActionType.spawnFigure:
                 return {
                     figureId: figureOptions[0] ?? '',
@@ -582,6 +763,12 @@ function createEventActionsArrayProps(
                 return { stateIndex: 0 }
         }
     }
+
+    const getDefaultSubject = (): GameAction['subject'] | undefined => (
+        defaultAction === GameActionType.spawnFigure
+            ? undefined
+            : defaultActionSubject(eventType)
+    )
 
     return {
         className: styles.eventActionsArray,
@@ -597,10 +784,36 @@ function createEventActionsArrayProps(
                     props: {
                         className: styles.eventTypeSelect,
                         options: actionTypeOptions,
+                        optionLabels: gameActionTypeLabels,
                         title: 'action',
                     },
                 },
             ]
+
+            if (item.type !== GameActionType.spawnFigure) {
+                fields.push({
+                    name: 'subject',
+                    type: ParameterTypes.Form1,
+                    props: {
+                        className: styles.eventParamsForm,
+                        config: [
+                            createConditionSubjectFieldConfig({
+                                title: 'subject',
+                            }) as unknown as Form1FieldConfig<NonNullable<GameAction['subject']>>,
+                            {
+                                name: 'matchMode',
+                                type: ParameterTypes.SelectArray,
+                                props: {
+                                    className: styles.eventTypeSelect,
+                                    options: conditionMatchModeOptions,
+                                    title: 'match',
+                                },
+                                visibility: (subject) => (subject.entries?.length ?? 0) > 1,
+                            },
+                        ],
+                    },
+                })
+            }
 
             if (paramsConfig.length > 0) {
                 fields.push({
@@ -617,6 +830,7 @@ function createEventActionsArrayProps(
         },
         getItemInitialValue: (): GameAction => ({
             type: defaultAction,
+            ...(getDefaultSubject() ? { subject: getDefaultSubject() } : {}),
             params: getDefaultActionParams() as GameAction['params'],
         }),
     }
@@ -624,9 +838,8 @@ function createEventActionsArrayProps(
 
 function getEventRuleEventFields(
     rule: FigureEventRule,
-    ownerFigureId?: FigureId,
 ): Form1FieldConfig<FigureEventRule>[] {
-    const paramsConfig = getEventParamsConfig(rule.type, ownerFigureId)
+    const paramsConfig = getEventParamsConfig(rule.type)
     const fields: Form1FieldConfig<FigureEventRule>[] = [
         {
             name: 'type',
@@ -665,7 +878,7 @@ function getEventRuleActionsArrayProps(
         ? boundaryActionTypeOptions
         : gameActionTypeOptions
 
-    return createEventActionsArrayProps(figureOptions, defaultAction, actionOptions)
+    return createEventActionsArrayProps(figureOptions, rule.type, defaultAction, actionOptions)
 }
 
 interface EventRuleRowProps {
@@ -686,8 +899,13 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
     onRemove,
 }) => {
     const eventFields = useMemo(
-        () => getEventRuleEventFields(rule, figureId),
-        [rule, figureId],
+        () => getEventRuleEventFields(rule),
+        [rule],
+    )
+
+    const conditionsArrayProps = useMemo(
+        () => createEventConditionsArrayProps(figureId),
+        [figureId],
     )
 
     const actionsArrayProps = useMemo(
@@ -723,6 +941,18 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
         onChange({ ...rule, actions: sanitized }, index)
     }, [figureId, figureOptions, rule, index, onChange])
 
+    const handleConditionsChange = useCallback((conditions: FigureEventCondition[]) => {
+        logFigureEventRulesDebug('conditions-change', {
+            figureId,
+            ruleId: rule.id,
+            ruleIndex: index,
+            before: rule.conditions,
+            after: conditions,
+        })
+
+        onChange({ ...rule, conditions }, index)
+    }, [figureId, index, onChange, rule])
+
     const handleRemove = useCallback(() => {
         onRemove(index)
     }, [index, onRemove])
@@ -745,12 +975,212 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
                     x
                 </button>
             </div>
+            <div className={styles.eventRuleConditionsCol}>
+                <FormArray<FigureEventCondition>
+                    {...conditionsArrayProps}
+                    value={rule.conditions ?? []}
+                    onChange={handleConditionsChange}
+                />
+            </div>
             <div className={styles.eventRuleActionsCol}>
                 <FormArray<GameAction>
                     {...actionsArrayProps}
-                    value={rule.actions}
+                    value={rule.actions ?? []}
                     onChange={handleActionsChange}
                 />
+            </div>
+        </div>
+    )
+}
+
+export function createDefaultEventRule(): FigureEventRule {
+    return {
+        id: crypto.randomUUID(),
+        type: FigureEventType.onMove,
+        params: { cause: 'any' },
+        conditions: [{
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                matchMode: 'any',
+            },
+            type: FigureEventConditionType.landedOnFigure,
+            params: {
+                figures: [{ figureId: FIGURE_FILTER_ANY }],
+                matchMode: 'any',
+                stackTarget: 'all',
+            },
+        }],
+        actions: [{
+            type: GameActionType.setSelfState,
+            params: { stateIndex: 0 },
+        }],
+    }
+}
+
+function patchEventRules(nextRules: FigureEventRule[]): FigureEventRule[] {
+    return nextRules.map(rule => {
+        if (rule.type === FigureEventType.steppedOnBy) {
+            const params = (rule.params ?? {}) as FigureEventParamsSteppedOnBy
+
+            return {
+                ...rule,
+                params: {
+                    cause: params.cause ?? 'any',
+                    stackPosition: params.stackPosition ?? 'any',
+                    ...(params.stackIndex !== undefined ? { stackIndex: params.stackIndex } : {}),
+                },
+                conditions: rule.conditions ?? [],
+                actions: rule.actions ?? [],
+            }
+        }
+
+        if (rule.type === FigureEventType.leaveBoard) {
+            return {
+                ...rule,
+                conditions: rule.conditions ?? [],
+                actions: rule.actions ?? [],
+            }
+        }
+
+        if (rule.type === FigureEventType.onMove) {
+            const params = (rule.params ?? {}) as FigureEventParamsOnMove
+
+            return {
+                ...rule,
+                params: { cause: params.cause ?? 'any' },
+                conditions: rule.conditions ?? [],
+                actions: rule.actions ?? [],
+            }
+        }
+
+        return {
+            ...rule,
+            conditions: rule.conditions ?? [],
+            actions: rule.actions ?? [],
+        }
+    })
+}
+
+export function normalizeEventRulesForSave(
+    nextRules: FigureEventRule[],
+    debugContext?: { figureId?: FigureId },
+): FigureEventRule[] {
+    const patched = patchEventRules(nextRules)
+    const normalizeDropped: Array<{ ruleId: string; index: number; reason: string }> = []
+
+    const saved = patched.map((rule, index) => {
+        const normalized = normalizeFigureEventRule(rule, {
+            figureId: debugContext?.figureId,
+            ruleIndex: index,
+        })
+
+        if (!normalized) {
+            const actionResults = (rule.actions ?? []).map(action => ({
+                type: action.type,
+                params: action.params,
+                normalized: normalizeGameAction(action, { eventType: rule.type }),
+            }))
+
+            normalizeDropped.push({
+                ruleId: rule.id,
+                index,
+                reason: actionResults.every(result => result.normalized == null)
+                    ? 'all actions rejected by normalizeGameAction'
+                    : 'normalizeFigureEventRule returned null',
+            })
+
+            logFigureEventRulesDebug('normalize-rejected', {
+                figureId: debugContext?.figureId,
+                ruleId: rule.id,
+                ruleIndex: index,
+                before: rule,
+                detail: { actionResults },
+            })
+
+            return rule
+        }
+
+        return normalized
+    })
+
+    if (normalizeDropped.length > 0) {
+        logFigureEventRulesBatchChange({
+            figureId: debugContext?.figureId,
+            phase: 'after-save',
+            rules: saved,
+            normalizeDropped,
+        })
+    }
+
+    return saved
+}
+
+export interface EventRulesTableProps {
+    eventRules: FigureEventRule[]
+    figureOptions: FigureId[]
+    onChange: (rules: FigureEventRule[]) => void
+}
+
+export const EventRulesTable: FC<EventRulesTableProps> = ({
+    eventRules,
+    figureOptions,
+    onChange,
+}) => {
+    const handleEventRulesChange = useCallback((nextRules: FigureEventRule[]) => {
+        logFigureEventRulesBatchChange({
+            phase: 'before-normalize',
+            rules: nextRules,
+        })
+        onChange(normalizeEventRulesForSave(nextRules))
+    }, [onChange])
+
+    const handleEventRuleChange = useCallback((rule: FigureEventRule, index: number) => {
+        const nextRules = [...eventRules]
+        nextRules[index] = rule
+        handleEventRulesChange(nextRules)
+    }, [eventRules, handleEventRulesChange])
+
+    const handleEventRuleRemove = useCallback((index: number) => {
+        logFigureEventRulesDebug('rule-remove', {
+            ruleId: eventRules[index]?.id,
+            ruleIndex: index,
+            before: eventRules[index],
+        })
+        const nextRules = [...eventRules]
+        nextRules.splice(index, 1)
+        handleEventRulesChange(nextRules)
+    }, [eventRules, handleEventRulesChange])
+
+    const handleAddEventRule = useCallback(() => {
+        const nextRule = createDefaultEventRule()
+        logFigureEventRulesDebug('rule-add', {
+            ruleId: nextRule.id,
+            after: nextRule,
+        })
+        handleEventRulesChange([...eventRules, nextRule])
+    }, [eventRules, handleEventRulesChange])
+
+    return (
+        <div className={styles.eventRulesSection}>
+            <div className={styles.eventRulesTableHeader}>
+                <span>Событие</span>
+                <span>Условия</span>
+                <span>Действия</span>
+            </div>
+            <div className={styles.eventRulesArray}>
+                {eventRules.map((rule, index) => (
+                    <EventRuleRow
+                        key={rule.id}
+                        rule={rule}
+                        index={index}
+                        figureOptions={figureOptions}
+                        onChange={handleEventRuleChange}
+                        onRemove={handleEventRuleRemove}
+                    />
+                ))}
+                <div className={styles.eventRulesAddRow}>
+                    <button type="button" onClick={handleAddEventRule}>+</button>
+                </div>
             </div>
         </div>
     )
@@ -789,6 +1219,13 @@ export const FigureParametersFormBase: FC<FigureParametersFormBaseProps> = ({
     )
 }
 
+const MOVE_DIRECTION_OPTIONS: Array<{ id: FigureMoveDirection; label: string }> = [
+    { id: 'up', label: 'верх' },
+    { id: 'down', label: 'низ' },
+    { id: 'left', label: 'лево' },
+    { id: 'right', label: 'право' },
+]
+
 export const FigureParametersForm: FC = () => {
     const {
         activeFigure,
@@ -797,9 +1234,10 @@ export const FigureParametersForm: FC = () => {
         state,
         setFigureStateViewParams,
         setFigureStateMoveRules,
-        setFigureEventRules,
         addFigureState,
         removeFigureState,
+        setFigureTeam,
+        setFigureMoveDirection,
     } = useGameContext()
 
     const [activeSection, setActiveSection] = useState<FigureSectionTab>('view')
@@ -834,22 +1272,12 @@ export const FigureParametersForm: FC = () => {
     } as React.CSSProperties
 
     useEffect(() => {
-        setActiveSection('view')
-    }, [activeFigure])
-
-    useEffect(() => {
         if (!activeFigure || activeStateIndex < stateCount) {
             return
         }
 
         setFigureStateIndex(activeFigure, Math.max(0, stateCount - 1))
     }, [activeFigure, activeStateIndex, stateCount, setFigureStateIndex])
-
-    useEffect(() => {
-        if (import.meta.env.DEV) {
-            setProfilerPanelChannel(activeSection === 'events' ? 'gameplay' : 'scroll')
-        }
-    }, [activeSection])
 
     const activeFigureState = useMemo(() => {
         if (!figureDefinition) {
@@ -875,185 +1303,13 @@ export const FigureParametersForm: FC = () => {
         ? resolveJumpOverPieces(activeFigureState)
         : true
 
-    const figureOptions = useMemo(() => {
-        return state.figureCatalog.map(entry => entry.id)
-    }, [state.figureCatalog])
+    const canStepOnOwnTeam = activeFigureState
+        ? resolveCanStepOnOwnTeam(activeFigureState)
+        : false
 
-    const eventRules = useMemo(() => {
-        if (!activeFigure) {
-            return []
-        }
-
-        return state.figureCatalog.find(entry => entry.id === activeFigure)?.eventRules ?? []
-    }, [activeFigure, state.figureCatalog])
-
-    const getEventRuleInitialValue = useCallback((): FigureEventRule => ({
-        id: crypto.randomUUID(),
-        type: FigureEventType.stepOnFigure,
-        params: {
-            targetFigures: [{ figureId: FIGURE_FILTER_ANY }],
-            cause: 'any',
-        },
-        actions: [{
-            type: GameActionType.setSelfState,
-            params: { stateIndex: 0 },
-        }],
-    }), [])
-
-    const handleEventRulesChange = useCallback((nextRules: FigureEventRule[]) => {
-        if (!activeFigure) {
-            return
-        }
-
-        logFigureEventRulesBatchChange({
-            figureId: activeFigure,
-            phase: 'before-normalize',
-            rules: nextRules,
-        })
-
-        const patched = nextRules.map(rule => {
-            if (rule.type === FigureEventType.steppedOnBy) {
-                const params = rule.params as {
-                    stepperFigures?: Array<{ figureId?: FigureId; stateIndex?: number }>
-                    cause?: StepCause
-                    stackPosition?: StackPositionMode
-                    stackIndex?: number
-                } | undefined
-
-                return {
-                    ...rule,
-                    params: {
-                        cause: params?.cause ?? 'any',
-                        stepperFigures: canonicalizeFigureFilterArray(params?.stepperFigures),
-                        stackPosition: params?.stackPosition ?? 'any',
-                        ...(params?.stackIndex !== undefined ? { stackIndex: params.stackIndex } : {}),
-                    },
-                    actions: rule.actions?.length
-                        ? rule.actions
-                        : [{ type: GameActionType.moveToTray, params: {} }],
-                }
-            }
-
-            if (rule.type === FigureEventType.leaveBoard) {
-                return {
-                    ...rule,
-                    actions: rule.actions?.length
-                        ? rule.actions
-                        : [{ type: GameActionType.moveToTray, params: {} }],
-                }
-            }
-
-            if (rule.type === FigureEventType.stepOnFigure) {
-                const params = rule.params as {
-                    targetFigures?: Array<{ figureId?: FigureId; stateIndex?: number }>
-                    cause?: StepCause
-                    stackTarget?: StackTargetMode
-                    stackIndex?: number
-                } | undefined
-
-                return {
-                    ...rule,
-                    params: {
-                        cause: params?.cause ?? 'any',
-                        targetFigures: canonicalizeFigureFilterArray(params?.targetFigures),
-                        stackTarget: params?.stackTarget ?? 'all',
-                        ...(params?.stackIndex !== undefined ? { stackIndex: params.stackIndex } : {}),
-                    },
-                }
-            }
-
-            if (rule.type === FigureEventType.enterFigureArea) {
-                return {
-                    ...rule,
-                    params: normalizeFigureEventParamsEnterFigureArea(
-                        rule.params as Parameters<typeof normalizeFigureEventParamsEnterFigureArea>[0],
-                    ),
-                }
-            }
-
-            if (rule.type === FigureEventType.areaEnteredBy) {
-                return {
-                    ...rule,
-                    params: normalizeFigureEventParamsAreaEnteredBy(
-                        rule.params as Parameters<typeof normalizeFigureEventParamsAreaEnteredBy>[0],
-                    ),
-                }
-            }
-
-            return rule
-        })
-
-        const normalizeDropped: Array<{ ruleId: string; index: number; reason: string }> = []
-
-        const saved = patched.map((rule, index) => {
-            const normalized = normalizeFigureEventRule(rule)
-
-            if (!normalized) {
-                const actionResults = (rule.actions ?? []).map(action => ({
-                    type: action.type,
-                    params: action.params,
-                    normalized: normalizeGameAction(action),
-                }))
-
-                normalizeDropped.push({
-                    ruleId: rule.id,
-                    index,
-                    reason: actionResults.every(result => result.normalized == null)
-                        ? 'all actions rejected by normalizeGameAction'
-                        : 'normalizeFigureEventRule returned null',
-                })
-
-                logFigureEventRulesDebug('normalize-rejected', {
-                    figureId: activeFigure,
-                    ruleId: rule.id,
-                    ruleIndex: index,
-                    before: rule,
-                    detail: { actionResults },
-                })
-
-                return rule
-            }
-
-            return normalized
-        })
-
-        logFigureEventRulesBatchChange({
-            figureId: activeFigure,
-            phase: 'after-save',
-            rules: saved,
-            normalizeDropped: normalizeDropped.length > 0 ? normalizeDropped : undefined,
-        })
-
-        setFigureEventRules(activeFigure, saved)
-    }, [activeFigure, setFigureEventRules])
-
-    const handleEventRuleChange = useCallback((rule: FigureEventRule, index: number) => {
-        const nextRules = [...eventRules]
-        nextRules[index] = rule
-        handleEventRulesChange(nextRules)
-    }, [eventRules, handleEventRulesChange])
-
-    const handleEventRuleRemove = useCallback((index: number) => {
-        logFigureEventRulesDebug('rule-remove', {
-            figureId: activeFigure,
-            ruleId: eventRules[index]?.id,
-            ruleIndex: index,
-            before: eventRules[index],
-        })
-        const nextRules = [...eventRules]
-        nextRules.splice(index, 1)
-        handleEventRulesChange(nextRules)
-    }, [activeFigure, eventRules, handleEventRulesChange])
-
-    const handleAddEventRule = useCallback(() => {
-        const nextRule = getEventRuleInitialValue()
-        logFigureEventRulesDebug('rule-add', {
-            figureId: activeFigure,
-            ruleId: nextRule.id,
-            after: nextRule,
-        })
-        handleEventRulesChange([...eventRules, nextRule])
-    }, [activeFigure, eventRules, handleEventRulesChange, getEventRuleInitialValue])
+    const moveDirection = figureDefinition
+        ? resolveFigureMoveDirection(figureDefinition)
+        : 'up'
 
     const handleChange = useCallback((nextValue: FigureViewParams) => {
         if (!activeFigure) {
@@ -1067,16 +1323,32 @@ export const FigureParametersForm: FC = () => {
             return
         }
 
-        setFigureStateMoveRules(activeFigure, activeStateIndex, nextRules, jumpOverPieces)
-    }, [activeFigure, activeStateIndex, jumpOverPieces, setFigureStateMoveRules])
+        setFigureStateMoveRules(activeFigure, activeStateIndex, nextRules, jumpOverPieces, canStepOnOwnTeam)
+    }, [activeFigure, activeStateIndex, jumpOverPieces, canStepOnOwnTeam, setFigureStateMoveRules])
 
     const handleJumpOverPiecesChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         if (!activeFigure) {
             return
         }
 
-        setFigureStateMoveRules(activeFigure, activeStateIndex, moveRules, event.target.checked)
-    }, [activeFigure, activeStateIndex, moveRules, setFigureStateMoveRules])
+        setFigureStateMoveRules(activeFigure, activeStateIndex, moveRules, event.target.checked, canStepOnOwnTeam)
+    }, [activeFigure, activeStateIndex, moveRules, canStepOnOwnTeam, setFigureStateMoveRules])
+
+    const handleCanStepOnOwnTeamChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!activeFigure) {
+            return
+        }
+
+        setFigureStateMoveRules(activeFigure, activeStateIndex, moveRules, jumpOverPieces, event.target.checked)
+    }, [activeFigure, activeStateIndex, moveRules, jumpOverPieces, setFigureStateMoveRules])
+
+    const handleMoveDirectionChange = useCallback((direction: FigureMoveDirection) => {
+        if (!activeFigure) {
+            return
+        }
+
+        setFigureMoveDirection(activeFigure, direction)
+    }, [activeFigure, setFigureMoveDirection])
 
     const handleAddState = useCallback(() => {
         if (!activeFigure) {
@@ -1096,9 +1368,42 @@ export const FigureParametersForm: FC = () => {
         setActiveStateIndex(index => Math.max(0, index - 1))
     }, [activeFigure, activeStateIndex, stateCount, removeFigureState])
 
+    const handleTeamChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!activeFigure) {
+            return
+        }
+
+        const raw = event.target.value.trim()
+
+        if (!raw) {
+            setFigureTeam(activeFigure, undefined)
+            return
+        }
+
+        const parsed = Number(raw)
+
+        if (Number.isFinite(parsed)) {
+            setFigureTeam(activeFigure, Math.trunc(parsed))
+        }
+    }, [activeFigure, setFigureTeam])
+
     if (!activeFigure) {
         return null
     }
+
+    const teamRow = (
+        <div className={styles.teamRow}>
+            <span className={styles.stateRowLabel}>команда</span>
+            <input
+                type="number"
+                className={styles.teamInput}
+                value={figureDefinition?.team ?? ''}
+                placeholder="—"
+                step={1}
+                onChange={handleTeamChange}
+            />
+        </div>
+    )
 
     const stateTabs = (
         <div className={styles.stateRow}>
@@ -1138,6 +1443,7 @@ export const FigureParametersForm: FC = () => {
 
     return (
         <div className={styles.figureParametersFormLayout} style={layoutStyle}>
+            {teamRow}
             <div className={styles.sectionTabsRow}>
                 {FIGURE_SECTION_TABS.map(tab => (
                     <button
@@ -1182,7 +1488,32 @@ export const FigureParametersForm: FC = () => {
                     >
                         {stateTabs}
                         <div className={styles.moveRulesSection}>
+                            <div className={styles.moveDirectionRow}>
+                                <span className={styles.stateRowLabel}>направление</span>
+                                <div className={styles.moveDirectionTabs}>
+                                    {MOVE_DIRECTION_OPTIONS.map(({ id, label }) => (
+                                        <button
+                                            key={id}
+                                            type="button"
+                                            className={moveDirection === id
+                                                ? styles.moveDirectionTabActive
+                                                : styles.moveDirectionTab}
+                                            onClick={() => handleMoveDirectionChange(id)}
+                                        >
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                             <div className={styles.moveRulesHeader}>
+                                <label className={styles.jumpOverPiecesField}>
+                                    <input
+                                        type="checkbox"
+                                        checked={canStepOnOwnTeam}
+                                        onChange={handleCanStepOnOwnTeamChange}
+                                    />
+                                    <span>может наступать на свою команду</span>
+                                </label>
                                 <label className={styles.jumpOverPiecesField}>
                                     <input
                                         type="checkbox"
@@ -1198,35 +1529,6 @@ export const FigureParametersForm: FC = () => {
                                 moveRules={moveRules}
                                 onChange={handleMoveRulesChange}
                             />
-                        </div>
-                    </div>
-                )}
-                {activeSection === 'events' && (
-                    <div
-                        className={styles.sectionPanel}
-                        title="События срабатывают при ходе в режиме игры. Действия применяются после базового перемещения."
-                    >
-                        <div className={styles.eventRulesSection}>
-                            <div className={styles.eventRulesTableHeader}>
-                                <span>Событие</span>
-                                <span>Действия</span>
-                            </div>
-                            <div className={styles.eventRulesArray}>
-                                {eventRules.map((rule, index) => (
-                                    <EventRuleRow
-                                        key={rule.id}
-                                        rule={rule}
-                                        index={index}
-                                        figureId={activeFigure}
-                                        figureOptions={figureOptions}
-                                        onChange={handleEventRuleChange}
-                                        onRemove={handleEventRuleRemove}
-                                    />
-                                ))}
-                                <div className={styles.eventRulesAddRow}>
-                                    <button type="button" onClick={handleAddEventRule}>+</button>
-                                </div>
-                            </div>
                         </div>
                     </div>
                 )}

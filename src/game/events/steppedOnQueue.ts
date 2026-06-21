@@ -2,27 +2,26 @@ import { BoardParameters } from '../types/boardParameters'
 import { CellCoord, coordKey, isCoordInGrid } from '../types/coords'
 import {
     DisplaceFigureActionParams,
-    FigureEventParamsSteppedOnBy,
     FigureEventRule,
-    FigureEventType,
     GameAction,
     GameActionType,
+    FigureEventType,
     StepCause,
 } from '../types/events'
-import { FigureCatalog, FigureId, FigurePlacement } from '../types/figures'
+import { evaluateSteppedOnRule, evaluateLeaveBoardRule } from './conditions/evaluate'
+import { resolveEventRule } from './migrateEventRules'
+import { FigureCatalog, FigurePlacement } from '../types/figures'
 import { FiguresSlice } from '../state/slices'
-import { cloneFigurePlacement, resolvePlacementStateIndex, normalizeFigureEventParamsSteppedOnBy } from '../figureView'
-import { matchesFigureFilterList } from '../figureFilter'
+import { cloneFigurePlacement } from '../figureView'
 import {
     cloneFiguresByCoord,
     findInstance,
     getTopOfStack,
-    matchesStackPosition,
     placementMatchesAt,
     pushToStack,
     removePlacementFromBoard,
 } from '../figureStack'
-import { applyLeaveBoardAction, applySteppedOnAction } from './execute'
+import { applyActionsWithSpawnedEventDrain, applyLeaveBoardAction, applySteppedOnAction } from './execute'
 import { gameMovesDebugLog } from '../gameMovesDebugLog'
 import { runFigureEvents } from './runFigureEvents'
 import { FigureStepRecorder, recordFigureStep } from '../figureAnimation/figureStepRecorder'
@@ -51,6 +50,7 @@ export interface SteppedOnActionContext {
     stepCause: Exclude<StepCause, 'any'>
     boardParameters: BoardParameters
     catalog: FigureCatalog
+    eventRules: FigureEventRule[]
 }
 
 export type PlaceQueueItem = {
@@ -70,6 +70,13 @@ export interface LeaveBoardQueueEvent {
 }
 
 type QueueItem = SteppedOnQueueItem
+
+export type ActionQueueResolveDeps = {
+    catalog: FigureCatalog
+    eventRules: FigureEventRule[]
+    boardParameters: BoardParameters
+    onStep?: FigureStepRecorder
+}
 
 export function computeDisplaceLanding(
     from: CellCoord,
@@ -129,73 +136,27 @@ export function computeWrappedDisplaceLanding(
 
 export function matchesSteppedOnBy(
     rule: FigureEventRule,
-    ownerFigureId: FigureId,
     event: SteppedOnEvent,
     figures?: FiguresSlice,
 ): boolean {
-    if (rule.type !== FigureEventType.steppedOnBy) {
-        return false
+    if (!figures) {
+        return evaluateSteppedOnRule(rule, event, {})
     }
 
-    if (event.targetPlacement.figureId !== ownerFigureId) {
-        return false
-    }
-
-    const params = normalizeSteppedOnParams(rule.params as FigureEventParamsSteppedOnBy | undefined)
-
-    if (!matchesFigureFilterList(
-        params.stepperFigures,
-        event.stepperPlacement.figureId,
-        resolvePlacementStateIndex(event.stepperPlacement),
-    )) {
-        return false
-    }
-
-    const cause = params.cause ?? 'any'
-    if (cause !== 'any' && cause !== event.cause) {
-        return false
-    }
-
-    if (figures && params.stackPosition && params.stackPosition !== 'any') {
-        const stack = figures.figuresByCoord[coordKey(event.targetCoord)] ?? []
-        const targetIndex = stack.findIndex(item => item.instanceId === event.targetPlacement.instanceId)
-
-        if (targetIndex < 0) {
-            return false
-        }
-
-        if (!matchesStackPosition(stack.length, targetIndex, params.stackPosition, params.stackIndex)) {
-            return false
-        }
-    }
-
-    return true
-}
-
-function normalizeSteppedOnParams(
-    params?: FigureEventParamsSteppedOnBy,
-): FigureEventParamsSteppedOnBy {
-    const normalized = normalizeFigureEventParamsSteppedOnBy(params)
-
-    if (normalized.cause !== 'manual' && normalized.cause !== 'displacement') {
-        normalized.cause = 'any'
-    }
-
-    return normalized
+    return evaluateSteppedOnRule(rule, event, figures.figuresByCoord)
 }
 
 function findMatchingSteppedOnRules(
     event: SteppedOnEvent,
-    catalog: FigureCatalog,
+    eventRules: FigureEventRule[],
     figures: FiguresSlice,
-): Array<{ ownerFigureId: FigureId; rule: FigureEventRule }> {
-    const matched: Array<{ ownerFigureId: FigureId; rule: FigureEventRule }> = []
+): FigureEventRule[] {
+    const matched: FigureEventRule[] = []
 
-    for (const entry of catalog) {
-        for (const rule of entry.eventRules ?? []) {
-            if (matchesSteppedOnBy(rule, entry.id, event, figures)) {
-                matched.push({ ownerFigureId: entry.id, rule })
-            }
+    for (const rawRule of eventRules) {
+        const rule = resolveEventRule(rawRule)
+        if (evaluateSteppedOnRule(rule, event, figures.figuresByCoord)) {
+            matched.push(rule)
         }
     }
 
@@ -214,10 +175,21 @@ function applySteppedOnActions(
     actions: GameAction[],
     ctx: SteppedOnActionContext,
     queue: QueueItem[],
+    onStep?: FigureStepRecorder,
 ): FiguresSlice {
-    return actions.reduce((current, action) => {
-        return applySteppedOnAction(current, action, ctx, queue)
-    }, figures)
+    return applyActionsWithSpawnedEventDrain(
+        figures,
+        actions,
+        ctx,
+        queue,
+        applySteppedOnAction,
+        {
+            catalog: ctx.catalog,
+            eventRules: ctx.eventRules,
+            boardParameters: ctx.boardParameters,
+            onStep,
+        },
+    )
 }
 
 function cloneFiguresBeforeMove(figures: FiguresSlice): Record<string, FigurePlacement[]> {
@@ -228,6 +200,7 @@ function applyStepOnFigureEventsForStepper(
     figures: FiguresSlice,
     event: SteppedOnEvent,
     catalog: FigureCatalog,
+    eventRules: FigureEventRule[],
     boardParameters: BoardParameters,
     onStep?: FigureStepRecorder,
 ): FiguresSlice {
@@ -242,6 +215,7 @@ function applyStepOnFigureEventsForStepper(
         targetAtTo: event.targetPlacement,
         boardParameters,
         catalog,
+        eventRules,
         stepCause: event.cause,
         stepperPlacement: event.stepperPlacement,
         stepperCoord: event.targetCoord,
@@ -268,13 +242,14 @@ function processSteppedOnEvent(
     figures: FiguresSlice,
     event: SteppedOnEvent,
     catalog: FigureCatalog,
+    eventRules: FigureEventRule[],
     boardParameters: BoardParameters,
     queue: QueueItem[],
     onStep?: FigureStepRecorder,
 ): FiguresSlice {
     let nextFigures = ensureStepperOnTarget(figures, event)
 
-    const matched = findMatchingSteppedOnRules(event, catalog, nextFigures)
+    const matched = findMatchingSteppedOnRules(event, eventRules, nextFigures)
     const ctx: SteppedOnActionContext = {
         stepperPlacement: event.stepperPlacement,
         stepperCoord: event.targetCoord,
@@ -283,31 +258,19 @@ function processSteppedOnEvent(
         stepCause: event.cause,
         boardParameters,
         catalog,
+        eventRules,
     }
 
-    if (matched.length === 0) {
-        if (event.cause === 'manual' || event.cause === 'displacement') {
-            const actions = [getFallbackMoveToTrayAction()]
-            gameMovesDebugLog.eventMatched({
-                eventType: FigureEventType.steppedOnBy,
-                ownerFigureId: event.targetPlacement.figureId,
-                ruleId: 'fallback',
-                actions,
-                fallback: true,
-                context: `stepper=${event.stepperPlacement.figureId} cause=${event.cause}`,
-            })
-            nextFigures = applySteppedOnActions(nextFigures, actions, ctx, queue)
-        }
-    } else {
+    if (matched.length > 0) {
         gameMovesDebugLog.eventMatched({
-            eventType: matched[0].rule.type,
-            ownerFigureId: matched[0].ownerFigureId,
-            ruleId: matched[0].rule.id,
-            actions: matched[0].rule.actions,
+            eventType: matched[0].type,
+            ownerFigureId: event.targetPlacement.figureId,
+            ruleId: matched[0].id,
+            actions: matched[0].actions,
             context: `stepper=${event.stepperPlacement.figureId} cause=${event.cause}`,
         })
 
-        nextFigures = applySteppedOnActions(nextFigures, matched[0].rule.actions, ctx, queue)
+        nextFigures = applySteppedOnActions(nextFigures, matched[0].actions, ctx, queue, onStep)
     }
 
     recordFigureStep(onStep, nextFigures)
@@ -315,28 +278,24 @@ function processSteppedOnEvent(
     return applyStepOnFigureEventsForStepper(nextFigures, {
         ...event,
         stepperCoord: event.targetCoord,
-    }, catalog, boardParameters, onStep)
+    }, catalog, eventRules, boardParameters, onStep)
 }
 
 function processLeaveBoardEvent(
     figures: FiguresSlice,
     event: LeaveBoardQueueEvent,
     catalog: FigureCatalog,
+    eventRules: FigureEventRule[],
     boardParameters: BoardParameters,
     queue: QueueItem[],
     onStep?: FigureStepRecorder,
 ): FiguresSlice {
     const matched: FigureEventRule[] = []
 
-    for (const entry of catalog) {
-        if (event.placement.figureId !== entry.id) {
-            continue
-        }
-
-        for (const rule of entry.eventRules ?? []) {
-            if (rule.type === FigureEventType.leaveBoard) {
-                matched.push(rule)
-            }
+    for (const rawRule of eventRules) {
+        const rule = resolveEventRule(rawRule)
+        if (evaluateLeaveBoardRule(rule, event.placement)) {
+            matched.push(rule)
         }
     }
 
@@ -357,7 +316,14 @@ function processLeaveBoardEvent(
             actions,
             fallback: true,
         })
-        const result = applyLeaveBoardAction(figures, actions[0], ctx, queue)
+        const result = applyActionsWithSpawnedEventDrain(
+            figures,
+            actions,
+            ctx,
+            queue,
+            applyLeaveBoardAction,
+            { catalog, eventRules, boardParameters, onStep },
+        )
         recordFigureStep(onStep, result)
         return result
     }
@@ -369,9 +335,13 @@ function processLeaveBoardEvent(
         actions: matched[0].actions,
     })
 
-    const result = matched[0].actions.reduce(
-        (current, action) => applyLeaveBoardAction(current, action, ctx, queue),
+    const result = applyActionsWithSpawnedEventDrain(
         figures,
+        matched[0].actions,
+        ctx,
+        queue,
+        applyLeaveBoardAction,
+        { catalog, eventRules, boardParameters, onStep },
     )
     recordFigureStep(onStep, result)
     return result
@@ -407,18 +377,12 @@ function processPlaceItem(
     return pushToStack(figures, coord, placement)
 }
 
-export function resolveActionQueue(
+export function drainActionQueue(
     figures: FiguresSlice,
-    initialQueue: QueueItem[],
-    catalog: FigureCatalog,
-    boardParameters: BoardParameters,
-    onStep?: FigureStepRecorder,
+    queue: QueueItem[],
+    deps: ActionQueueResolveDeps,
 ): FiguresSlice {
-    const queue: QueueItem[] = initialQueue.map(item => (
-        'kind' in item
-            ? { ...item }
-            : { ...item }
-    ))
+    const { catalog, eventRules, boardParameters, onStep } = deps
 
     let nextFigures: FiguresSlice = {
         figuresByCoord: cloneFiguresByCoord(figures.figuresByCoord),
@@ -458,6 +422,7 @@ export function resolveActionQueue(
                 nextFigures,
                 item,
                 catalog,
+                eventRules,
                 boardParameters,
                 queue,
                 onStep,
@@ -477,6 +442,7 @@ export function resolveActionQueue(
             nextFigures,
             item as SteppedOnEvent,
             catalog,
+            eventRules,
             boardParameters,
             queue,
             onStep,
@@ -486,10 +452,30 @@ export function resolveActionQueue(
     return nextFigures
 }
 
+export function resolveActionQueue(
+    figures: FiguresSlice,
+    initialQueue: QueueItem[],
+    catalog: FigureCatalog,
+    eventRules: FigureEventRule[],
+    boardParameters: BoardParameters,
+    onStep?: FigureStepRecorder,
+): FiguresSlice {
+    return drainActionQueue(
+        figures,
+        initialQueue.map(item => (
+            'kind' in item
+                ? { ...item }
+                : { ...item }
+        )),
+        { catalog, eventRules, boardParameters, onStep },
+    )
+}
+
 export function resolveSteppedOnQueue(
     figures: FiguresSlice,
     initialQueue: SteppedOnEvent[],
     catalog: FigureCatalog,
+    eventRules: FigureEventRule[],
     boardParameters: BoardParameters,
     onStep?: FigureStepRecorder,
 ): FiguresSlice {
@@ -497,6 +483,7 @@ export function resolveSteppedOnQueue(
         figures,
         initialQueue.map(event => ({ ...event })),
         catalog,
+        eventRules,
         boardParameters,
         onStep,
     )

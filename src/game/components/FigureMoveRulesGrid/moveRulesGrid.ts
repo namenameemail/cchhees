@@ -1,4 +1,4 @@
-import { FigureMoveRule } from '../../types/figures'
+import { FigureMoveRule, FigureMoveRuleLanding } from '../../types/figures'
 
 export const MAX_MOVE_GRID_N = 12
 export const MOVE_GRID_AREA_SIZE = 200
@@ -7,6 +7,19 @@ export const MOVE_GRID_GAP = 0
 export const MOVE_GRID_PADDING = 0
 export const MIN_MOVE_RULE_N = 0
 export const MAX_MOVE_RULE_N = 100
+
+export const MOVE_RULE_LANDINGS: FigureMoveRuleLanding[] = ['empty', 'capture', 'any']
+
+export function resolveMoveRuleLanding(landing: FigureMoveRuleLanding | undefined): FigureMoveRuleLanding {
+    return landing ?? 'any'
+}
+
+export function cycleMoveRuleLanding(landing: FigureMoveRuleLanding | undefined): FigureMoveRuleLanding {
+    const resolved = resolveMoveRuleLanding(landing)
+    const index = MOVE_RULE_LANDINGS.indexOf(resolved)
+
+    return MOVE_RULE_LANDINGS[(index + 1) % MOVE_RULE_LANDINGS.length]
+}
 
 export function ruleKey(x: number, y: number): string {
     return `${x},${y}`

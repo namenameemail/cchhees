@@ -21,6 +21,7 @@ describe('applyFigureMove', () => {
             swapOnEat: false,
             boardParameters: testBoardParameters,
             catalog,
+            eventRules: [],
         })
 
         expect(getTopOfStack(after, from)).toBeUndefined()
@@ -43,6 +44,7 @@ describe('applyFigureMove', () => {
             swapOnEat: true,
             boardParameters: testBoardParameters,
             catalog,
+            eventRules: [],
         })
 
         expect(getTopOfStack(after, to)?.instanceId).toBe(actor.instanceId)

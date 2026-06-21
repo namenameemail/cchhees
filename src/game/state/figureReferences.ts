@@ -1,21 +1,14 @@
-import { FigureCatalog, FigureId, FigurePlacement } from '../types/figures'
 import {
-    FigureEventParamsAreaEnteredBy,
-    FigureEventParamsEnterFigureArea,
-    FigureEventParamsStepOnFigure,
-    FigureEventParamsSteppedOnBy,
+    FigureEventCondition,
+    FigureEventFigureFilter,
     FigureEventRule,
-    FigureEventType,
     GameAction,
     GameActionType,
     SpawnFigureActionParams,
 } from '../types/events'
+import { FigureCatalog, FigureId, FigurePlacement } from '../types/figures'
+import { canonicalizeConditionSubjectEntries, canonicalizeFigureFilterArray, isConcreteFigureFilter } from '../figureFilter'
 import { cloneFigurePlacement, normalizeFigureEventRule } from '../figureView'
-import {
-    canonicalizeFigureFilterArray,
-    FIGURE_FILTER_NONE,
-    isConcreteFigureFilter,
-} from '../figureFilter'
 import { cloneFiguresByCoord } from '../figureStack'
 import { FiguresSlice } from './slices'
 
@@ -65,86 +58,79 @@ export function cloneFiguresSlicePlacements(figures: FiguresSlice): FiguresSlice
     }
 }
 
+function scrubConditionReferences(
+    condition: FigureEventCondition,
+    removedFigureId: FigureId,
+): FigureEventCondition {
+    const subject = {
+        ...condition.subject,
+        entries: canonicalizeConditionSubjectEntries(
+            condition.subject.entries.filter(entry => (
+                !isConcreteFigureFilter(entry.figureId)
+                || entry.figureId !== removedFigureId
+            )),
+        ),
+    }
+
+    const params = condition.params as Record<string, unknown> | undefined
+    if (!params) {
+        return { ...condition, subject }
+    }
+
+    const scrubFilters = (key: string) => {
+        const list = params[key] as FigureEventFigureFilter[] | undefined
+        if (!list?.length) {
+            return
+        }
+
+        params[key] = canonicalizeFigureFilterArray(
+            list.filter(entry => (
+                !isConcreteFigureFilter(entry.figureId)
+                || entry.figureId !== removedFigureId
+            )),
+        )
+    }
+
+    scrubFilters('figures')
+    scrubFilters('stepperFigures')
+    scrubFilters('anchorFigures')
+
+    return { ...condition, subject, params: params as FigureEventCondition['params'] }
+}
+
 function scrubActionReferences(action: GameAction, removedFigureId: FigureId): GameAction | null {
-    if (action.type !== GameActionType.spawnFigure) {
+    if (action.type === GameActionType.spawnFigure) {
+        const params = action.params as SpawnFigureActionParams
+
+        if (params.figureId === removedFigureId) {
+            return null
+        }
+
         return action
     }
 
-    const params = action.params as SpawnFigureActionParams
-
-    if (params.figureId === removedFigureId) {
-        return null
+    if (!action.subject?.entries?.length) {
+        return action
     }
 
-    return action
+    return {
+        ...action,
+        subject: {
+            ...action.subject,
+            entries: canonicalizeConditionSubjectEntries(
+                action.subject.entries.filter(entry => (
+                    !isConcreteFigureFilter(entry.figureId)
+                    || entry.figureId !== removedFigureId
+                )),
+            ),
+        },
+    }
 }
 
 function scrubEventRuleReferences(rule: FigureEventRule, removedFigureId: FigureId): FigureEventRule {
-    let params: FigureEventRule['params'] = rule.params
-
-    if (rule.type === FigureEventType.steppedOnBy) {
-        const steppedParams = { ...(params as FigureEventParamsSteppedOnBy | undefined) }
-
-        if (steppedParams.stepperFigures?.length) {
-            steppedParams.stepperFigures = canonicalizeFigureFilterArray(
-                steppedParams.stepperFigures.filter(entry => (
-                    !isConcreteFigureFilter(entry.figureId)
-                    || entry.figureId !== removedFigureId
-                )),
-            )
-        } else if (steppedParams.stepperFigureId === removedFigureId) {
-            steppedParams.stepperFigureId = FIGURE_FILTER_NONE
-            delete steppedParams.stepperStateIndex
-        }
-
-        params = steppedParams
-    } else if (rule.type === FigureEventType.stepOnFigure) {
-        const stepOnParams = { ...(params as FigureEventParamsStepOnFigure | undefined) }
-
-        if (stepOnParams.targetFigures?.length) {
-            stepOnParams.targetFigures = canonicalizeFigureFilterArray(
-                stepOnParams.targetFigures.filter(entry => (
-                    !isConcreteFigureFilter(entry.figureId)
-                    || entry.figureId !== removedFigureId
-                )),
-            )
-        } else if (stepOnParams.targetFigureId === removedFigureId) {
-            stepOnParams.targetFigureId = FIGURE_FILTER_NONE
-            delete stepOnParams.targetStateIndex
-        }
-
-        params = stepOnParams
-    } else if (rule.type === FigureEventType.enterFigureArea) {
-        const areaParams = { ...(params as FigureEventParamsEnterFigureArea | undefined) }
-
-        if (areaParams.anchorFigures?.length) {
-            areaParams.anchorFigures = canonicalizeFigureFilterArray(
-                areaParams.anchorFigures.filter(entry => (
-                    !isConcreteFigureFilter(entry.figureId)
-                    || entry.figureId !== removedFigureId
-                )),
-            )
-        } else if (areaParams.figureId === removedFigureId) {
-            delete areaParams.figureId
-            delete areaParams.halfWidth
-            delete areaParams.halfHeight
-        }
-
-        params = areaParams as FigureEventRule['params']
-    } else if (rule.type === FigureEventType.areaEnteredBy) {
-        const areaParams = { ...(params as FigureEventParamsAreaEnteredBy | undefined) }
-
-        if (areaParams.entererFigures?.length) {
-            areaParams.entererFigures = canonicalizeFigureFilterArray(
-                areaParams.entererFigures.filter(entry => (
-                    !isConcreteFigureFilter(entry.figureId)
-                    || entry.figureId !== removedFigureId
-                )),
-            )
-        }
-
-        params = areaParams as FigureEventRule['params']
-    }
+    const conditions = (rule.conditions ?? []).map(condition => (
+        scrubConditionReferences(condition, removedFigureId)
+    ))
 
     const actions = (rule.actions ?? [])
         .map(action => scrubActionReferences(action, removedFigureId))
@@ -152,28 +138,21 @@ function scrubEventRuleReferences(rule: FigureEventRule, removedFigureId: Figure
 
     return {
         ...rule,
-        params,
+        conditions,
         actions,
     }
 }
 
-export function removeFigureReferencesFromCatalog(
-    catalog: FigureCatalog,
+export function removeFigureReferencesFromBoardEventRules(
+    board: { eventRules?: FigureEventRule[] },
     removedFigureId: FigureId,
-): FigureCatalog {
-    return catalog.map(entry => {
-        if (!entry.eventRules?.length) {
-            return entry
-        }
+): FigureEventRule[] | undefined {
+    if (!board.eventRules?.length) {
+        return board.eventRules
+    }
 
-        const eventRules = entry.eventRules
-            .map(rule => scrubEventRuleReferences(rule, removedFigureId))
-            .map(rule => normalizeFigureEventRule(rule))
-            .filter((rule): rule is FigureEventRule => rule !== null)
-
-        return {
-            ...entry,
-            eventRules,
-        }
-    })
+    return board.eventRules
+        .map(rule => scrubEventRuleReferences(rule, removedFigureId))
+        .map(rule => normalizeFigureEventRule(rule))
+        .filter((rule): rule is FigureEventRule => rule !== null)
 }

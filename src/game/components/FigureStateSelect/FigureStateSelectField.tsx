@@ -9,6 +9,7 @@ import {
 } from '../../figureFilter'
 import { FigureStateSelect } from './FigureStateSelect'
 import { FigureFilterArrayField, FigureFilterArrayFieldProps } from './FigureFilterArrayField'
+import { ConditionSubjectField, ConditionSubjectFieldProps } from './ConditionSubjectField'
 
 export interface FigureStateSelectFieldProps {
     figureField: string
@@ -116,6 +117,22 @@ export function createFigureStateFieldConfig<StateType extends Record<string, un
 }
 
 export type { FigureFilterArrayFieldProps } from './FigureFilterArrayField'
+
+export function createConditionSubjectFieldConfig<StateType extends Record<string, unknown>>(
+    options: ConditionSubjectFieldProps = {},
+): Form1FieldConfig<StateType> {
+    const { className, itemClassName, title } = options
+
+    return {
+        name: 'entries' as keyof StateType & string,
+        Component: ConditionSubjectField,
+        props: {
+            className,
+            itemClassName,
+            title,
+        },
+    }
+}
 
 export function createFigureFilterArrayFieldConfig<StateType extends Record<string, unknown>>(
     name: keyof StateType & string,

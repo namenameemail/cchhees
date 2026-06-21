@@ -1,16 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { defaultGameContextValue } from '../utils'
 import { GameContextValue } from './types'
-import { FigureId, FigureMoveRule, FigurePlacement, FigureViewParams, FigureCatalog } from '../types/figures'
+import { FigureId, FigureMoveRule, FigureMoveDirection, FigurePlacement, FigureViewParams, FigureCatalog } from '../types/figures'
 import { FigureEventRule } from '../types/events'
 import {
     createNewFigureDefinition,
     cloneFigureState,
     createFigurePlacement,
     normalizeFigurePlacement,
+    normalizeFigureMoveDirection,
     updateFigureCatalogStateAtIndex,
 } from '../figureView'
-import { removeFigureFromBoard, removeFigureReferencesFromCatalog } from '../state/figureReferences'
+import { removeFigureFromBoard, removeFigureReferencesFromBoardEventRules } from '../state/figureReferences'
 import {
     getTopOfStack,
     getCellStack,
@@ -25,20 +26,22 @@ import { ActiveBoardPersistPayload } from '../../projects/projectPersist'
 import { Mode } from '../types'
 import { BoardParameters } from '../types/boardParameters'
 import { normalizeBoardFigureAnimationSettings } from '../figureAnimation/resolveFigureAnimationSettings'
-import { resolveJumpOverPieces } from '../moveRules'
+import { resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../moveRules'
 import { ConnectionParams } from '../types/connections'
 import { BoardStyleRule } from '../types/styleRules'
 import { cellParametersBrushStateInitialValue, connectionParamsBrushStateInitialValue } from './constants'
+import { migrateBoardAndCatalogEventRules } from '../state/boardEventRules'
 import {
-    BoardSlice,
     FiguresSlice,
+    BoardSlice,
     composeGameState,
-    createInitialBoardSliceFromState,
     createInitialFiguresSliceFromState,
+    createInitialBoardSliceFromState,
     cloneFigureCatalog,
 } from '../state/slices'
 import {
     cloneFiguresSlice,
+    cloneBoardSlice,
     countFiguresOutsideGrid,
     isGridShrink,
 } from '../state/reconcile'
@@ -58,6 +61,7 @@ import { useGameAnimation } from './useGameAnimation'
 import { useGameCollabSync } from './useGameCollabSync'
 import { useSliceMutations } from './useSliceMutations'
 import { useFigureMove } from './useFigureMove'
+import { isKeyboardTargetEditable } from '../keyboard'
 
 export { applyRemotePersistDataFromProject } from './remotePersist'
 
@@ -92,12 +96,20 @@ export function GameProvider({
     const [figuresSlice, setFiguresSlice] = useState<FiguresSlice>(() =>
         createInitialFiguresSliceFromState(initialState),
     )
-    const [boardSlice, setBoardSlice] = useState<BoardSlice>(() =>
-        createInitialBoardSliceFromState(initialState),
-    )
-    const [figureCatalog, setFigureCatalog] = useState<FigureCatalog>(() =>
-        cloneFigureCatalog(initialCatalog),
-    )
+    const [boardSlice, setBoardSlice] = useState<BoardSlice>(() => {
+        const { board, catalog } = migrateBoardAndCatalogEventRules(
+            createInitialBoardSliceFromState(initialState),
+            cloneFigureCatalog(initialCatalog),
+        )
+        return board
+    })
+    const [figureCatalog, setFigureCatalog] = useState<FigureCatalog>(() => {
+        const { catalog } = migrateBoardAndCatalogEventRules(
+            createInitialBoardSliceFromState(initialState),
+            cloneFigureCatalog(initialCatalog),
+        )
+        return catalog
+    })
     const [figuresHistory, setFiguresHistory] = useState(initialFiguresHistory)
     const [boardHistory, setBoardHistory] = useState(initialBoardHistory)
     const [catalogHistory, setCatalogHistory] = useState(initialCatalogHistory)
@@ -121,6 +133,7 @@ export function GameProvider({
     const [activeFigure, setActiveFigure] = useState<FigureId | undefined>(undefined)
     const [figureStateIndexById, setFigureStateIndexById] = useState<Partial<Record<FigureId, number>>>({})
     const [isArrangeMode, setIsArrangeMode] = useState(false)
+    const [isFreeMoveEnabled, setIsFreeMoveEnabled] = useState(false)
 
     const [previewCellStyleRuleIndex, setPreviewCellStyleRuleIndex] = useState<number | undefined>(undefined)
 
@@ -130,8 +143,56 @@ export function GameProvider({
     )
 
     const toggleFigureArrange = useCallback((_figureId: FigureId) => {
-        setIsArrangeMode(prev => !prev)
+        setIsArrangeMode(prev => {
+            if (!prev) {
+                setIsFreeMoveEnabled(false)
+            }
+
+            return !prev
+        })
     }, [])
+
+    const toggleFreeMove = useCallback(() => {
+        setIsFreeMoveEnabled(prev => {
+            const next = !prev
+
+            if (next) {
+                setIsArrangeMode(false)
+                setMode(Mode.Game)
+            }
+
+            return next
+        })
+    }, [setMode])
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.repeat || event.ctrlKey || event.metaKey || event.altKey) {
+                return
+            }
+
+            if (isKeyboardTargetEditable(event.target)) {
+                return
+            }
+
+            const key = event.key.toLowerCase()
+
+            if (key === 'e') {
+                event.preventDefault()
+                toggleFreeMove()
+                return
+            }
+
+            if (key === 'r') {
+                event.preventDefault()
+                toggleFigureArrange(activeFigure ?? '')
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [activeFigure, toggleFigureArrange, toggleFreeMove])
 
     const getFigureStateIndex = useCallback((figureId: FigureId) => {
         return figureStateIndexById[figureId] ?? 0
@@ -251,6 +312,7 @@ export function GameProvider({
         activeCell,
         figuresSlice,
         figureCatalog,
+        eventRules: boardSlice.eventRules ?? [],
         boardParameters: state.boardParameters,
         isFigureAnimating,
         isMoveAnimatingRef,
@@ -258,6 +320,7 @@ export function GameProvider({
         setActiveCell,
         pushFiguresChange,
         playFigureStepSequenceLocal,
+        freeMove: isFreeMoveEnabled,
     })
 
     const setBoardParameters = useCallback((value: BoardParameters) => {
@@ -399,6 +462,7 @@ export function GameProvider({
         stateIndex: number,
         moveRules: FigureMoveRule[],
         jumpOverPieces?: boolean,
+        canStepOnOwnTeam?: boolean,
     ) => {
         const entry = figureCatalog.find(item => item.id === figureId)
         const currentState = entry?.states[Math.min(Math.max(0, stateIndex), (entry?.states.length ?? 1) - 1)]
@@ -408,6 +472,7 @@ export function GameProvider({
                 ...state,
                 moveRules,
                 jumpOverPieces: jumpOverPieces ?? resolveJumpOverPieces(state),
+                canStepOnOwnTeam: canStepOnOwnTeam ?? resolveCanStepOnOwnTeam(state),
             })),
             true,
             {
@@ -416,6 +481,7 @@ export function GameProvider({
                 stateIndex,
                 moveRules,
                 jumpOverPieces: jumpOverPieces ?? (currentState ? resolveJumpOverPieces(currentState) : true),
+                canStepOnOwnTeam: canStepOnOwnTeam ?? (currentState ? resolveCanStepOnOwnTeam(currentState) : false),
             },
         )
     }, [figureCatalog, applyCatalogChange])
@@ -467,17 +533,64 @@ export function GameProvider({
         )
     }, [figureCatalog, applyCatalogChange])
 
-    const setFigureEventRules = useCallback((figureId: FigureId, eventRules: FigureEventRule[]) => {
+    const setFigureTeam = useCallback((figureId: FigureId, team: number | undefined) => {
+        const normalizedTeam = team === undefined || !Number.isFinite(team)
+            ? undefined
+            : Math.trunc(team)
+
         applyCatalogChange(
-            figureCatalog.map(entry => (
-                entry.id === figureId
-                    ? { ...entry, eventRules }
-                    : entry
-            )),
+            figureCatalog.map(item => {
+                if (item.id !== figureId) {
+                    return item
+                }
+
+                if (normalizedTeam === undefined) {
+                    const { team: _removed, ...rest } = item
+                    return rest
+                }
+
+                return { ...item, team: normalizedTeam }
+            }),
             true,
-            { kind: 'figure-event-rules', figureId, eventRules },
+            { kind: 'figure-team', figureId, team: normalizedTeam },
         )
     }, [figureCatalog, applyCatalogChange])
+
+    const setFigureMoveDirection = useCallback((figureId: FigureId, moveDirection: FigureMoveDirection) => {
+        const normalizedDirection = normalizeFigureMoveDirection(moveDirection)
+
+        applyCatalogChange(
+            figureCatalog.map(item => {
+                if (item.id !== figureId) {
+                    return item
+                }
+
+                if (normalizedDirection === 'up') {
+                    const { moveDirection: _removed, ...rest } = item
+                    return rest
+                }
+
+                return { ...item, moveDirection: normalizedDirection }
+            }),
+            true,
+            {
+                kind: 'figure-move-direction',
+                figureId,
+                moveDirection: normalizedDirection === 'up' ? undefined : normalizedDirection,
+            },
+        )
+    }, [figureCatalog, applyCatalogChange])
+
+    const setBoardEventRules = useCallback((eventRules: FigureEventRule[]) => {
+        applyBoardChange(
+            {
+                ...boardSlice,
+                eventRules,
+            },
+            true,
+            { kind: 'board-event-rules', boardId: activeBoardIdRef.current, eventRules },
+        )
+    }, [boardSlice, applyBoardChange])
 
     const addFigure = useCallback(() => {
         const newFigure = createNewFigureDefinition()
@@ -497,23 +610,31 @@ export function GameProvider({
             return
         }
 
-        const nextCatalog = removeFigureReferencesFromCatalog(filteredCatalog, figureId)
         const nextFigures = cloneFiguresSlice(removeFigureFromBoard(figuresSlice, figureId))
+        const nextCatalog = filteredCatalog
+        const nextEventRules = removeFigureReferencesFromBoardEventRules(boardSlice, figureId)
+        const nextBoard = {
+            ...boardSlice,
+            eventRules: nextEventRules,
+        }
 
         const catalogResult = historyPush(catalogHistory, figureCatalog, cloneFigureCatalog(nextCatalog))
         const figuresResult = historyPush(figuresHistory, figuresSlice, nextFigures)
+        const boardResult = historyPush(boardHistory, boardSlice, cloneBoardSlice(nextBoard))
 
         setCatalogHistory(catalogResult.history)
         setFigureCatalog(catalogResult.current)
         setFiguresHistory(figuresResult.history)
         setFiguresSlice(figuresResult.current)
-        setState(composeGameState(figuresResult.current, boardSlice, catalogResult.current))
+        setBoardHistory(boardResult.history)
+        setBoardSlice(boardResult.current)
+        setState(composeGameState(figuresResult.current, boardResult.current, catalogResult.current))
         emitCollabOp({ kind: 'figure-remove', figureId })
 
         if (activeFigure === figureId) {
             setActiveFigure(undefined)
         }
-    }, [figureCatalog, catalogHistory, boardSlice, figuresSlice, figuresHistory, activeFigure, emitCollabOp])
+    }, [figureCatalog, catalogHistory, boardSlice, boardHistory, figuresSlice, figuresHistory, activeFigure, emitCollabOp])
 
     const setCells = useCallback((value: GameState['cells']) => {
         const { n } = state.boardParameters
@@ -657,6 +778,8 @@ export function GameProvider({
             setFigureStateIndex,
             isFigureArrangeEnabled,
             toggleFigureArrange,
+            isFreeMoveEnabled,
+            toggleFreeMove,
             activeCell,
             setActiveCell,
             previewCellStyleRuleIndex,
@@ -674,7 +797,9 @@ export function GameProvider({
             setFigureStateMoveRules,
             addFigureState,
             removeFigureState,
-            setFigureEventRules,
+            setFigureTeam,
+            setFigureMoveDirection,
+            setBoardEventRules,
             addFigure,
             removeFigure,
             clearAssetReferences,
@@ -700,6 +825,8 @@ export function GameProvider({
             activeFigure,
             isFigureArrangeEnabled,
             toggleFigureArrange,
+            isFreeMoveEnabled,
+            toggleFreeMove,
             getFigureStateIndex,
             setFigureStateIndex,
             activeCell,
@@ -717,7 +844,9 @@ export function GameProvider({
             setFigureStateMoveRules,
             addFigureState,
             removeFigureState,
-            setFigureEventRules,
+            setFigureTeam,
+            setFigureMoveDirection,
+            setBoardEventRules,
             addFigure,
             removeFigure,
             clearAssetReferences,

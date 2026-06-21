@@ -10,6 +10,7 @@ import { CollabGameBridge } from '../collab/components/CollabGameBridge'
 import { ProjectPreviewBridge } from '../projects/components/ProjectPreviewBridge'
 import { getActiveBoard, getActiveBoardGameState } from '../projects/types'
 import { BoardSettingsPanel } from './components/BoardSettingsPanel/BoardSettingsPanel'
+import { BoardEventRulesPanel } from './components/BoardEventRulesPanel/BoardEventRulesPanel'
 import { BoardTopBarActions } from './components/BoardTopBarActions'
 import { Figures } from './components/Figures'
 import { Board } from './components/Board'
@@ -83,11 +84,20 @@ export const Game: React.FC<GameProps> = () => {
         }
     }
 
-    const handleAssetsTab = () => {
+    const handleEventsTab = () => {
         if (isSettingsOpen && tab === 2) {
             setIsSettingsOpen(false)
         } else {
             setTab(2)
+            setIsSettingsOpen(true)
+        }
+    }
+
+    const handleAssetsTab = () => {
+        if (isSettingsOpen && tab === 3) {
+            setIsSettingsOpen(false)
+        } else {
+            setTab(3)
             setIsSettingsOpen(true)
         }
     }
@@ -281,6 +291,11 @@ export const Game: React.FC<GameProps> = () => {
                             </div>
                         )}
                         {tab === 2 && (
+                            <div className={styles.settingsBody}>
+                                <BoardEventRulesPanel />
+                            </div>
+                        )}
+                        {tab === 3 && (
                             <div className={cn(styles.settingsBody, styles.assetsSettingsBody)}>
                                 <AssetsPanel />
                             </div>
@@ -315,6 +330,17 @@ export const Game: React.FC<GameProps> = () => {
                             className={cn(
                                 styles.settingTab,
                                 isSettingsOpen && tab === 2 && styles.settingTabActive,
+                            )}
+                            data-label="events"
+                            onClick={handleEventsTab}
+                        >
+                            <span className={styles.settingTabText}>события</span>
+                        </button>
+                        <button
+                            type="button"
+                            className={cn(
+                                styles.settingTab,
+                                isSettingsOpen && tab === 3 && styles.settingTabActive,
                             )}
                             data-label="assets"
                             onClick={handleAssetsTab}

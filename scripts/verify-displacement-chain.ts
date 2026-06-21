@@ -5,11 +5,11 @@ import {
     placementsMatch,
 } from '../src/game/figureView'
 import { getTopOfStack } from '../src/game/figureStack'
-import { normalizeFiguresSlice } from '../src/game/state/slices'
-import { FigureEventType, GameActionType } from '../src/game/types/events'
+import { normalizeFiguresSlice, FiguresSlice } from '../src/game/state/slices'
+import { FigureEventRule, FigureEventType, FigureEventConditionType, GameActionType } from '../src/game/types/events'
 import { FigurePlacement } from '../src/game/types/figures'
 import { coordKey } from '../src/game/types/coords'
-import { FiguresSlice } from '../src/game/state/slices'
+import { FIGURE_SUBJECT_MOVED, FIGURE_SUBJECT_STEPPED_ON } from '../src/game/figureFilter'
 
 const board = { n: 8, m: 8 }
 
@@ -60,25 +60,31 @@ const figures = stack({
     [coordKey({ i: 7, j: 7 })]: createFigurePlacement('ChessPawnWhite'),
 })
 
+const pawnDisplaceRules: FigureEventRule[] = [{
+    id: 'pawn-displace',
+    type: FigureEventType.steppedOnBy,
+    params: { cause: 'any' },
+    conditions: [{
+        subject: {
+            entries: [{ figureId: FIGURE_SUBJECT_STEPPED_ON }],
+            matchMode: 'any',
+        },
+        type: FigureEventConditionType.steppedOnByFigure,
+        params: { stepperFigures: [{ figureId: '*' }], matchMode: 'any' },
+    }],
+    actions: [{
+        type: GameActionType.displaceFigure,
+        subject: {
+            entries: [{ figureId: FIGURE_SUBJECT_STEPPED_ON }],
+            matchMode: 'any',
+        },
+        params: { dx: 1, dy: 1 },
+    }],
+}]
+
 const catalog = [
-    {
-        id: 'ChessPawnWhite',
-        states: [{ viewParams: {} }],
-        eventRules: [{
-            id: 'pawn-displace',
-            type: FigureEventType.steppedOnBy,
-            params: { cause: 'any' },
-            actions: [{
-                type: GameActionType.displaceFigure,
-                params: { dx: 1, dy: 1 },
-            }],
-        }],
-    },
-    {
-        id: 'ChessQueenBlack',
-        states: [{ viewParams: {} }],
-        eventRules: [],
-    },
+    { id: 'ChessPawnWhite', states: [{ viewParams: {} }] },
+    { id: 'ChessQueenBlack', states: [{ viewParams: {} }] },
 ]
 
 const result = applyFigureMove(figures, {
@@ -89,6 +95,7 @@ const result = applyFigureMove(figures, {
     swapOnEat: false,
     boardParameters: board,
     catalog,
+    eventRules: pawnDisplaceRules,
 })
 
 const errors: string[] = []
@@ -101,8 +108,8 @@ if (topFigureId(result, 3, 3) !== 'ChessPawnWhite') {
     errors.push('pawn should land at (3,3)')
 }
 
-if (result.tray.length !== 1 || result.tray[0].figureId !== 'ChessQueenBlack') {
-    errors.push('blocked queen should be in tray')
+if (topFigureId(result, 4, 4) !== 'ChessQueenBlack') {
+    errors.push('blocked queen should chain-displace to (4,4)')
 }
 
 if (topFigureId(result, 0, 0) !== 'ChessPawnWhite' || topFigureId(result, 7, 7) !== 'ChessPawnWhite') {
@@ -122,7 +129,7 @@ if (errors.length > 0) {
     process.exit(1)
 }
 
-console.log('OK displacement chain: queen@(2,2), pawn@(3,3), queen in tray')
+console.log('OK displacement chain: queen@(2,2), pawn@(3,3), queen@(4,4)')
 
 const pawn2 = createFigurePlacement('ChessPawnWhite')
 const queen2 = createFigurePlacement('ChessQueenBlack')
@@ -140,6 +147,7 @@ const result2 = applyFigureMove(figures2, {
     swapOnEat: false,
     boardParameters: board,
     catalog,
+    eventRules: pawnDisplaceRules,
 })
 
 const errors2: string[] = []
@@ -173,44 +181,79 @@ console.log('OK pawn-on-pawn chain: pawns at (6,5) and (7,6)')
 const knight = createFigurePlacement('ChessKnightBlack')
 const rook = createFigurePlacement('ChessRookBlack')
 
+const knightRookEventRules: FigureEventRule[] = [
+    {
+        id: 'capture-stepped-on',
+        type: FigureEventType.steppedOnBy,
+        params: { cause: 'any' },
+        conditions: [{
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_STEPPED_ON }],
+                matchMode: 'any',
+            },
+            type: FigureEventConditionType.steppedOnByFigure,
+            params: { stepperFigures: [{ figureId: '*' }], matchMode: 'any' },
+        }],
+        actions: [{
+            type: GameActionType.moveToTray,
+            params: {},
+        }],
+    },
+    {
+        id: 'knight-area',
+        type: FigureEventType.onMove,
+        params: { cause: 'any' },
+        conditions: [{
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                matchMode: 'any',
+            },
+            type: FigureEventConditionType.landedInFigureArea,
+            params: {
+                anchorFigures: [{ figureId: 'ChessRookBlack' }],
+                cells: [{ x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 }, { x: -1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 1 }],
+                includePassive: true,
+            },
+        }],
+        actions: [{
+            type: GameActionType.displaceFigure,
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                matchMode: 'any',
+            },
+            params: { dx: 1, dy: 0 },
+        }],
+    },
+    {
+        id: 'knight-step-on',
+        type: FigureEventType.onMove,
+        params: { cause: 'any' },
+        conditions: [{
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                matchMode: 'any',
+            },
+            type: FigureEventConditionType.landedOnFigure,
+            params: {
+                figures: [{ figureId: 'ChessRookBlack' }],
+                matchMode: 'any',
+                stackTarget: 'all',
+            },
+        }],
+        actions: [{
+            type: GameActionType.displaceFigure,
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                matchMode: 'any',
+            },
+            params: { dx: 1, dy: 1 },
+        }],
+    },
+]
+
 const knightRookCatalog = [
-    {
-        id: 'ChessKnightBlack',
-        states: [{ viewParams: {} }],
-        eventRules: [
-            {
-                id: 'knight-area',
-                type: FigureEventType.enterFigureArea,
-                params: {
-                    anchorFigures: [{ figureId: 'ChessRookBlack' }],
-                    cells: [{ x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 }, { x: -1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 1 }],
-                    includePassive: true,
-                },
-                actions: [{
-                    type: GameActionType.displaceFigure,
-                    params: { dx: 1, dy: 0 },
-                }],
-            },
-            {
-                id: 'knight-step-on',
-                type: FigureEventType.stepOnFigure,
-                params: {
-                    targetFigures: [{ figureId: 'ChessRookBlack' }],
-                    cause: 'any',
-                    stackTarget: 'all',
-                },
-                actions: [{
-                    type: GameActionType.displaceFigure,
-                    params: { dx: 1, dy: 1 },
-                }],
-            },
-        ],
-    },
-    {
-        id: 'ChessRookBlack',
-        states: [{ viewParams: {} }],
-        eventRules: [],
-    },
+    { id: 'ChessKnightBlack', states: [{ viewParams: {} }] },
+    { id: 'ChessRookBlack', states: [{ viewParams: {} }] },
 ]
 
 const knightBoard = { n: 5, m: 5 }
@@ -226,6 +269,7 @@ const knightResult = applyFigureMove(knightFigures, {
     swapOnEat: false,
     boardParameters: knightBoard,
     catalog: knightRookCatalog,
+    eventRules: knightRookEventRules,
 })
 
 const knightErrors: string[] = []
@@ -241,7 +285,7 @@ if (knightPlacements.length !== 1) {
     knightErrors.push(`knight instance should appear once on board, got ${knightPlacements.length}`)
 }
 
-        if (topFigureId(knightResult, 3, 3) !== 'ChessKnightBlack') {
+if (topFigureId(knightResult, 3, 3) !== 'ChessKnightBlack') {
     knightErrors.push(`knight should finish at (3,3), top=${topFigureId(knightResult, 3, 3)}`)
 }
 
@@ -253,6 +297,75 @@ if (knightErrors.length > 0) {
 }
 
 console.log('OK knight/rook: rook in tray, knight@(3,3), no duplicate instance')
+
+const draughtsMan = createFigurePlacement('DraughtsManBlack')
+const draughtsManBefore = { ...draughtsMan, stateIndex: 0 }
+const draughtsMoveRules: FigureEventRule[] = [
+    {
+        id: 'man-set-state',
+        type: FigureEventType.onMove,
+        params: { cause: 'any' },
+        conditions: [{
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                matchMode: 'any',
+            },
+            type: FigureEventConditionType.movedBy,
+            params: { dx: 1, dy: 0 },
+        }],
+        actions: [{
+            type: GameActionType.setSelfState,
+            params: { stateIndex: 1 },
+        }],
+    },
+    {
+        id: 'king-set-state',
+        type: FigureEventType.onMove,
+        params: { cause: 'any' },
+        conditions: [{
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_STEPPED_ON }],
+                matchMode: 'any',
+            },
+            type: FigureEventConditionType.steppedOnByFigure,
+            params: {
+                stepperFigures: [{ figureId: '*' }],
+                matchMode: 'any',
+            },
+        }],
+        actions: [{
+            type: GameActionType.setSelfState,
+            params: { stateIndex: 0 },
+        }],
+    },
+]
+
+const draughtsCatalog = [
+    { id: 'DraughtsManBlack', states: [{ viewParams: {} }, { viewParams: {} }] },
+    { id: 'DraughtsKingBlack', states: [{ viewParams: {} }] },
+]
+
+const draughtsFigures = stack({
+    [coordKey({ i: 1, j: 1 })]: draughtsManBefore,
+})
+
+const draughtsResult = applyFigureMove(draughtsFigures, {
+    from: { i: 1, j: 1 },
+    to: { i: 2, j: 1 },
+    actorPlacement: draughtsManBefore,
+    swapOnEat: false,
+    boardParameters: { n: 4, m: 4 },
+    catalog: draughtsCatalog,
+    eventRules: draughtsMoveRules,
+})
+
+const movedMan = topAt(draughtsResult, 2, 1)
+if (movedMan?.stateIndex !== 1) {
+    console.error(`FAIL move_debug regression: expected stateIndex 1, got ${movedMan?.stateIndex}`)
+    process.exit(1)
+}
+
+console.log('OK move_debug regression: moved figure stateIndex stays 1')
 
 const legacyNormalized = normalizeFiguresSlice({
     figuresByCoord: {

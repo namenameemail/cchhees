@@ -21,6 +21,7 @@ export interface DebugMiniBoardProps {
     boardParameters: BoardParameters
     mode: DebugMiniBoardMode
     activeFigure?: FigureId
+    activeFigureStateIndex?: number
     figureCatalog: FigureCatalog
     figureBoardAnimations?: FigureBoardAnimationState
     interactionDisabled?: boolean
@@ -34,6 +35,7 @@ interface DebugMiniCellProps {
     boardParameters: BoardParameters
     mode: DebugMiniBoardMode
     activeFigure?: FigureId
+    activeFigureStateIndex?: number
     activeCell?: CellCoord
     legalMove: boolean
     hiddenFigureInstanceIds?: ReadonlySet<string>
@@ -61,6 +63,7 @@ function setFigureAt(
     slice: FiguresSlice,
     coord: CellCoord,
     figureId: FigureId,
+    stateIndex?: number,
 ): FiguresSlice {
     const topFigure = getTopOfStack(slice, coord)
     const next = topFigure
@@ -68,7 +71,7 @@ function setFigureAt(
         : slice
 
     return {
-        ...pushToStack(next, coord, createFigurePlacement(figureId)),
+        ...pushToStack(next, coord, createFigurePlacement(figureId, stateIndex)),
         tray: topFigure ? [cloneFigurePlacement(topFigure), ...slice.tray] : slice.tray,
     }
 }
@@ -79,6 +82,7 @@ const DebugMiniCell: FC<DebugMiniCellProps> = ({
     boardParameters,
     mode,
     activeFigure,
+    activeFigureStateIndex = 0,
     activeCell,
     legalMove,
     hiddenFigureInstanceIds,
@@ -152,7 +156,7 @@ const DebugMiniCell: FC<DebugMiniCellProps> = ({
                 return
             }
 
-            onSliceChange(setFigureAt(figuresSlice, coord, activeFigure))
+            onSliceChange(setFigureAt(figuresSlice, coord, activeFigure, activeFigureStateIndex))
             return
         }
 
@@ -182,20 +186,26 @@ const DebugMiniCell: FC<DebugMiniCellProps> = ({
                 return
             }
 
-            onMove(activeCell, coord)
-            onSelectCell(undefined)
+            if (legalMove) {
+                onMove(activeCell, coord)
+                onSelectCell(undefined)
+            } else {
+                onSelectCell(coord)
+            }
         }
     }, [
         interactionDisabled,
         mode,
         onSliceChange,
         activeFigure,
+        activeFigureStateIndex,
         figuresSlice,
         coord,
         onSelectCell,
         onMove,
         activeCell,
         topPlacement,
+        legalMove,
     ])
 
     const visibleStack = stack.filter(placement => !hiddenFigureInstanceIds?.has(placement.instanceId))
@@ -253,6 +263,7 @@ export const DebugMiniBoard: FC<DebugMiniBoardProps> = ({
     boardParameters,
     mode,
     activeFigure,
+    activeFigureStateIndex = 0,
     figureCatalog,
     figureBoardAnimations,
     interactionDisabled,
@@ -290,6 +301,7 @@ export const DebugMiniBoard: FC<DebugMiniBoardProps> = ({
                 renderedSlice.figuresByCoord,
                 boardParameters,
                 placement,
+                figureCatalog,
             ).map(coordKey),
         )
     }, [mode, activeCell, renderedSlice, figureCatalog, boardParameters])
@@ -318,6 +330,7 @@ export const DebugMiniBoard: FC<DebugMiniBoardProps> = ({
             figuresSlice.figuresByCoord,
             boardParameters,
             fromPlacement,
+            figureCatalog,
         )) {
             return
         }
@@ -348,6 +361,7 @@ export const DebugMiniBoard: FC<DebugMiniBoardProps> = ({
                         boardParameters={boardParameters}
                         mode={mode}
                         activeFigure={activeFigure}
+                        activeFigureStateIndex={activeFigureStateIndex}
                         activeCell={activeCell}
                         legalMove={legalMoveKeys.has(key)}
                         hiddenFigureInstanceIds={figureBoardAnimations?.hiddenInstanceIds}

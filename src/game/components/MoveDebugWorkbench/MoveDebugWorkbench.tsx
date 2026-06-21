@@ -30,6 +30,7 @@ import {
     beginMoveDebugChain,
     collectMoveDebugChain,
 } from '../../moveDebug/moveDebugChainCollector'
+import { buildFigureMoveDebugInfo } from '../../moveDebug/figureMoveDebugInfo'
 import {
     createMoveDebugLogEntry,
     createMoveDebugChainLogEntries,
@@ -57,7 +58,8 @@ function appendEntries(
 }
 
 export const MoveDebugWorkbench: FC = () => {
-    const { activeFigure, figureCatalog } = useGameContext()
+    const { state, activeFigure, figureCatalog, getFigureStateIndex } = useGameContext()
+    const eventRules = state.eventRules ?? []
 
     const [phase, setPhase] = useState<MoveDebugPhase>('arrangeBefore')
     const [boardN, setBoardN] = useState(DEFAULT_DEBUG_BOARD_SIZE)
@@ -91,6 +93,9 @@ export const MoveDebugWorkbench: FC = () => {
     )
 
     const catalog = figureCatalog ?? []
+    const activeFigureStateIndex = activeFigure != null
+        ? getFigureStateIndex(activeFigure)
+        : 0
 
     const resetWorkbench = useCallback(() => {
         resetMoveDebugLogSeq()
@@ -208,6 +213,7 @@ export const MoveDebugWorkbench: FC = () => {
             swapOnEat: boardParameters.swapOnEat,
             boardParameters,
             catalog,
+            eventRules,
         }
 
         const animationSettings = resolveFigureAnimationSettings(boardParameters)
@@ -254,7 +260,14 @@ export const MoveDebugWorkbench: FC = () => {
                 const saveResult = await saveMoveDebugSessionToProject({
                     phase: 'done',
                     boardSize: { n: boardN, m: boardM },
-                    move: { from, to },
+                    move: {
+                        from,
+                        to,
+                        actorFigure: buildFigureMoveDebugInfo(catalog, fromPlacement),
+                        targetFigure: moveInput.targetAtTo
+                            ? buildFigureMoveDebugInfo(catalog, moveInput.targetAtTo)
+                            : undefined,
+                    },
                     chain: moveChain,
                     compare,
                     entries: logForSave,
@@ -363,6 +376,7 @@ export const MoveDebugWorkbench: FC = () => {
                     boardParameters={boardParameters}
                     mode={board1Mode}
                     activeFigure={activeFigure}
+                    activeFigureStateIndex={activeFigureStateIndex}
                     figureCatalog={catalog}
                     figureBoardAnimations={figureBoardAnimations}
                     interactionDisabled={board1InteractionDisabled}
@@ -392,6 +406,7 @@ export const MoveDebugWorkbench: FC = () => {
                     boardParameters={boardParameters}
                     mode={board2Mode}
                     activeFigure={activeFigure}
+                    activeFigureStateIndex={activeFigureStateIndex}
                     figureCatalog={catalog}
                     interactionDisabled={board2InteractionDisabled}
                     onSliceChange={handleAfterSliceChange}

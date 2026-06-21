@@ -1,6 +1,7 @@
 import { CellCoord, coordKey, isCoordInGrid, parseCoordKey } from '../types/coords'
 import { FigurePlacement } from '../types/figures'
 import { cloneFigurePlacement } from '../figureView'
+import { FigureEventRule } from '../types/events'
 import { FiguresSlice, BoardSlice } from './slices'
 import { cloneFiguresByCoord } from '../figureStack'
 
@@ -68,5 +69,14 @@ export function cloneBoardSlice(board: BoardSlice): BoardSlice {
         boardParameters: { ...board.boardParameters },
         styleRules: board.styleRules.map(rule => ({ ...rule })),
         cellParametersByCoord: { ...board.cellParametersByCoord },
+        eventRules: board.eventRules?.map(rule => ({
+            ...rule,
+            params: rule.params ? { ...rule.params } : undefined,
+            conditions: rule.conditions?.map(condition => ({ ...condition })),
+            actions: (rule.actions ?? []).map(action => ({
+                ...action,
+                params: { ...action.params },
+            })),
+        })),
     }
 }

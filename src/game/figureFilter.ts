@@ -3,6 +3,12 @@ import { FigureId } from './types/figures'
 
 export const FIGURE_FILTER_ANY = '*' as FigureId
 export const FIGURE_FILTER_NONE = '!' as FigureId
+export const FIGURE_SUBJECT_MOVED = '$moved' as FigureId
+export const FIGURE_SUBJECT_STEPPED_ON = '$steppedOn' as FigureId
+
+export function isFigureSubjectRole(figureId?: FigureId): boolean {
+    return figureId === FIGURE_SUBJECT_MOVED || figureId === FIGURE_SUBJECT_STEPPED_ON
+}
 
 export function isFigureFilterAny(figureId?: FigureId): boolean {
     return figureId === FIGURE_FILTER_ANY
@@ -20,10 +26,11 @@ export function isConcreteFigureFilter(figureId?: FigureId): figureId is FigureI
     return typeof figureId === 'string'
         && figureId.length > 0
         && !isFigureFilterSentinel(figureId)
+        && !isFigureSubjectRole(figureId)
 }
 
 export function matchesFigureFilter(filterId: FigureId | undefined, actualFigureId: FigureId): boolean {
-    if (filterId === FIGURE_FILTER_NONE) {
+    if (filterId === FIGURE_FILTER_NONE || isFigureSubjectRole(filterId)) {
         return false
     }
 
@@ -84,11 +91,15 @@ export function canonicalizeFigureFilterArray(
         .filter((entry): entry is FigureEventFigureFilter => entry != null)
 
     if (normalized.length === 0) {
-        return [{ figureId: FIGURE_FILTER_ANY }]
+        return []
     }
 
     if (normalized.some(entry => isFigureFilterAny(entry.figureId))) {
         return [{ figureId: FIGURE_FILTER_ANY }]
+    }
+
+    if (normalized.length === 1 && isFigureFilterNone(normalized[0].figureId)) {
+        return [{ figureId: FIGURE_FILTER_NONE }]
     }
 
     const seen = new Set<string>()
@@ -110,16 +121,38 @@ export function canonicalizeFigureFilterArray(
     }
 
     if (concrete.length === 0) {
-        return [{ figureId: FIGURE_FILTER_ANY }]
+        return []
     }
 
     return concrete
+}
+
+export function toggleFigureFilterArrayAll(
+    entries?: FigureEventFigureFilter[],
+): FigureEventFigureFilter[] {
+    const current = (entries ?? [])
+        .map(normalizeFigureFilterEntry)
+        .filter((entry): entry is FigureEventFigureFilter => entry != null)
+
+    if (current.length === 1 && isFigureFilterAny(current[0].figureId)) {
+        return []
+    }
+
+    return [{ figureId: FIGURE_FILTER_ANY }]
+}
+
+export function clearFigureFilterArray(): FigureEventFigureFilter[] {
+    return []
 }
 
 export function getEffectiveFigureFilters(
     entries?: FigureEventFigureFilter[],
 ): FigureEventFigureFilter[] | undefined {
     const canonical = canonicalizeFigureFilterArray(entries)
+
+    if (canonical.length === 0) {
+        return []
+    }
 
     if (canonical.length === 1 && isFigureFilterAny(canonical[0].figureId)) {
         return undefined
@@ -243,8 +276,12 @@ export function matchesFigureFilterList(
 ): boolean {
     const effective = getEffectiveFigureFilters(filters)
 
-    if (!effective?.length) {
+    if (effective === undefined) {
         return true
+    }
+
+    if (effective.length === 0) {
+        return false
     }
 
     if (effective.some(entry => isFigureFilterAny(entry.figureId))) {
@@ -279,7 +316,10 @@ export function normalizeStoredFigureFilterId(id?: FigureId): FigureId | undefin
 
     const trimmed = id.trim()
 
-    if (trimmed === FIGURE_FILTER_ANY || trimmed === FIGURE_FILTER_NONE) {
+    if (trimmed === FIGURE_FILTER_ANY
+        || trimmed === FIGURE_FILTER_NONE
+        || trimmed === FIGURE_SUBJECT_MOVED
+        || trimmed === FIGURE_SUBJECT_STEPPED_ON) {
         return trimmed as FigureId
     }
 
@@ -310,4 +350,178 @@ export function resolveFigureFilterDisplayMode(
     }
 
     return 'none'
+}
+
+function normalizeConditionSubjectEntry(
+    entry?: FigureEventFigureFilter,
+): FigureEventFigureFilter | null {
+    const figureId = normalizeStoredFigureFilterId(entry?.figureId)
+
+    if (!figureId || isFigureFilterNone(figureId)) {
+        return null
+    }
+
+    if (isFigureSubjectRole(figureId)) {
+        return { figureId }
+    }
+
+    return normalizeFigureFilterEntry(entry)
+}
+
+export function isConditionSubjectAllMode(entries: FigureEventFigureFilter[]): boolean {
+    const figureEntries = entries.filter(entry => !isFigureSubjectRole(entry.figureId))
+
+    return figureEntries.length === 1 && isFigureFilterAny(figureEntries[0].figureId)
+}
+
+export function isOnlyMovedSubjectEntries(entries: FigureEventFigureFilter[]): boolean {
+    return entries.length === 1 && entries[0].figureId === FIGURE_SUBJECT_MOVED
+}
+
+export function canonicalizeConditionSubjectEntries(
+    entries?: FigureEventFigureFilter[],
+): FigureEventFigureFilter[] {
+    const normalized = (entries ?? [])
+        .map(normalizeConditionSubjectEntry)
+        .filter((entry): entry is FigureEventFigureFilter => entry != null)
+
+    const roles: FigureEventFigureFilter[] = []
+    const roleSeen = new Set<FigureId>()
+
+    for (const entry of normalized) {
+        const figureId = entry.figureId
+
+        if (!figureId || !isFigureSubjectRole(figureId) || roleSeen.has(figureId)) {
+            continue
+        }
+
+        roleSeen.add(figureId)
+        roles.push({ figureId })
+    }
+
+    const figureEntries = normalized.filter(entry => (
+        entry.figureId != null && !isFigureSubjectRole(entry.figureId)
+    ))
+
+    if (figureEntries.some(entry => isFigureFilterAny(entry.figureId))) {
+        return [...roles, { figureId: FIGURE_FILTER_ANY }]
+    }
+
+    const seen = new Set<string>()
+    const concrete: FigureEventFigureFilter[] = []
+
+    for (const entry of figureEntries) {
+        if (!isConcreteFigureFilter(entry.figureId)) {
+            continue
+        }
+
+        const key = getFigureFilterEntryKey(entry)
+
+        if (seen.has(key)) {
+            continue
+        }
+
+        seen.add(key)
+        concrete.push(entry)
+    }
+
+    const combined = [...roles, ...concrete]
+
+    if (combined.length === 0) {
+        return [{ figureId: FIGURE_SUBJECT_MOVED }]
+    }
+
+    return combined
+}
+
+export function toggleSubjectRoleInEntries(
+    entries: FigureEventFigureFilter[] | undefined,
+    role: typeof FIGURE_SUBJECT_MOVED | typeof FIGURE_SUBJECT_STEPPED_ON,
+): FigureEventFigureFilter[] {
+    const current = canonicalizeConditionSubjectEntries(entries)
+    const hasRole = current.some(entry => entry.figureId === role)
+
+    if (hasRole) {
+        return canonicalizeConditionSubjectEntries(
+            current.filter(entry => entry.figureId !== role),
+        )
+    }
+
+    return canonicalizeConditionSubjectEntries([...current, { figureId: role }])
+}
+
+export function setConditionSubjectFigureAll(
+    entries: FigureEventFigureFilter[] | undefined,
+): FigureEventFigureFilter[] {
+    const roles = canonicalizeConditionSubjectEntries(entries)
+        .filter(entry => isFigureSubjectRole(entry.figureId))
+
+    return canonicalizeConditionSubjectEntries([
+        ...roles,
+        { figureId: FIGURE_FILTER_ANY },
+    ])
+}
+
+export function clearConcreteFiguresFromSubjectEntries(
+    entries: FigureEventFigureFilter[] | undefined,
+): FigureEventFigureFilter[] {
+    const roles = canonicalizeConditionSubjectEntries(entries)
+        .filter(entry => isFigureSubjectRole(entry.figureId))
+
+    return roles.length > 0
+        ? roles
+        : [{ figureId: FIGURE_SUBJECT_MOVED }]
+}
+
+export function toggleConditionSubjectFigureAll(
+    entries: FigureEventFigureFilter[] | undefined,
+): FigureEventFigureFilter[] {
+    const canonical = canonicalizeConditionSubjectEntries(entries)
+
+    if (isConditionSubjectAllMode(canonical)) {
+        return clearConcreteFiguresFromSubjectEntries(entries)
+    }
+
+    return setConditionSubjectFigureAll(entries)
+}
+
+export function toggleFigureStateInSubjectEntries(
+    entries: FigureEventFigureFilter[] | undefined,
+    figureId: FigureId,
+    stateIndex = 0,
+): FigureEventFigureFilter[] {
+    if (!isConcreteFigureFilter(figureId)) {
+        return canonicalizeConditionSubjectEntries(entries)
+    }
+
+    const roles = canonicalizeConditionSubjectEntries(entries)
+        .filter(entry => isFigureSubjectRole(entry.figureId))
+    const figureEntries = canonicalizeConditionSubjectEntries(entries)
+        .filter(entry => !isFigureSubjectRole(entry.figureId))
+
+    const toggled = toggleFigureStateInFilterArray(figureEntries, figureId, stateIndex)
+    const nextFigures = isConditionSubjectAllMode(toggled) && toggled.length === 1
+        ? toggled
+        : toggled.filter(entry => !isFigureFilterAny(entry.figureId))
+
+    return canonicalizeConditionSubjectEntries([...roles, ...nextFigures])
+}
+
+export function removeFigureFromSubjectEntries(
+    entries: FigureEventFigureFilter[] | undefined,
+    figureId: FigureId,
+): FigureEventFigureFilter[] {
+    if (!isConcreteFigureFilter(figureId)) {
+        return canonicalizeConditionSubjectEntries(entries)
+    }
+
+    const roles = canonicalizeConditionSubjectEntries(entries)
+        .filter(entry => isFigureSubjectRole(entry.figureId))
+    const figureEntries = canonicalizeConditionSubjectEntries(entries)
+        .filter(entry => !isFigureSubjectRole(entry.figureId))
+
+    return canonicalizeConditionSubjectEntries([
+        ...roles,
+        ...removeFigureFromFilterArray(figureEntries, figureId),
+    ])
 }

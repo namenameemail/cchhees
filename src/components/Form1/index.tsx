@@ -386,7 +386,9 @@ export const inputComponentsByParameterType: {
                 title={props?.title}
             >
                 {props?.options?.map((option: string) => (
-                    <option key={option} value={option}>{option}</option>
+                    <option key={option} value={option}>
+                        {props?.optionLabels?.[option] ?? option}
+                    </option>
                 ))}
             </select>
         )

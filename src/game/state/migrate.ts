@@ -60,7 +60,9 @@ export function migrateFiguresSlice(slice: LegacyFiguresSlice, n: number): Figur
     } as FiguresSlice)
 }
 
-export function migrateBoardSlice(slice: LegacyBoardSlice): BoardSlice {
+export function migrateBoardSlice(slice: LegacyBoardSlice & { eventRules?: BoardSlice['eventRules'] }): BoardSlice {
+    const eventRules = slice.eventRules
+
     if (isCoordBasedBoardSlice(slice)) {
         return migrateBoardSliceStyleRules({
             boardParameters: { ...slice.boardParameters },
@@ -68,6 +70,7 @@ export function migrateBoardSlice(slice: LegacyBoardSlice): BoardSlice {
             boardConditions: slice.boardConditions,
             connectionsConditions: slice.connectionsConditions,
             cellParametersByCoord: { ...slice.cellParametersByCoord! },
+            eventRules,
         })
     }
 
@@ -84,6 +87,7 @@ export function migrateBoardSlice(slice: LegacyBoardSlice): BoardSlice {
         boardConditions: slice.boardConditions,
         connectionsConditions: slice.connectionsConditions,
         cellParametersByCoord,
+        eventRules,
     })
 }
 

@@ -152,9 +152,21 @@
     background: #fff;
 }
 
-.cellRule {
+.cellRuleEmpty {
     background:
-        radial-gradient(circle at 50% 50%, #00aa4455 5%, #00aa4400 95%),
+        radial-gradient(circle closest-side at 50% 50%, #00aa4455 5%, #00aa4400 100%),
+        #fff;
+}
+
+.cellRuleCapture {
+    background:
+        radial-gradient(circle closest-side at 50% 50%, #cc334455 5%, #cc334400 100%),
+        #fff;
+}
+
+.cellRuleAny {
+    background:
+        radial-gradient(circle closest-side at 50% 50%, #ff00ff55 5%, #ff00ff00 100%),
         #fff;
 }
 

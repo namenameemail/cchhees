@@ -7,12 +7,13 @@ import {
     NumberDragPointerLockInput,
     scaleNumberDragDelta,
 } from 'bbuutoonnss'
-import { FigureId, FigureMoveRule } from '../../types/figures'
+import { FigureId, FigureMoveRule, FigureMoveRuleLanding } from '../../types/figures'
 import { normalizeFigureMoveRules } from '../../figureView'
 import { FigureSVG } from '../FigureSVG'
 import {
     clampGridN,
     clampMoveRuleN,
+    cycleMoveRuleLanding,
     getMinGridN,
     getMoveGridCellSize,
     getMoveGridSize,
@@ -23,6 +24,7 @@ import {
     MAX_MOVE_GRID_CELL_SIZE,
     MOVE_GRID_AREA_SIZE,
     removeRule,
+    resolveMoveRuleLanding,
     upsertRule,
 } from './moveRulesGrid'
 import styles from './FigureMoveRulesGrid.module.css'
@@ -62,6 +64,28 @@ const GRID_BORDER_HANDLES: Array<{ border: GridBorder; className: keyof typeof s
     { border: 'right', className: 'gridResizeHandleRight' },
 ]
 
+const LANDING_LABELS: Record<FigureMoveRuleLanding, string> = {
+    empty: 'пустая',
+    capture: 'занятая',
+    any: 'любая',
+}
+
+function getLandingCellClassName(landing: FigureMoveRuleLanding | undefined): string {
+    switch (resolveMoveRuleLanding(landing)) {
+        case 'empty':
+            return styles.cellRuleEmpty
+        case 'capture':
+            return styles.cellRuleCapture
+        case 'any':
+            return styles.cellRuleAny
+    }
+}
+
+function formatRuleTitle(rule: FigureMoveRule, x: number, y: number): string {
+    const landing = LANDING_LABELS[resolveMoveRuleLanding(rule.landing)]
+    return `Ход (${x}, ${y}), n=${formatRuleN(rule.n)}, ${landing}. ЛКМ — удалить. ПКМ — режим. Перетаскивание — n.`
+}
+
 export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
     figureId,
     stateIndex,
@@ -73,6 +97,17 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
     const [gridAreaSize, setGridAreaSize] = useState(MOVE_GRID_AREA_SIZE)
     const gridAreaRef = useRef<HTMLDivElement>(null)
     const suppressCellClickRef = useRef(false)
+    const ruleDragMovedRef = useRef(false)
+
+    useEffect(() => {
+        const resetSuppress = () => {
+            suppressCellClickRef.current = false
+        }
+
+        window.addEventListener('pointerdown', resetSuppress, true)
+
+        return () => window.removeEventListener('pointerdown', resetSuppress, true)
+    }, [])
 
     useEffect(() => {
         setGridN(getMinGridN(moveRules))
@@ -144,7 +179,28 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
             return
         }
 
-        emitChange(upsertRule(moveRules, { x, y, n: 1 }))
+        emitChange(upsertRule(moveRules, { x, y, n: 1, landing: 'empty' }))
+    }, [emitChange, moveRules])
+
+    const handleCellContextMenu = useCallback((event: React.MouseEvent, x: number, y: number) => {
+        event.preventDefault()
+        event.stopPropagation()
+
+        if (isCenterOffset(x, y)) {
+            return
+        }
+
+        const existing = getRuleAt(moveRules, x, y)
+
+        if (!existing) {
+            emitChange(upsertRule(moveRules, { x, y, n: 1, landing: 'empty' }))
+            return
+        }
+
+        emitChange(upsertRule(moveRules, {
+            ...existing,
+            landing: cycleMoveRuleLanding(existing.landing),
+        }))
     }, [emitChange, moveRules])
 
     const handleRuleNDrag = useCallback((
@@ -160,13 +216,17 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
             return
         }
 
+        if (event.isDragStart) {
+            ruleDragMovedRef.current = false
+        }
+
         const delta = scaleNumberDragDelta(
             getNumberDragDelta[NumberDragDirection.ny](event.x, event.y),
             MOVE_RULES_DRAG_PIXELS_PER_STEP,
         )
 
         if (delta !== 0) {
-            suppressCellClickRef.current = true
+            ruleDragMovedRef.current = true
         }
 
         const nextN = clampMoveRuleN(savedValue + delta)
@@ -176,6 +236,12 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
             n: nextN,
         }))
     }, [emitChange, moveRules])
+
+    const handleRuleNDragEnd = useCallback((event: DragEvent) => {
+        suppressCellClickRef.current = ruleDragMovedRef.current
+            && Math.abs(event.x) + Math.abs(event.y) > 0
+        ruleDragMovedRef.current = false
+    }, [])
 
     const cells = useMemo(() => iterGridCells(gridN), [gridN])
     const gridSize = getMoveGridSize(gridN)
@@ -243,7 +309,7 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
 
                     const cellClassName = [
                         styles.cell,
-                        rule ? styles.cellRule : styles.cellEmpty,
+                        rule ? getLandingCellClassName(rule.landing) : styles.cellEmpty,
                     ].filter(Boolean).join(' ')
 
                     return (
@@ -251,9 +317,10 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
                             key={`${gi},${gj}`}
                             className={cellClassName}
                             title={rule
-                                ? `Ход (${x}, ${y}), n=${formatRuleN(rule.n)}. Клик — удалить. Перетаскивание — изменить n.`
-                                : `Клик — добавить ход (${x}, ${y})`}
+                                ? formatRuleTitle(rule, x, y)
+                                : `ЛКМ — добавить ход (${x}, ${y}). ПКМ — добавить с режимом «пустая».`}
                             onClick={event => handleCellClick(event, x, y)}
+                            onContextMenu={event => handleCellContextMenu(event, x, y)}
                         >
                             {rule ? (
                                 <DragHandler<number>
@@ -261,6 +328,9 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
                                     saveValue={getRuleNDragValue(rule.n)}
                                     onChange={(event, pointerEvent, savedValue) => {
                                         handleRuleNDrag(x, y, event, pointerEvent, savedValue)
+                                    }}
+                                    onDragEnd={(event, pointerEvent, savedValue) => {
+                                        handleRuleNDragEnd(event)
                                     }}
                                 >
                                     <span

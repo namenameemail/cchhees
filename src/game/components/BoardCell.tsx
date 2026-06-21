@@ -152,13 +152,15 @@ export const BoardCell: FC<CellProps> = (props) => {
                 setActiveCell(undefined, 'cell click · deselect')
             } else if (!activeCellFigure) {
                 setActiveCell(coord, 'cell click · select after empty')
-            } else {
+            } else if (isLegalMove) {
                 moveActiveCellFigureTo(coord)
+            } else {
+                setActiveCell(coord, 'cell click · select')
             }
         } else if (mode === Mode.PaintTheBoard) {
             setCellParameters(coord)
         }
-    }, [mode, coord, topFigure, activeFigure, activeCell, state.boardParameters, state.cells, setActiveCell, moveActiveCellFigureTo, setCellParameters, setCellFigure, isFigureAnimating])
+    }, [mode, coord, topFigure, activeFigure, activeCell, isLegalMove, state.boardParameters, state.cells, setActiveCell, moveActiveCellFigureTo, setCellParameters, setCellFigure, isFigureAnimating])
 
     const visibleStack = stack.filter(placement => !hiddenFigureInstanceIds?.has(placement.instanceId))
     const stackOffset = Math.min(cellXDistance, cellYDistance) * 0.08
