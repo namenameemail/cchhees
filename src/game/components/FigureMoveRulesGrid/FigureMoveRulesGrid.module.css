@@ -170,6 +170,12 @@
         #fff;
 }
 
+.cellRuleJumpOver {
+    background:
+        radial-gradient(circle closest-side at 50% 50%, #00ffff55 5%, #00ffff00 100%),
+        #fff;
+}
+
 .figurePreview {
     position: relative;
     z-index: 1;

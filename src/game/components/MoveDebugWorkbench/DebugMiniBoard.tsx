@@ -1,7 +1,7 @@
 import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BoardParameters } from '../../types/boardParameters'
 import { CellCoord, coordKey, coordsEqual, iterGridCoords } from '../../types/coords'
-import { FigureCatalog, FigureId, FigurePlacement } from '../../types/figures'
+import { FigureCatalog, FigureId, FigurePlacement, FigureTeams } from '../../types/figures'
 import { FiguresSlice } from '../../state/slices'
 import { cloneFigurePlacement, createFigurePlacement, resolveFigureDefinition } from '../../figureView'
 import { getTopOfStack, pushToStack, removePlacementFromBoard } from '../../figureStack'
@@ -23,6 +23,7 @@ export interface DebugMiniBoardProps {
     activeFigure?: FigureId
     activeFigureStateIndex?: number
     figureCatalog: FigureCatalog
+    figureTeams?: FigureTeams
     figureBoardAnimations?: FigureBoardAnimationState
     interactionDisabled?: boolean
     onSliceChange?: (slice: FiguresSlice) => void
@@ -265,6 +266,7 @@ export const DebugMiniBoard: FC<DebugMiniBoardProps> = ({
     activeFigure,
     activeFigureStateIndex = 0,
     figureCatalog,
+    figureTeams,
     figureBoardAnimations,
     interactionDisabled,
     onSliceChange,
@@ -302,9 +304,11 @@ export const DebugMiniBoard: FC<DebugMiniBoardProps> = ({
                 boardParameters,
                 placement,
                 figureCatalog,
+                undefined,
+                figureTeams,
             ).map(coordKey),
         )
-    }, [mode, activeCell, renderedSlice, figureCatalog, boardParameters])
+    }, [mode, activeCell, renderedSlice, figureCatalog, boardParameters, figureTeams])
 
     const handleSliceChange = useCallback((nextSlice: FiguresSlice) => {
         onSliceChange?.(nextSlice)
@@ -331,12 +335,14 @@ export const DebugMiniBoard: FC<DebugMiniBoardProps> = ({
             boardParameters,
             fromPlacement,
             figureCatalog,
+            undefined,
+            figureTeams,
         )) {
             return
         }
 
         onMove?.(from, to)
-    }, [interactionDisabled, figuresSlice, figureCatalog, boardParameters, onMove])
+    }, [interactionDisabled, figuresSlice, figureCatalog, boardParameters, figureTeams, onMove])
 
     return (
         <svg

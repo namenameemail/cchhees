@@ -33,7 +33,7 @@ export interface FigureViewParams extends SvgCellSizeParams {
     strokeDasharray?: string
 }
 
-export type FigureMoveRuleLanding = 'empty' | 'capture' | 'any'
+export type FigureMoveRuleLanding = 'empty' | 'capture' | 'any' | 'jumpOver'
 
 export type FigureMoveDirection = 'up' | 'down' | 'left' | 'right'
 
@@ -49,6 +49,7 @@ export interface FigureState {
     moveRules?: FigureMoveRule[]
     jumpOverPieces?: boolean
     canStepOnOwnTeam?: boolean
+    canJumpOverOwnTeam?: boolean
 }
 
 export interface FigureDefinition {
@@ -67,9 +68,18 @@ export interface LegacyFigureDefinition {
     moveRules?: FigureMoveRule[]
     jumpOverPieces?: boolean
     canStepOnOwnTeam?: boolean
+    canJumpOverOwnTeam?: boolean
 }
 
 export type FigureCatalog = FigureDefinition[]
+
+export interface FigureTeam {
+    id: number
+    name: string
+    moveDirection?: FigureMoveDirection
+}
+
+export type FigureTeams = FigureTeam[]
 
 /** @deprecated Legacy enum ids used only for migration defaults */
 export enum FigureTypes {

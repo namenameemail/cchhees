@@ -1,10 +1,9 @@
-import { CellCoord } from '../types/coords'
-import { FigurePlacement } from '../types/figures'
 import { BoardParameters } from '../types/boardParameters'
-import { FigureCatalog } from '../types/figures'
+import { CellCoord } from '../types/coords'
+import { FigureCatalog, FigurePlacement, FigureTeams } from '../types/figures'
 import { FigureEventRule } from '../types/events'
 import { FiguresSlice } from '../state/slices'
-import { cloneFigurePlacement, normalizeFigureMoveRules, resolveFigureMoveDirection, resolveFigureState, resolvePlacementStateIndex } from '../figureView'
+import { cloneFigurePlacement, normalizeFigureMoveRules, resolveFigureMoveDirectionFromCatalog, resolveFigureState, resolvePlacementStateIndex } from '../figureView'
 import { buildFigureMoveDebugInfo } from '../moveDebug/figureMoveDebugInfo'
 import {
     collectHoppedFigures,
@@ -29,6 +28,7 @@ export interface ApplyFigureMoveInput {
     swapOnEat: boolean
     boardParameters: BoardParameters
     catalog: FigureCatalog
+    figureTeams?: FigureTeams
     eventRules: FigureEventRule[]
     onStep?: FigureStepRecorder
 }
@@ -43,9 +43,9 @@ export function applyFigureMove(
         actor: input.actorPlacement,
         target: input.targetAtTo,
         swapOnEat: input.swapOnEat,
-        actorFigure: buildFigureMoveDebugInfo(input.catalog, input.actorPlacement),
+        actorFigure: buildFigureMoveDebugInfo(input.catalog, input.actorPlacement, input.figureTeams),
         targetFigure: input.targetAtTo
-            ? buildFigureMoveDebugInfo(input.catalog, input.targetAtTo)
+            ? buildFigureMoveDebugInfo(input.catalog, input.targetAtTo, input.figureTeams)
             : undefined,
     })
 
@@ -97,7 +97,7 @@ export function applyFigureMove(
         moveRules,
         resolveJumpOverPieces(actorState ?? {}),
         figuresBeforeMove,
-        resolveFigureMoveDirection(actorDefinition),
+        resolveFigureMoveDirectionFromCatalog(input.catalog, input.actorPlacement.figureId, input.figureTeams),
     )
     const eatedFigures = input.swapOnEat && input.targetAtTo
         ? [cloneFigurePlacement(input.targetAtTo)]

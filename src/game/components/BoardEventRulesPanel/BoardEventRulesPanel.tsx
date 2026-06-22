@@ -28,10 +28,7 @@ export const BoardEventRulesPanel: FC = () => {
     return (
         <div className={styles.figureParametersFormLayout}>
             <div className={styles.sectionPanelsScroll}>
-                <div
-                    className={styles.sectionPanel}
-                    title="События срабатывают при ходе в режиме игры. Действия применяются после базового перемещения."
-                >
+                <div className={styles.sectionPanel}>
                     <EventRulesTable
                         eventRules={eventRules}
                         figureOptions={figureOptions}

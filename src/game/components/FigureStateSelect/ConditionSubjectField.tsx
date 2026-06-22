@@ -1,7 +1,6 @@
 import React, {
     FC,
     useCallback,
-    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -15,6 +14,7 @@ import { useGameContext } from '../../context'
 import { FigureEventFigureFilter } from '../../types/events'
 import { FigureId } from '../../types/figures'
 import {
+    FIGURE_SUBJECT_HOPPED_OVER,
     FIGURE_SUBJECT_MOVED,
     FIGURE_SUBJECT_STEPPED_ON,
     canonicalizeConditionSubjectEntries,
@@ -31,12 +31,12 @@ import {
 import { FigureSVG } from '../FigureSVG'
 import selectStyles from './FigureStateSelect.module.css'
 import styles from './FigureFilterArrayField.module.css'
-import { MovedSubjectIcon, SteppedOnSubjectIcon } from './SubjectRoleIcons'
+import { HoppedOverSubjectIcon, MovedSubjectIcon, SteppedOnSubjectIcon } from './SubjectRoleIcons'
+import { FiguresPanelPortal } from './FiguresPanelPortal'
 
 const FIGURES_PER_ROW = 5
 const FIGURES_PANEL_SCROLL_PADDING = 0
 const FIGURES_GRID_GAP = 0
-const FIGURES_PANEL_SCROLL_MAX_HEIGHT = 240
 
 export interface ConditionSubjectFieldProps {
     className?: string
@@ -109,13 +109,13 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
 
     const hasMovedRole = entries.some(entry => entry.figureId === FIGURE_SUBJECT_MOVED)
     const hasSteppedOnRole = entries.some(entry => entry.figureId === FIGURE_SUBJECT_STEPPED_ON)
+    const hasHoppedOverRole = entries.some(entry => entry.figureId === FIGURE_SUBJECT_HOPPED_OVER)
 
     const [rootHovered, setRootHovered] = useState(false)
     const [figuresPanelHovered, setFiguresPanelHovered] = useState(false)
     const [statesFigureId, setStatesFigureId] = useState<FigureId | null>(null)
     const [statesPanelHovered, setStatesPanelHovered] = useState(false)
     const [statesOverlayStyle, setStatesOverlayStyle] = useState<CSSProperties | null>(null)
-    const [openUpward, setOpenUpward] = useState(false)
 
     const rootRef = useRef<HTMLDivElement>(null)
     const figuresPanelRef = useRef<HTMLDivElement>(null)
@@ -192,7 +192,7 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
 
     const handleToggleRole = useCallback((
         event: MouseEvent,
-        role: typeof FIGURE_SUBJECT_MOVED | typeof FIGURE_SUBJECT_STEPPED_ON,
+        role: typeof FIGURE_SUBJECT_MOVED | typeof FIGURE_SUBJECT_STEPPED_ON | typeof FIGURE_SUBJECT_HOPPED_OVER,
     ) => {
         event.preventDefault()
         event.stopPropagation()
@@ -216,46 +216,6 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
     const handleRemoveFigureStates = useCallback((figureId: FigureId) => {
         commitEntries(removeFigureFromSubjectEntries(entries, figureId))
     }, [commitEntries, entries])
-
-    const estimatePanelHeight = useCallback(() => {
-        const itemCount = figureCatalog.length + 4
-        const rows = Math.max(1, Math.ceil(itemCount / FIGURES_PER_ROW))
-        const gridHeight = rows * previewSize + Math.max(0, rows - 1) * FIGURES_GRID_GAP
-
-        return Math.min(gridHeight, FIGURES_PANEL_SCROLL_MAX_HEIGHT) + FIGURES_PANEL_SCROLL_PADDING
-    }, [figureCatalog.length, previewSize])
-
-    const updatePanelPlacement = useCallback(() => {
-        const root = rootRef.current
-
-        if (!root) {
-            return
-        }
-
-        const rect = root.getBoundingClientRect()
-        const panelHeight = figuresPanelRef.current?.offsetHeight ?? estimatePanelHeight()
-        const spaceBelow = window.innerHeight - rect.top
-        const spaceAbove = rect.bottom
-
-        setOpenUpward(spaceBelow < panelHeight && spaceAbove >= spaceBelow)
-    }, [estimatePanelHeight])
-
-    useLayoutEffect(() => {
-        if (!isFiguresOpen) {
-            setOpenUpward(false)
-            return
-        }
-
-        updatePanelPlacement()
-
-        window.addEventListener('resize', updatePanelPlacement)
-        window.addEventListener('scroll', updatePanelPlacement, true)
-
-        return () => {
-            window.removeEventListener('resize', updatePanelPlacement)
-            window.removeEventListener('scroll', updatePanelPlacement, true)
-        }
-    }, [isFiguresOpen, updatePanelPlacement, figureCatalog.length, previewSize])
 
     const updateStatesOverlayPosition = useCallback(() => {
         const panel = figuresPanelRef.current
@@ -456,7 +416,7 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
         closeStatesPanel()
     }, [closeStatesPanel, handleRemoveFigureStates])
 
-    const triggerTitle = title ?? 'subject'
+    const triggerTitle = title
 
     const renderTriggerTile = (entry: FigureEventFigureFilter, index: number) => {
         if (entry.figureId === FIGURE_SUBJECT_MOVED) {
@@ -481,6 +441,19 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
                     title="наступаемая"
                 >
                     <SteppedOnSubjectIcon size={previewSize * 0.75} />
+                </div>
+            )
+        }
+
+        if (entry.figureId === FIGURE_SUBJECT_HOPPED_OVER) {
+            return (
+                <div
+                    key={`hopped-${index}`}
+                    className={cn(selectStyles.previewTile, styles.triggerTile, itemClassName)}
+                    style={{ width: previewSize, height: previewSize }}
+                    title="перепрыгнутая"
+                >
+                    <HoppedOverSubjectIcon size={previewSize * 0.75} />
                 </div>
             )
         }
@@ -542,11 +515,12 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
             </div>
 
             {isFiguresOpen && (
-                <div
-                    ref={figuresPanelRef}
-                    className={cn(selectStyles.figuresPanel, openUpward && selectStyles.figuresPanelUp)}
-                    style={{ width: figuresPanelWidth }}
-                    tabIndex={-1}
+                <FiguresPanelPortal
+                    anchorRef={rootRef}
+                    panelRef={figuresPanelRef}
+                    isOpen={isFiguresOpen}
+                    width={figuresPanelWidth}
+                    layoutDeps={[figureCatalog.length, previewSize, statesFigureId]}
                     onMouseEnter={handleFiguresPanelMouseEnter}
                     onMouseLeave={handleFiguresPanelMouseLeave}
                     onBlur={handleFiguresPanelBlur}
@@ -580,6 +554,19 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
                             onClick={(event) => handleToggleRole(event, FIGURE_SUBJECT_STEPPED_ON)}
                         >
                             <SteppedOnSubjectIcon size={previewSize * 0.75} />
+                        </div>
+
+                        <div
+                            className={cn(
+                                selectStyles.previewTile,
+                                selectStyles.figureTile,
+                                hasHoppedOverRole && styles.figureTileSelected,
+                            )}
+                            style={{ width: previewSize, height: previewSize }}
+                            title="перепрыгнутая"
+                            onClick={(event) => handleToggleRole(event, FIGURE_SUBJECT_HOPPED_OVER)}
+                        >
+                            <HoppedOverSubjectIcon size={previewSize * 0.75} />
                         </div>
 
                         <div
@@ -700,7 +687,7 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
                             })}
                         </div>
                     )}
-                </div>
+                </FiguresPanelPortal>
             )}
         </div>
     )

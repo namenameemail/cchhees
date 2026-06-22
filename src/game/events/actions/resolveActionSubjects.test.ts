@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+    FIGURE_SUBJECT_HOPPED_OVER,
     FIGURE_SUBJECT_MOVED,
     FIGURE_SUBJECT_STEPPED_ON,
 } from '../../figureFilter'
@@ -109,6 +110,38 @@ describe('resolveActionSubjects', () => {
 
         expect(instances).toHaveLength(1)
         expect(instances[0]?.placement.instanceId).toBe(target.instanceId)
+    })
+
+    it('resolves hoppedOver role from move context', () => {
+        const actor = createFigurePlacement('knight')
+        const pawn = createFigurePlacement('pawn')
+        const ctx = buildActionSubjectResolutionContext({
+            from: { i: 0, j: 0 },
+            to: { i: 0, j: 2 },
+            actorPlacement: actor,
+            boardParameters: { n: 8, m: 8 } as never,
+            catalog: [],
+            eventRules: [],
+            stepCause: 'manual',
+            eventType: FigureEventType.onMove,
+            hoppedFigures: [pawn],
+        }, {
+            [coordKey({ i: 0, j: 1 })]: [pawn],
+            [coordKey({ i: 0, j: 2 })]: [actor],
+        })
+
+        const instances = resolveActionSubjects({
+            type: GameActionType.moveToTray,
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_HOPPED_OVER }],
+                matchMode: 'any',
+            },
+            params: {},
+        }, ctx)
+
+        expect(instances).toHaveLength(1)
+        expect(instances[0]?.placement.instanceId).toBe(pawn.instanceId)
+        expect(instances[0]?.coord).toEqual({ i: 0, j: 1 })
     })
 
     it('returns empty when matchMode all is not satisfied', () => {

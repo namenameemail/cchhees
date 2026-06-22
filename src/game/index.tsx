@@ -11,6 +11,7 @@ import { ProjectPreviewBridge } from '../projects/components/ProjectPreviewBridg
 import { getActiveBoard, getActiveBoardGameState } from '../projects/types'
 import { BoardSettingsPanel } from './components/BoardSettingsPanel/BoardSettingsPanel'
 import { BoardEventRulesPanel } from './components/BoardEventRulesPanel/BoardEventRulesPanel'
+import { TeamsPanel } from './components/TeamsPanel/TeamsPanel'
 import { BoardTopBarActions } from './components/BoardTopBarActions'
 import { Figures } from './components/Figures'
 import { Board } from './components/Board'
@@ -84,7 +85,7 @@ export const Game: React.FC<GameProps> = () => {
         }
     }
 
-    const handleEventsTab = () => {
+    const handleTeamsTab = () => {
         if (isSettingsOpen && tab === 2) {
             setIsSettingsOpen(false)
         } else {
@@ -93,11 +94,20 @@ export const Game: React.FC<GameProps> = () => {
         }
     }
 
-    const handleAssetsTab = () => {
+    const handleEventsTab = () => {
         if (isSettingsOpen && tab === 3) {
             setIsSettingsOpen(false)
         } else {
             setTab(3)
+            setIsSettingsOpen(true)
+        }
+    }
+
+    const handleAssetsTab = () => {
+        if (isSettingsOpen && tab === 4) {
+            setIsSettingsOpen(false)
+        } else {
+            setTab(4)
             setIsSettingsOpen(true)
         }
     }
@@ -164,6 +174,7 @@ export const Game: React.FC<GameProps> = () => {
                 initialFiguresHistory={activeBoard.figuresHistory}
                 initialBoardHistory={activeBoard.boardHistory}
                 initialCatalogHistory={currentProject.catalogHistory}
+                initialFigureTeams={currentProject.figureTeams}
                 onPersist={collabOnPersist}
                 onCollabOp={collabOnOp}
             >
@@ -292,10 +303,15 @@ export const Game: React.FC<GameProps> = () => {
                         )}
                         {tab === 2 && (
                             <div className={styles.settingsBody}>
-                                <BoardEventRulesPanel />
+                                <TeamsPanel />
                             </div>
                         )}
                         {tab === 3 && (
+                            <div className={styles.settingsBody}>
+                                <BoardEventRulesPanel />
+                            </div>
+                        )}
+                        {tab === 4 && (
                             <div className={cn(styles.settingsBody, styles.assetsSettingsBody)}>
                                 <AssetsPanel />
                             </div>
@@ -331,6 +347,17 @@ export const Game: React.FC<GameProps> = () => {
                                 styles.settingTab,
                                 isSettingsOpen && tab === 2 && styles.settingTabActive,
                             )}
+                            data-label="teams"
+                            onClick={handleTeamsTab}
+                        >
+                            <span className={styles.settingTabText}>команды</span>
+                        </button>
+                        <button
+                            type="button"
+                            className={cn(
+                                styles.settingTab,
+                                isSettingsOpen && tab === 3 && styles.settingTabActive,
+                            )}
                             data-label="events"
                             onClick={handleEventsTab}
                         >
@@ -340,7 +367,7 @@ export const Game: React.FC<GameProps> = () => {
                             type="button"
                             className={cn(
                                 styles.settingTab,
-                                isSettingsOpen && tab === 3 && styles.settingTabActive,
+                                isSettingsOpen && tab === 4 && styles.settingTabActive,
                             )}
                             data-label="assets"
                             onClick={handleAssetsTab}

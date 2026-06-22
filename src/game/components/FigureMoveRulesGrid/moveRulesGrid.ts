@@ -8,7 +8,7 @@ export const MOVE_GRID_PADDING = 0
 export const MIN_MOVE_RULE_N = 0
 export const MAX_MOVE_RULE_N = 100
 
-export const MOVE_RULE_LANDINGS: FigureMoveRuleLanding[] = ['empty', 'capture', 'any']
+export const MOVE_RULE_LANDINGS: FigureMoveRuleLanding[] = ['empty', 'capture', 'any', 'jumpOver']
 
 export function resolveMoveRuleLanding(landing: FigureMoveRuleLanding | undefined): FigureMoveRuleLanding {
     return landing ?? 'any'

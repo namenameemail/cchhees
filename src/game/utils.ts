@@ -71,6 +71,7 @@ export const defaultGameContextValue: GameContextValue = {
     figuresHistory: historyInit(),
     boardHistory: historyInit(),
     figureCatalog: initialGameState.figureCatalog,
+    figureTeams: [],
     catalogHistory: historyInit(),
     cellParametersBrushState: {
         paramsByShape: {
@@ -111,6 +112,8 @@ export const defaultGameContextValue: GameContextValue = {
     addFigureState: mockFn,
     removeFigureState: mockFn,
     setFigureTeam: mockFn,
+    setFigureTeams: mockFn,
+    setTeamMembers: mockFn,
     setFigureMoveDirection: mockFn,
     setBoardEventRules: mockFn,
     addFigure: mockFn,

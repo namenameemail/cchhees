@@ -59,6 +59,7 @@ export async function promoteVisitedRoomToLocalProject(
     const promoted: Project = {
         ...shell,
         figureCatalog: remapped.figureCatalog,
+        figureTeams: remapped.figureTeams,
         catalogHistory: remapped.catalogHistory,
         boards: remapped.boards,
         activeBoardId: remapped.activeBoardId,

@@ -5,9 +5,12 @@ export const FIGURE_FILTER_ANY = '*' as FigureId
 export const FIGURE_FILTER_NONE = '!' as FigureId
 export const FIGURE_SUBJECT_MOVED = '$moved' as FigureId
 export const FIGURE_SUBJECT_STEPPED_ON = '$steppedOn' as FigureId
+export const FIGURE_SUBJECT_HOPPED_OVER = '$hoppedOver' as FigureId
 
 export function isFigureSubjectRole(figureId?: FigureId): boolean {
-    return figureId === FIGURE_SUBJECT_MOVED || figureId === FIGURE_SUBJECT_STEPPED_ON
+    return figureId === FIGURE_SUBJECT_MOVED
+        || figureId === FIGURE_SUBJECT_STEPPED_ON
+        || figureId === FIGURE_SUBJECT_HOPPED_OVER
 }
 
 export function isFigureFilterAny(figureId?: FigureId): boolean {
@@ -319,7 +322,8 @@ export function normalizeStoredFigureFilterId(id?: FigureId): FigureId | undefin
     if (trimmed === FIGURE_FILTER_ANY
         || trimmed === FIGURE_FILTER_NONE
         || trimmed === FIGURE_SUBJECT_MOVED
-        || trimmed === FIGURE_SUBJECT_STEPPED_ON) {
+        || trimmed === FIGURE_SUBJECT_STEPPED_ON
+        || trimmed === FIGURE_SUBJECT_HOPPED_OVER) {
         return trimmed as FigureId
     }
 
@@ -436,7 +440,7 @@ export function canonicalizeConditionSubjectEntries(
 
 export function toggleSubjectRoleInEntries(
     entries: FigureEventFigureFilter[] | undefined,
-    role: typeof FIGURE_SUBJECT_MOVED | typeof FIGURE_SUBJECT_STEPPED_ON,
+    role: typeof FIGURE_SUBJECT_MOVED | typeof FIGURE_SUBJECT_STEPPED_ON | typeof FIGURE_SUBJECT_HOPPED_OVER,
 ): FigureEventFigureFilter[] {
     const current = canonicalizeConditionSubjectEntries(entries)
     const hasRole = current.some(entry => entry.figureId === role)

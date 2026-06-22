@@ -12,8 +12,9 @@ import { ActiveBoardPersistPayload } from '../../projects/projectPersist'
 import { ProjectPersistData } from '../../projects/types'
 import { GameState } from '../types/gameState'
 import { SliceHistory } from '../types/history'
-import { FigureCatalog } from '../types/figures'
+import { FigureCatalog, FigureTeams } from '../types/figures'
 import { BoardSlice, FiguresSlice, composeGameState } from '../state/slices'
+import { normalizeFigureTeams } from '../figureTeams'
 import { applyRemotePersistDataFromProject } from './remotePersist'
 
 export function useGameCollabSync(options: {
@@ -24,12 +25,14 @@ export function useGameCollabSync(options: {
     figuresHistory: SliceHistory<FiguresSlice>
     boardHistory: SliceHistory<BoardSlice>
     figureCatalog: FigureCatalog
+    figureTeams: FigureTeams
     catalogHistory: SliceHistory<FigureCatalog>
     figuresSlice: FiguresSlice
     boardSlice: BoardSlice
     setFiguresSlice: (value: FiguresSlice) => void
     setBoardSlice: (value: BoardSlice) => void
     setFigureCatalog: (value: FigureCatalog) => void
+    setFigureTeams: (value: FigureTeams) => void
     setFiguresHistory: (value: SliceHistory<FiguresSlice>) => void
     setBoardHistory: (value: SliceHistory<BoardSlice>) => void
     setCatalogHistory: (value: SliceHistory<FigureCatalog>) => void
@@ -44,12 +47,14 @@ export function useGameCollabSync(options: {
         figuresHistory,
         boardHistory,
         figureCatalog,
+        figureTeams,
         catalogHistory,
         figuresSlice,
         boardSlice,
         setFiguresSlice,
         setBoardSlice,
         setFigureCatalog,
+        setFigureTeams,
         setFiguresHistory,
         setBoardHistory,
         setCatalogHistory,
@@ -84,6 +89,7 @@ export function useGameCollabSync(options: {
         setFiguresSlice(resolved.figuresSlice)
         setBoardSlice(resolved.boardSlice)
         setFigureCatalog(resolved.figureCatalog)
+        setFigureTeams(resolved.figureTeams)
         setFiguresHistory(resolved.figuresHistory)
         setBoardHistory(resolved.boardHistory)
         setCatalogHistory(resolved.catalogHistory)
@@ -92,6 +98,7 @@ export function useGameCollabSync(options: {
         setFiguresSlice,
         setBoardSlice,
         setFigureCatalog,
+        setFigureTeams,
         setFiguresHistory,
         setBoardHistory,
         setCatalogHistory,
@@ -112,11 +119,18 @@ export function useGameCollabSync(options: {
             return resolveCollabOpBoardId(op, visibleBoardId) === visibleBoardId
         })
 
-        if (relevantOps.length === 0) {
+        const teamOps = relevantOps.filter(op => op.kind === 'figure-teams')
+        const catalogOps = relevantOps.filter(op => op.kind !== 'figure-teams')
+
+        if (teamOps.length > 0) {
+            setFigureTeams(normalizeFigureTeams(teamOps[teamOps.length - 1]!.teams))
+        }
+
+        if (catalogOps.length === 0) {
             return composeGameState(figuresSlice, boardSlice, figureCatalog)
         }
 
-        const result = applyCollabOps(figuresSlice, boardSlice, figureCatalog, relevantOps)
+        const result = applyCollabOps(figuresSlice, boardSlice, figureCatalog, catalogOps)
         setFiguresSlice(result.figures)
         setBoardSlice(result.board)
         setFigureCatalog(result.catalog)
@@ -127,11 +141,10 @@ export function useGameCollabSync(options: {
         figuresSlice,
         boardSlice,
         figureCatalog,
-        catalogHistory,
-        state,
         setFiguresSlice,
         setBoardSlice,
         setFigureCatalog,
+        setFigureTeams,
         setState,
     ])
 
@@ -153,6 +166,7 @@ export function useGameCollabSync(options: {
             figuresHistory,
             boardHistory,
             figureCatalog,
+            figureTeams,
             catalogHistory,
         })
     }, [
@@ -162,6 +176,7 @@ export function useGameCollabSync(options: {
         figuresHistory,
         boardHistory,
         figureCatalog,
+        figureTeams,
         catalogHistory,
     ])
 

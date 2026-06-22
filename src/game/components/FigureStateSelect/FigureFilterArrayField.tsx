@@ -2,7 +2,6 @@ import React, {
     FC,
     useCallback,
     useEffect,
-    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -30,11 +29,11 @@ import { FigureSVG } from '../FigureSVG'
 import { logFigureFilterDebug } from './figureFilterArrayDebug'
 import selectStyles from './FigureStateSelect.module.css'
 import styles from './FigureFilterArrayField.module.css'
+import { FiguresPanelPortal } from './FiguresPanelPortal'
 
 const FIGURES_PER_ROW = 5
 const FIGURES_PANEL_SCROLL_PADDING = 0
 const FIGURES_GRID_GAP = 0
-const FIGURES_PANEL_SCROLL_MAX_HEIGHT = 240
 
 export interface FigureFilterArrayFieldProps {
     allowAny?: boolean
@@ -126,7 +125,6 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
     const [statesFigureId, setStatesFigureId] = useState<FigureId | null>(null)
     const [statesPanelHovered, setStatesPanelHovered] = useState(false)
     const [statesOverlayStyle, setStatesOverlayStyle] = useState<CSSProperties | null>(null)
-    const [openUpward, setOpenUpward] = useState(false)
 
     const rootRef = useRef<HTMLDivElement>(null)
     const figuresPanelRef = useRef<HTMLDivElement>(null)
@@ -226,46 +224,6 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
         const next = removeFigureFromFilterArray(entries, figureId)
         commitEntries(next, 'remove-figure', { figureId })
     }, [commitEntries, entries])
-
-    const estimatePanelHeight = useCallback(() => {
-        const itemCount = figureCatalog.length + (allowAny ? 2 : 0)
-        const rows = Math.max(1, Math.ceil(itemCount / FIGURES_PER_ROW))
-        const gridHeight = rows * previewSize + Math.max(0, rows - 1) * FIGURES_GRID_GAP
-
-        return Math.min(gridHeight, FIGURES_PANEL_SCROLL_MAX_HEIGHT) + FIGURES_PANEL_SCROLL_PADDING
-    }, [allowAny, figureCatalog.length, previewSize])
-
-    const updatePanelPlacement = useCallback(() => {
-        const root = rootRef.current
-
-        if (!root) {
-            return
-        }
-
-        const rect = root.getBoundingClientRect()
-        const panelHeight = figuresPanelRef.current?.offsetHeight ?? estimatePanelHeight()
-        const spaceBelow = window.innerHeight - rect.top
-        const spaceAbove = rect.bottom
-
-        setOpenUpward(spaceBelow < panelHeight && spaceAbove >= spaceBelow)
-    }, [estimatePanelHeight])
-
-    useLayoutEffect(() => {
-        if (!isFiguresOpen) {
-            setOpenUpward(false)
-            return
-        }
-
-        updatePanelPlacement()
-
-        window.addEventListener('resize', updatePanelPlacement)
-        window.addEventListener('scroll', updatePanelPlacement, true)
-
-        return () => {
-            window.removeEventListener('resize', updatePanelPlacement)
-            window.removeEventListener('scroll', updatePanelPlacement, true)
-        }
-    }, [isFiguresOpen, updatePanelPlacement, figureCatalog.length, previewSize, allowAny])
 
     const updateStatesOverlayPosition = useCallback(() => {
         const panel = figuresPanelRef.current
@@ -544,11 +502,12 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
             </div>
 
             {isFiguresOpen && (
-                <div
-                    ref={figuresPanelRef}
-                    className={cn(selectStyles.figuresPanel, openUpward && selectStyles.figuresPanelUp)}
-                    style={{ width: figuresPanelWidth }}
-                    tabIndex={-1}
+                <FiguresPanelPortal
+                    anchorRef={rootRef}
+                    panelRef={figuresPanelRef}
+                    isOpen={isFiguresOpen}
+                    width={figuresPanelWidth}
+                    layoutDeps={[figureCatalog.length, previewSize, allowAny, statesFigureId]}
                     onMouseEnter={handleFiguresPanelMouseEnter}
                     onMouseLeave={handleFiguresPanelMouseLeave}
                     onBlur={handleFiguresPanelBlur}
@@ -679,7 +638,7 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
                             })}
                         </div>
                     )}
-                </div>
+                </FiguresPanelPortal>
             )}
         </div>
     )

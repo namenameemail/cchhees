@@ -296,6 +296,7 @@ export function remapAssetIdsInBoardHistory(
 export function remapAssetIdsInProjectPersist(data: ProjectPersistData, map: IdMap): ProjectPersistData {
     return {
         figureCatalog: remapAssetIdsInFigureCatalog(data.figureCatalog, map),
+        figureTeams: data.figureTeams,
         catalogHistory: remapAssetIdsInCatalogHistory(data.catalogHistory, map),
         activeBoardId: data.activeBoardId,
         boards: data.boards.map(board => ({

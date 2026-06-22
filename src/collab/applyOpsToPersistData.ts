@@ -1,6 +1,7 @@
 import { splitGameState, composeGameState } from '../game/state/slices'
 import { ProjectPersistData } from '../projects/types'
 import { applyCollabOp, CollabOp, isBoardScopedCollabOp, resolveCollabOpBoardId } from './ops'
+import { normalizeFigureTeams } from '../game/figureTeams'
 
 /** True when incoming ops should refresh the board currently shown in GameProvider. */
 export function opsAffectVisibleGameState(
@@ -29,10 +30,16 @@ export function applyOpsToPersistData(
     viewingBoardId?: string,
 ): ProjectPersistData {
     let figureCatalog = data.figureCatalog
+    let figureTeams = data.figureTeams
     let catalogHistory = data.catalogHistory
     const boards = data.boards.map(board => ({ ...board }))
 
     for (const op of ops) {
+        if (op.kind === 'figure-teams') {
+            figureTeams = normalizeFigureTeams(op.teams)
+            continue
+        }
+
         if (!isBoardScopedCollabOp(op)) {
             if (op.kind === 'catalog-sync') {
                 figureCatalog = op.catalog
@@ -78,6 +85,7 @@ export function applyOpsToPersistData(
 
     return {
         figureCatalog,
+        figureTeams,
         catalogHistory,
         boards,
         activeBoardId: data.activeBoardId,

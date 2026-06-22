@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import type { MutableRefObject } from 'react'
 import { Mode } from '../types'
 import { CellCoord, coordsEqual } from '../types/coords'
-import { FigureCatalog } from '../types/figures'
+import { FigureCatalog, FigureTeams } from '../types/figures'
 import { FigureEventRule } from '../types/events'
 import { BoardParameters } from '../types/boardParameters'
 import { BoardSlice, FiguresSlice } from '../state/slices'
@@ -21,6 +21,7 @@ export function useFigureMove(options: {
     activeCell: CellCoord | undefined
     figuresSlice: FiguresSlice
     figureCatalog: FigureCatalog
+    figureTeams: FigureTeams
     eventRules: FigureEventRule[]
     boardParameters: BoardParameters
     isFigureAnimating: boolean
@@ -36,6 +37,7 @@ export function useFigureMove(options: {
         activeCell,
         figuresSlice,
         figureCatalog,
+        figureTeams,
         eventRules,
         boardParameters,
         isFigureAnimating,
@@ -78,6 +80,7 @@ export function useFigureMove(options: {
             fromPlacement,
             figureCatalog,
             freeMove,
+            figureTeams,
         )) {
             return
         }
@@ -93,6 +96,7 @@ export function useFigureMove(options: {
             swapOnEat: boardParameters.swapOnEat,
             boardParameters,
             catalog: figureCatalog,
+            figureTeams,
             eventRules,
         }
 
@@ -119,6 +123,7 @@ export function useFigureMove(options: {
         activeCell,
         figuresSlice,
         figureCatalog,
+        figureTeams,
         eventRules,
         boardParameters,
         pushFiguresChange,

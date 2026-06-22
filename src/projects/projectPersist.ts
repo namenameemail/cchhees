@@ -1,6 +1,6 @@
 import { GameState } from '../game/types/gameState'
 import { SliceHistory, historyInit } from '../game/types/history'
-import { FigureCatalog } from '../game/types/figures'
+import { FigureCatalog, FigureTeams } from '../game/types/figures'
 import { BoardDocument, Project, ProjectPersistData, getActiveBoard, getBoardGameState, projectToPersistData } from './types'
 import { VisitedRoom } from './visitedRooms/types'
 
@@ -10,6 +10,7 @@ export interface ActiveBoardPersistPayload {
     figuresHistory: BoardDocument['figuresHistory']
     boardHistory: BoardDocument['boardHistory']
     figureCatalog: FigureCatalog
+    figureTeams: FigureTeams
     catalogHistory: SliceHistory<FigureCatalog>
 }
 
@@ -30,6 +31,7 @@ export function mergeActiveBoardPersist(project: Project, payload: ActiveBoardPe
         boards,
         activeBoardId: payload.activeBoardId,
         figureCatalog: payload.figureCatalog,
+        figureTeams: payload.figureTeams,
         catalogHistory: payload.catalogHistory,
         updatedAt: Date.now(),
     }
@@ -47,6 +49,7 @@ export function mergeActiveBoardPersistIntoVisitedRoom(
         boards: merged.boards,
         activeBoardId: merged.activeBoardId,
         figureCatalog: merged.figureCatalog,
+        figureTeams: merged.figureTeams,
         catalogHistory: merged.catalogHistory,
         updatedAt: merged.updatedAt,
         lastVisitedAt: Date.now(),
@@ -59,6 +62,7 @@ export function visitedRoomAsProject(room: VisitedRoom): Project {
         name: room.name,
         updatedAt: room.updatedAt,
         figureCatalog: room.figureCatalog,
+        figureTeams: room.figureTeams,
         catalogHistory: room.catalogHistory,
         boards: room.boards,
         activeBoardId: room.activeBoardId,

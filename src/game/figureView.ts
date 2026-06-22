@@ -7,17 +7,19 @@ import {
     FigureDefinition,
     FigureDefinitions,
     FigureId,
+    FigureMoveDirection,
     FigureMoveRule,
     FigurePlacement,
     FigurePlacementInput,
     FigureState,
+    FigureTeams,
     FigureTypes,
     FigureViewParams,
     LegacyFigureDefinition,
 } from './types/figures'
 import { CellCoord, coordKey } from './types/coords'
 import { resolveFigureFilterList, canonicalizeFigureFilterArray, normalizeFigureFilterEntry, FIGURE_FILTER_NONE, canonicalizeConditionSubjectEntries, FIGURE_SUBJECT_MOVED, FIGURE_SUBJECT_STEPPED_ON } from './figureFilter'
-import { migrateLegacyFigureAreaCells, normalizeFigureAreaCells } from './figureAreaCells'
+import { resolveTeamMoveDirection } from './figureTeams'
 import {
     DisplaceFigureActionParams,
     FigureEventAreaCell,
@@ -104,6 +106,7 @@ export function cloneFigureState(state: FigureState): FigureState {
         moveRules: state.moveRules ? state.moveRules.map(rule => ({ ...rule })) : [],
         jumpOverPieces: state.jumpOverPieces !== false,
         canStepOnOwnTeam: state.canStepOnOwnTeam === true,
+        canJumpOverOwnTeam: state.canJumpOverOwnTeam === true,
     }
 }
 
@@ -123,7 +126,7 @@ export function normalizeFigureMoveRule(rule: FigureMoveRule): FigureMoveRule | 
     }
 
     const n = rule.n === undefined ? 1 : Math.trunc(rule.n)
-    const landing = rule.landing === 'empty' || rule.landing === 'capture' || rule.landing === 'any'
+    const landing = rule.landing === 'empty' || rule.landing === 'capture' || rule.landing === 'any' || rule.landing === 'jumpOver'
         ? rule.landing
         : undefined
 
@@ -174,6 +177,7 @@ export function normalizeFigureState(state: FigureState, figureId: FigureId): Fi
         moveRules: normalizeFigureMoveRules(state.moveRules),
         jumpOverPieces: state.jumpOverPieces !== false,
         canStepOnOwnTeam: state.canStepOnOwnTeam === true,
+        canJumpOverOwnTeam: state.canJumpOverOwnTeam === true,
     }
 }
 
@@ -825,8 +829,16 @@ export function resolveFigureMoveDirection(entry: Pick<FigureDefinition, 'moveDi
 export function resolveFigureMoveDirectionFromCatalog(
     catalog: FigureCatalog,
     figureId: FigureId,
+    figureTeams?: FigureTeams,
 ): FigureMoveDirection {
     const entry = catalog.find(item => item.id === figureId)
+    const teamId = entry ? normalizeFigureTeam(entry.team) : undefined
+
+    if (teamId !== undefined) {
+        const teamDirection = resolveTeamMoveDirection(figureTeams, teamId)
+
+        return teamDirection ?? 'up'
+    }
 
     return resolveFigureMoveDirection(entry)
 }

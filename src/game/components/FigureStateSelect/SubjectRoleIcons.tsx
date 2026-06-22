@@ -31,3 +31,17 @@ export const SteppedOnSubjectIcon: FC<SubjectRoleIconProps> = ({ size }) => (
         />
     </svg>
 )
+
+export const HoppedOverSubjectIcon: FC<SubjectRoleIconProps> = ({ size }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="7" cy="16" r="4" fill="#555" />
+        <path
+            d="M11 12c3-4 8-4 11 0"
+            stroke="#0ff"
+            strokeWidth="2"
+            strokeLinecap="round"
+            fill="none"
+        />
+        <circle cx="20" cy="12" r="3" fill="#555" opacity="0.35" />
+    </svg>
+)

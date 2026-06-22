@@ -58,7 +58,7 @@ function appendEntries(
 }
 
 export const MoveDebugWorkbench: FC = () => {
-    const { state, activeFigure, figureCatalog, getFigureStateIndex } = useGameContext()
+    const { state, activeFigure, figureCatalog, figureTeams, getFigureStateIndex } = useGameContext()
     const eventRules = state.eventRules ?? []
 
     const [phase, setPhase] = useState<MoveDebugPhase>('arrangeBefore')
@@ -263,9 +263,9 @@ export const MoveDebugWorkbench: FC = () => {
                     move: {
                         from,
                         to,
-                        actorFigure: buildFigureMoveDebugInfo(catalog, fromPlacement),
+                        actorFigure: buildFigureMoveDebugInfo(catalog, fromPlacement, figureTeams),
                         targetFigure: moveInput.targetAtTo
-                            ? buildFigureMoveDebugInfo(catalog, moveInput.targetAtTo)
+                            ? buildFigureMoveDebugInfo(catalog, moveInput.targetAtTo, figureTeams)
                             : undefined,
                     },
                     chain: moveChain,
@@ -378,6 +378,7 @@ export const MoveDebugWorkbench: FC = () => {
                     activeFigure={activeFigure}
                     activeFigureStateIndex={activeFigureStateIndex}
                     figureCatalog={catalog}
+                    figureTeams={figureTeams}
                     figureBoardAnimations={figureBoardAnimations}
                     interactionDisabled={board1InteractionDisabled}
                     onSliceChange={handleBeforeSliceChange}
@@ -408,6 +409,7 @@ export const MoveDebugWorkbench: FC = () => {
                     activeFigure={activeFigure}
                     activeFigureStateIndex={activeFigureStateIndex}
                     figureCatalog={catalog}
+                    figureTeams={figureTeams}
                     interactionDisabled={board2InteractionDisabled}
                     onSliceChange={handleAfterSliceChange}
                 />

@@ -7,6 +7,7 @@ import {
     FigureMoveDirection,
     FigureMoveRule,
     FigureState,
+    FigureTeams,
     FigureViewParams,
 } from '../game/types/figures'
 import { FigureEventRule } from '../game/types/events'
@@ -15,8 +16,9 @@ import { BoardSlice, FiguresSlice, composeGameState, cloneFigureCatalog } from '
 import { cloneBoardSlice, cloneFiguresSlice } from '../game/state/reconcile'
 import { removeFigureFromBoard } from '../game/state/figureReferences'
 import { normalizeFigureCatalog, normalizeFigureEventRules, normalizeFigureMoveDirection, normalizeFigureMoveRules, resolveCollabStateIndex, updateFigureCatalogStateAtIndex } from '../game/figureView'
+import { normalizeFigureTeams } from '../game/figureTeams'
 import { stripCatalogEventRules } from '../game/state/boardEventRules'
-import { resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../game/moveRules'
+import { resolveCanJumpOverOwnTeam, resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../game/moveRules'
 import { GameState } from '../game/types/gameState'
 
 /** Minimal collaborative edit operation — only what changed. */
@@ -26,9 +28,10 @@ export type CollabOp =
     | { kind: 'style-rules'; boardId: string; styleRules: BoardStyleRule[] }
     | { kind: 'cell-parameters'; boardId: string; coordKey: string; parameters: CellParameters | null }
     | { kind: 'figure-view-params'; figureId: FigureId; viewParams: FigureViewParams; stateIndex?: number }
-    | { kind: 'figure-move-rules'; figureId: FigureId; moveRules: FigureMoveRule[]; jumpOverPieces?: boolean; canStepOnOwnTeam?: boolean; stateIndex?: number }
+    | { kind: 'figure-move-rules'; figureId: FigureId; moveRules: FigureMoveRule[]; jumpOverPieces?: boolean; canStepOnOwnTeam?: boolean; canJumpOverOwnTeam?: boolean; stateIndex?: number }
     | { kind: 'figure-states'; figureId: FigureId; states: FigureState[] }
     | { kind: 'figure-team'; figureId: FigureId; team?: number }
+    | { kind: 'figure-teams'; teams: FigureTeams }
     | { kind: 'figure-move-direction'; figureId: FigureId; moveDirection?: FigureMoveDirection }
     | { kind: 'board-event-rules'; boardId: string; eventRules: FigureEventRule[] }
     /** @deprecated migrated to board-event-rules */
@@ -43,6 +46,7 @@ export function isBoardScopedCollabOp(op: CollabOp): boolean {
         && op.kind !== 'figure-move-rules'
         && op.kind !== 'figure-states'
         && op.kind !== 'figure-team'
+        && op.kind !== 'figure-teams'
         && op.kind !== 'figure-move-direction'
         && op.kind !== 'board-event-rules'
         && op.kind !== 'figure-event-rules'
@@ -151,6 +155,9 @@ export function applyCollabOp(
                     canStepOnOwnTeam: op.canStepOnOwnTeam !== undefined
                         ? op.canStepOnOwnTeam === true
                         : resolveCanStepOnOwnTeam(state),
+                    canJumpOverOwnTeam: op.canJumpOverOwnTeam !== undefined
+                        ? op.canJumpOverOwnTeam === true
+                        : resolveCanJumpOverOwnTeam(state),
                 })),
             }
         }

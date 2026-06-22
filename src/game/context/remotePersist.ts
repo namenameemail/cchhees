@@ -1,7 +1,8 @@
 import { ProjectPersistData } from '../../projects/types'
 import { SliceHistory } from '../types/history'
-import { FigureCatalog } from '../types/figures'
+import { FigureCatalog, FigureTeams } from '../types/figures'
 import { GameState } from '../types/gameState'
+import { migrateFigureTeamsFromCatalog } from '../figureTeams'
 import {
     BoardSlice,
     FiguresSlice,
@@ -16,6 +17,7 @@ export function applyRemotePersistDataFromProject(data: ProjectPersistData): {
     figuresSlice: FiguresSlice
     boardSlice: BoardSlice
     figureCatalog: FigureCatalog
+    figureTeams: FigureTeams
     figuresHistory: SliceHistory<FiguresSlice>
     boardHistory: SliceHistory<BoardSlice>
     catalogHistory: SliceHistory<FigureCatalog>
@@ -36,6 +38,7 @@ export function applyRemotePersistDataFromProject(data: ProjectPersistData): {
         figuresSlice,
         boardSlice,
         figureCatalog,
+        figureTeams: migrateFigureTeamsFromCatalog(figureCatalog, data.figureTeams),
         figuresHistory: board.figuresHistory,
         boardHistory: board.boardHistory,
         catalogHistory: data.catalogHistory,

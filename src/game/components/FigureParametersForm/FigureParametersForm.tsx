@@ -7,7 +7,7 @@ import form1Styles from '../../../components/Form1/styles.module.css'
 import { Form1FieldConfig } from '../../../components/Form1/types'
 import { ParameterTypes } from '../../../components/Form1/types'
 import { atLeastOne, integerStep, nonNegative } from '../../../components/Form1/numberInputConstraints'
-import { FigureId, FigureMoveDirection, FigureMoveRule, FigureViewParams } from '../../types/figures'
+import { FigureId, FigureMoveRule, FigureViewParams } from '../../types/figures'
 import {
     FigureEventCondition,
     FigureEventConditionType,
@@ -31,7 +31,8 @@ import {
 import { createFigureAreaGridFieldConfig } from '../FigureAreaGrid/FigureAreaGridField'
 import { FIGURE_FILTER_ANY, FIGURE_SUBJECT_MOVED, FIGURE_SUBJECT_STEPPED_ON } from '../../figureFilter'
 import { FigureMoveRulesGrid } from '../FigureMoveRulesGrid/FigureMoveRulesGrid'
-import { resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../../moveRules'
+import { resolveCanJumpOverOwnTeam, resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../../moveRules'
+import { resolveTeamSelectOptions } from '../../figureTeams'
 import { FormArray } from '../../../components/FormArray'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
 import { ProjectFontSelect } from '../../../projects/components/ProjectFontSelect'
@@ -45,7 +46,6 @@ import {
     normalizeFigureEventRule,
     normalizeGameAction,
     resolveFigureDefinition,
-    resolveFigureMoveDirection,
     resolveFigureState,
     resolveFigureViewParams,
 } from '../../figureView'
@@ -360,7 +360,6 @@ function getEventParamsConfig(type: FigureEventType) {
                 props: {
                     className: styles.eventTypeSelect,
                     options: stepCauseOptions,
-                    title: 'cause',
                 },
             }]
         case FigureEventType.steppedOnBy:
@@ -371,7 +370,6 @@ function getEventParamsConfig(type: FigureEventType) {
                     props: {
                         className: styles.eventTypeSelect,
                         options: stepCauseOptions,
-                        title: 'cause',
                     },
                 },
                 {
@@ -380,7 +378,6 @@ function getEventParamsConfig(type: FigureEventType) {
                     props: {
                         className: styles.eventTypeSelect,
                         options: stackPositionOptions,
-                        title: 'stack position',
                     },
                 },
                 {
@@ -412,7 +409,6 @@ function getConditionParamsConfig(
             return [
                 createFigureFilterArrayFieldConfig('anchorFigures', {
                     allowAny: true,
-                    title: 'anchor',
                     className: styles.figureFilterArray,
                     itemClassName: styles.figureFilterArrayItem,
                 }),
@@ -461,7 +457,6 @@ function getConditionParamsConfig(
                     props: {
                         className: styles.eventTypeSelect,
                         options: conditionMatchModeOptions,
-                        title: 'match',
                     },
                 },
             ]
@@ -471,7 +466,6 @@ function getConditionParamsConfig(
             return [
                 createFigureFilterArrayFieldConfig('figures', {
                     allowAny: true,
-                    title: 'figures',
                     className: styles.figureFilterArray,
                     itemClassName: styles.figureFilterArrayItem,
                 }),
@@ -481,7 +475,6 @@ function getConditionParamsConfig(
                     props: {
                         className: styles.eventTypeSelect,
                         options: conditionMatchModeOptions,
-                        title: 'match',
                     },
                 },
             ]
@@ -500,7 +493,6 @@ function getConditionParamsConfig(
             return [
                 createFigureFilterArrayFieldConfig('figures', {
                     allowAny: true,
-                    title: 'figures',
                     className: styles.figureFilterArray,
                     itemClassName: styles.figureFilterArrayItem,
                 }),
@@ -510,7 +502,6 @@ function getConditionParamsConfig(
                     props: {
                         className: styles.eventTypeSelect,
                         options: conditionMatchModeOptions,
-                        title: 'match',
                     },
                 },
                 {
@@ -519,7 +510,6 @@ function getConditionParamsConfig(
                     props: {
                         className: styles.eventTypeSelect,
                         options: stackTargetOptions,
-                        title: 'stack',
                     },
                 },
                 {
@@ -532,7 +522,6 @@ function getConditionParamsConfig(
             return [
                 createFigureFilterArrayFieldConfig('stepperFigures', {
                     allowAny: true,
-                    title: 'stepper',
                     className: styles.figureFilterArray,
                     itemClassName: styles.figureFilterArrayItem,
                 }),
@@ -542,7 +531,6 @@ function getConditionParamsConfig(
                     props: {
                         className: styles.eventTypeSelect,
                         options: conditionMatchModeOptions,
-                        title: 'match',
                     },
                 },
             ]
@@ -551,7 +539,6 @@ function getConditionParamsConfig(
             return [
                 createFigureFilterArrayFieldConfig('figures', {
                     allowAny: true,
-                    title: 'figure',
                     className: styles.figureFilterArray,
                     itemClassName: styles.figureFilterArrayItem,
                 }),
@@ -609,7 +596,6 @@ function createEventConditionsArrayProps(ownerFigureId?: FigureId) {
                         className: styles.eventParamsForm,
                         config: [
                             createConditionSubjectFieldConfig({
-                                title: 'subject',
                             }) as unknown as Form1FieldConfig<FigureEventCondition['subject']>,
                             {
                                 name: 'matchMode',
@@ -617,7 +603,6 @@ function createEventConditionsArrayProps(ownerFigureId?: FigureId) {
                                 props: {
                                     className: styles.eventTypeSelect,
                                     options: conditionMatchModeOptions,
-                                    title: 'match',
                                 },
                                 visibility: (subject) => (subject.entries?.length ?? 0) > 1,
                             },
@@ -631,7 +616,6 @@ function createEventConditionsArrayProps(ownerFigureId?: FigureId) {
                         className: styles.eventTypeSelect,
                         options: figureEventConditionTypeOptions,
                         optionLabels: figureEventConditionTypeLabels,
-                        title: 'condition',
                     },
                 },
             ]
@@ -679,7 +663,6 @@ function getActionParamsConfig(type: GameActionType) {
                 createFigureStateFieldConfig('figureId', {
                     stateField: 'stateIndex',
                     showStatePicker: true,
-                    title: 'figure',
                 }),
                 { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne, ...eventNumberInputProps } },
                 { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne, ...eventNumberInputProps } },
@@ -785,7 +768,6 @@ function createEventActionsArrayProps(
                         className: styles.eventTypeSelect,
                         options: actionTypeOptions,
                         optionLabels: gameActionTypeLabels,
-                        title: 'action',
                     },
                 },
             ]
@@ -798,7 +780,6 @@ function createEventActionsArrayProps(
                         className: styles.eventParamsForm,
                         config: [
                             createConditionSubjectFieldConfig({
-                                title: 'subject',
                             }) as unknown as Form1FieldConfig<NonNullable<GameAction['subject']>>,
                             {
                                 name: 'matchMode',
@@ -806,7 +787,6 @@ function createEventActionsArrayProps(
                                 props: {
                                     className: styles.eventTypeSelect,
                                     options: conditionMatchModeOptions,
-                                    title: 'match',
                                 },
                                 visibility: (subject) => (subject.entries?.length ?? 0) > 1,
                             },
@@ -847,7 +827,6 @@ function getEventRuleEventFields(
             props: {
                 className: styles.eventTypeSelect,
                 options: figureEventTypeOptions,
-                title: 'event',
             },
         },
     ]
@@ -969,7 +948,6 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
                 <button
                     type="button"
                     className={styles.eventRuleRemove}
-                    title="Удалить событие"
                     onClick={handleRemove}
                 >
                     x
@@ -1219,13 +1197,6 @@ export const FigureParametersFormBase: FC<FigureParametersFormBaseProps> = ({
     )
 }
 
-const MOVE_DIRECTION_OPTIONS: Array<{ id: FigureMoveDirection; label: string }> = [
-    { id: 'up', label: 'верх' },
-    { id: 'down', label: 'низ' },
-    { id: 'left', label: 'лево' },
-    { id: 'right', label: 'право' },
-]
-
 export const FigureParametersForm: FC = () => {
     const {
         activeFigure,
@@ -1237,7 +1208,7 @@ export const FigureParametersForm: FC = () => {
         addFigureState,
         removeFigureState,
         setFigureTeam,
-        setFigureMoveDirection,
+        figureTeams,
     } = useGameContext()
 
     const [activeSection, setActiveSection] = useState<FigureSectionTab>('view')
@@ -1307,9 +1278,9 @@ export const FigureParametersForm: FC = () => {
         ? resolveCanStepOnOwnTeam(activeFigureState)
         : false
 
-    const moveDirection = figureDefinition
-        ? resolveFigureMoveDirection(figureDefinition)
-        : 'up'
+    const canJumpOverOwnTeam = activeFigureState
+        ? resolveCanJumpOverOwnTeam(activeFigureState)
+        : false
 
     const handleChange = useCallback((nextValue: FigureViewParams) => {
         if (!activeFigure) {
@@ -1323,32 +1294,60 @@ export const FigureParametersForm: FC = () => {
             return
         }
 
-        setFigureStateMoveRules(activeFigure, activeStateIndex, nextRules, jumpOverPieces, canStepOnOwnTeam)
-    }, [activeFigure, activeStateIndex, jumpOverPieces, canStepOnOwnTeam, setFigureStateMoveRules])
+        setFigureStateMoveRules(
+            activeFigure,
+            activeStateIndex,
+            nextRules,
+            jumpOverPieces,
+            canStepOnOwnTeam,
+            canJumpOverOwnTeam,
+        )
+    }, [activeFigure, activeStateIndex, jumpOverPieces, canStepOnOwnTeam, canJumpOverOwnTeam, setFigureStateMoveRules])
 
     const handleJumpOverPiecesChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         if (!activeFigure) {
             return
         }
 
-        setFigureStateMoveRules(activeFigure, activeStateIndex, moveRules, event.target.checked, canStepOnOwnTeam)
-    }, [activeFigure, activeStateIndex, moveRules, canStepOnOwnTeam, setFigureStateMoveRules])
+        setFigureStateMoveRules(
+            activeFigure,
+            activeStateIndex,
+            moveRules,
+            event.target.checked,
+            canStepOnOwnTeam,
+            canJumpOverOwnTeam,
+        )
+    }, [activeFigure, activeStateIndex, moveRules, canStepOnOwnTeam, canJumpOverOwnTeam, setFigureStateMoveRules])
 
     const handleCanStepOnOwnTeamChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         if (!activeFigure) {
             return
         }
 
-        setFigureStateMoveRules(activeFigure, activeStateIndex, moveRules, jumpOverPieces, event.target.checked)
-    }, [activeFigure, activeStateIndex, moveRules, jumpOverPieces, setFigureStateMoveRules])
+        setFigureStateMoveRules(
+            activeFigure,
+            activeStateIndex,
+            moveRules,
+            jumpOverPieces,
+            event.target.checked,
+            canJumpOverOwnTeam,
+        )
+    }, [activeFigure, activeStateIndex, moveRules, jumpOverPieces, canJumpOverOwnTeam, setFigureStateMoveRules])
 
-    const handleMoveDirectionChange = useCallback((direction: FigureMoveDirection) => {
+    const handleCanJumpOverOwnTeamChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         if (!activeFigure) {
             return
         }
 
-        setFigureMoveDirection(activeFigure, direction)
-    }, [activeFigure, setFigureMoveDirection])
+        setFigureStateMoveRules(
+            activeFigure,
+            activeStateIndex,
+            moveRules,
+            jumpOverPieces,
+            canStepOnOwnTeam,
+            event.target.checked,
+        )
+    }, [activeFigure, activeStateIndex, moveRules, jumpOverPieces, canStepOnOwnTeam, setFigureStateMoveRules])
 
     const handleAddState = useCallback(() => {
         if (!activeFigure) {
@@ -1368,12 +1367,12 @@ export const FigureParametersForm: FC = () => {
         setActiveStateIndex(index => Math.max(0, index - 1))
     }, [activeFigure, activeStateIndex, stateCount, removeFigureState])
 
-    const handleTeamChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleTeamChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
         if (!activeFigure) {
             return
         }
 
-        const raw = event.target.value.trim()
+        const raw = event.target.value
 
         if (!raw) {
             setFigureTeam(activeFigure, undefined)
@@ -1387,6 +1386,11 @@ export const FigureParametersForm: FC = () => {
         }
     }, [activeFigure, setFigureTeam])
 
+    const teamSelectOptions = useMemo(
+        () => resolveTeamSelectOptions(figureTeams, state.figureCatalog, figureDefinition?.team),
+        [figureTeams, state.figureCatalog, figureDefinition?.team],
+    )
+
     if (!activeFigure) {
         return null
     }
@@ -1394,14 +1398,16 @@ export const FigureParametersForm: FC = () => {
     const teamRow = (
         <div className={styles.teamRow}>
             <span className={styles.stateRowLabel}>команда</span>
-            <input
-                type="number"
-                className={styles.teamInput}
+            <select
+                className={styles.teamSelect}
                 value={figureDefinition?.team ?? ''}
-                placeholder="—"
-                step={1}
                 onChange={handleTeamChange}
-            />
+            >
+                <option value="">—</option>
+                {teamSelectOptions.map(team => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                ))}
+            </select>
         </div>
     )
 
@@ -1488,23 +1494,6 @@ export const FigureParametersForm: FC = () => {
                     >
                         {stateTabs}
                         <div className={styles.moveRulesSection}>
-                            <div className={styles.moveDirectionRow}>
-                                <span className={styles.stateRowLabel}>направление</span>
-                                <div className={styles.moveDirectionTabs}>
-                                    {MOVE_DIRECTION_OPTIONS.map(({ id, label }) => (
-                                        <button
-                                            key={id}
-                                            type="button"
-                                            className={moveDirection === id
-                                                ? styles.moveDirectionTabActive
-                                                : styles.moveDirectionTab}
-                                            onClick={() => handleMoveDirectionChange(id)}
-                                        >
-                                            {label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
                             <div className={styles.moveRulesHeader}>
                                 <label className={styles.jumpOverPiecesField}>
                                     <input
@@ -1513,6 +1502,14 @@ export const FigureParametersForm: FC = () => {
                                         onChange={handleCanStepOnOwnTeamChange}
                                     />
                                     <span>может наступать на свою команду</span>
+                                </label>
+                                <label className={styles.jumpOverPiecesField}>
+                                    <input
+                                        type="checkbox"
+                                        checked={canJumpOverOwnTeam}
+                                        onChange={handleCanJumpOverOwnTeamChange}
+                                    />
+                                    <span>может перепрыгивать свою команду</span>
                                 </label>
                                 <label className={styles.jumpOverPiecesField}>
                                     <input

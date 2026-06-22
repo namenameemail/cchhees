@@ -74,6 +74,12 @@
     overflow: visible;
 }
 
+.figuresPanelPortal {
+    position: fixed;
+    top: 0;
+    left: 0;
+}
+
 .root .trigger :global(svg),
 .root .figureTile :global(svg),
 .root .stateOption :global(svg) {

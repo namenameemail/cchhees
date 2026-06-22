@@ -122,6 +122,7 @@ export async function importCollabSnapshotAsVisitedRoom(
         updatedAt: now,
         lastVisitedAt: now,
         figureCatalog: remapped.figureCatalog,
+        figureTeams: remapped.figureTeams,
         catalogHistory: remapped.catalogHistory,
         boards: remapped.boards,
         activeBoardId: remapped.activeBoardId,

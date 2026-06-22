@@ -1,18 +1,13 @@
-import {
-    FigureCatalog,
-    FigureMoveRule,
-    FigureMoveDirection,
-    FigurePlacement,
-} from '../types/figures'
+import { FigureCatalog, FigureMoveDirection, FigureMoveRule, FigurePlacement, FigureTeams } from '../types/figures'
 import {
     normalizeFigureMoveRules,
     normalizeFigureTeam,
     resolveFigureDefinition,
-    resolveFigureMoveDirection,
+    resolveFigureMoveDirectionFromCatalog,
     resolveFigureState,
     resolvePlacementStateIndex,
 } from '../figureView'
-import { resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../moveRules'
+import { resolveCanJumpOverOwnTeam, resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../moveRules'
 
 export interface FigureMoveDebugInfo {
     figureId: string
@@ -21,12 +16,14 @@ export interface FigureMoveDebugInfo {
     moveDirection: FigureMoveDirection
     jumpOverPieces: boolean
     canStepOnOwnTeam: boolean
+    canJumpOverOwnTeam: boolean
     moveRules: FigureMoveRule[]
 }
 
 export function buildFigureMoveDebugInfo(
     catalog: FigureCatalog,
     placement: FigurePlacement,
+    figureTeams?: FigureTeams,
 ): FigureMoveDebugInfo {
     const definition = resolveFigureDefinition(placement.figureId, catalog)
     const stateIndex = resolvePlacementStateIndex(placement)
@@ -37,9 +34,10 @@ export function buildFigureMoveDebugInfo(
         figureId: placement.figureId,
         stateIndex,
         ...(team !== undefined ? { team } : {}),
-        moveDirection: resolveFigureMoveDirection(definition),
+        moveDirection: resolveFigureMoveDirectionFromCatalog(catalog, placement.figureId, figureTeams),
         jumpOverPieces: resolveJumpOverPieces(state),
         canStepOnOwnTeam: resolveCanStepOnOwnTeam(state),
+        canJumpOverOwnTeam: resolveCanJumpOverOwnTeam(state),
         moveRules: normalizeFigureMoveRules(state.moveRules),
     }
 }
@@ -61,7 +59,8 @@ export function formatFigureMoveDebugBrief(info: FigureMoveDebugInfo): string {
     const teamPart = info.team !== undefined ? ` team=${info.team}` : ''
     const jumpPart = info.jumpOverPieces ? ' jump=1' : ' jump=0'
     const ownTeamPart = info.canStepOnOwnTeam ? ' ownTeam=1' : ' ownTeam=0'
+    const jumpOwnTeamPart = info.canJumpOverOwnTeam ? ' jumpOwnTeam=1' : ' jumpOwnTeam=0'
 
-    return `${info.figureId}#${info.stateIndex}${teamPart} dir=${info.moveDirection}${jumpPart}${ownTeamPart}`
+    return `${info.figureId}#${info.stateIndex}${teamPart} dir=${info.moveDirection}${jumpPart}${ownTeamPart}${jumpOwnTeamPart}`
         + ` rules=${formatMoveRulesBrief(info.moveRules)}`
 }

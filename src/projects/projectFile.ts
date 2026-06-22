@@ -23,6 +23,7 @@ export interface ProjectFileV2 {
         name: string
         updatedAt: number
         figureCatalog: unknown
+        figureTeams?: unknown
         catalogHistory: unknown
         boards: unknown
         activeBoardId: string
@@ -133,6 +134,7 @@ export async function buildProjectExportFile(project: Project): Promise<ProjectF
             name: project.name,
             updatedAt: project.updatedAt,
             figureCatalog: persist.figureCatalog,
+            figureTeams: persist.figureTeams,
             catalogHistory: persist.catalogHistory,
             boards: persist.boards,
             activeBoardId: persist.activeBoardId,
@@ -154,6 +156,7 @@ function normalizeImportProject(file: ProjectFile): Project {
             name: file.project.name,
             updatedAt: file.project.updatedAt ?? Date.now(),
             figureCatalog: file.project.figureCatalog,
+            figureTeams: file.project.figureTeams,
             catalogHistory: file.project.catalogHistory,
             boards: file.project.boards,
             activeBoardId: file.project.activeBoardId,
@@ -215,6 +218,7 @@ export async function importProjectFromFile(
         name: resolveImportName(migrated.name.trim() || 'Импортированный проект', existingProjects),
         updatedAt: Date.now(),
         figureCatalog: remapped.figureCatalog,
+        figureTeams: remapped.figureTeams,
         catalogHistory: remapped.catalogHistory,
         boards: remapped.boards,
         activeBoardId: remapped.activeBoardId,

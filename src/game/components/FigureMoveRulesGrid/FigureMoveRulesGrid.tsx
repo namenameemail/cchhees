@@ -68,6 +68,7 @@ const LANDING_LABELS: Record<FigureMoveRuleLanding, string> = {
     empty: 'пустая',
     capture: 'занятая',
     any: 'любая',
+    jumpOver: 'перепрыг',
 }
 
 function getLandingCellClassName(landing: FigureMoveRuleLanding | undefined): string {
@@ -78,6 +79,8 @@ function getLandingCellClassName(landing: FigureMoveRuleLanding | undefined): st
             return styles.cellRuleCapture
         case 'any':
             return styles.cellRuleAny
+        case 'jumpOver':
+            return styles.cellRuleJumpOver
     }
 }
 

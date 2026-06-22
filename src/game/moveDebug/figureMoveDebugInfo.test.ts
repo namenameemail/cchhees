@@ -13,6 +13,7 @@ describe('figureMoveDebugInfo', () => {
                 moveRules: [{ x: 0, y: 1, n: 2, landing: 'empty' as const }],
                 jumpOverPieces: false,
                 canStepOnOwnTeam: false,
+                canJumpOverOwnTeam: false,
             }],
         }]
 
@@ -25,6 +26,7 @@ describe('figureMoveDebugInfo', () => {
             moveDirection: 'up',
             jumpOverPieces: false,
             canStepOnOwnTeam: false,
+            canJumpOverOwnTeam: false,
             moveRules: [{ x: 0, y: 1, n: 2, landing: 'empty' }],
         })
     })

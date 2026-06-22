@@ -13,6 +13,7 @@ export function CollabGameBridge() {
         figuresHistory,
         boardHistory,
         figureCatalog,
+        figureTeams,
         catalogHistory,
         applyRemotePersistData,
         applyRemoteOps,
@@ -30,6 +31,7 @@ export function CollabGameBridge() {
                 return {
                     ...base,
                     figureCatalog: figureCatalog ?? base.figureCatalog,
+                    figureTeams: figureTeams ?? base.figureTeams,
                     catalogHistory: catalogHistory ?? base.catalogHistory,
                     activeBoardId,
                     boards: base.boards.map(board => (
@@ -58,6 +60,7 @@ export function CollabGameBridge() {
         figuresHistory,
         boardHistory,
         figureCatalog,
+        figureTeams,
         catalogHistory,
         applyRemotePersistData,
         applyRemoteOps,

@@ -345,6 +345,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             const updated: VisitedRoom = {
                 ...room,
                 figureCatalog: data.figureCatalog,
+                figureTeams: data.figureTeams,
                 catalogHistory: data.catalogHistory,
                 boards: data.boards,
                 activeBoardId: data.activeBoardId,
@@ -373,6 +374,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         const updated: Project = {
             ...project,
             figureCatalog: data.figureCatalog,
+            figureTeams: data.figureTeams,
             catalogHistory: data.catalogHistory,
             boards: data.boards,
             activeBoardId: data.activeBoardId,
@@ -706,6 +708,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             const updated: VisitedRoom = {
                 ...room,
                 figureCatalog: project.figureCatalog,
+                figureTeams: project.figureTeams,
                 catalogHistory: project.catalogHistory,
                 boards: project.boards,
                 activeBoardId: project.activeBoardId,

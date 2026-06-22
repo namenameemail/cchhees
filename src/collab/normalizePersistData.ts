@@ -1,10 +1,16 @@
 import { LegacyBoardSlice, LegacyFiguresSlice } from '../game/state/migrate'
 import { SliceHistory } from '../game/types/history'
 import { LegacySingleBoardProject, ProjectPersistData, migrateProject, projectToPersistData } from '../projects/types'
+import { migrateFigureTeamsFromCatalog } from '../game/figureTeams'
 
 export function normalizeCollabPersistData(data: unknown): ProjectPersistData {
     if (data && typeof data === 'object' && 'boards' in data && 'figureCatalog' in data) {
-        return data as ProjectPersistData
+        const persist = data as ProjectPersistData
+
+        return {
+            ...persist,
+            figureTeams: migrateFigureTeamsFromCatalog(persist.figureCatalog, persist.figureTeams),
+        }
     }
 
     const legacy = data as {

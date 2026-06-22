@@ -4,6 +4,7 @@ import { ProjectPersistData } from '../projects/types'
 function buildCollabStateOnlyData(data: ProjectPersistData): ProjectPersistData {
     return {
         figureCatalog: data.figureCatalog,
+        figureTeams: data.figureTeams,
         catalogHistory: historyInit(),
         activeBoardId: data.activeBoardId,
         boards: data.boards.map(board => ({

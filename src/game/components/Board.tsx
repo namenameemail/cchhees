@@ -45,7 +45,7 @@ export interface BoardProps {
 
 export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ className }, ref) {
 
-    const { state, figuresSlice, mode, activeCell, figureCatalog, previewCellStyleRuleIndex, figureBoardAnimations, isFreeMoveEnabled } = useGameContext()
+    const { state, figuresSlice, mode, activeCell, figureCatalog, figureTeams, previewCellStyleRuleIndex, figureBoardAnimations, isFreeMoveEnabled } = useGameContext()
     const selectionGradientId = useId().replace(/:/g, '')
     const selectionOverlayGradientId = useId().replace(/:/g, '')
     const legalMoveGradientId = useId().replace(/:/g, '')
@@ -190,9 +190,10 @@ export const Board = forwardRef<SVGSVGElement, BoardProps>(function Board({ clas
                 placement,
                 figureCatalog ?? state.figureCatalog,
                 isFreeMoveEnabled,
+                figureTeams,
             ).map(coordKey),
         )
-    }, [mode, activeCell, figuresSlice.figuresByCoord, state.boardParameters, n, figureCatalog, state.figureCatalog, isFreeMoveEnabled])
+    }, [mode, activeCell, figuresSlice.figuresByCoord, state.boardParameters, n, figureCatalog, state.figureCatalog, isFreeMoveEnabled, figureTeams])
 
     const numberingClipRadius = useMemo(
         () => getAxisNumberingFrameClipRadius(boardParameters),

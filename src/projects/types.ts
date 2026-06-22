@@ -1,6 +1,6 @@
 import { GameState } from '../game/types/gameState'
 import { SliceHistory, historyInit, normalizeSliceHistory } from '../game/types/history'
-import { FigureCatalog } from '../game/types/figures'
+import { FigureCatalog, FigureTeams } from '../game/types/figures'
 import {
     FiguresSlice,
     BoardSlice,
@@ -24,6 +24,7 @@ import {
     migrateGameStateStyleRules,
 } from '../game/styleRules/migrateStyleRules'
 import { createDefaultFigureCatalog, migrateToFigureCatalog } from '../game/figureView'
+import { migrateFigureTeamsFromCatalog } from '../game/figureTeams'
 import { initialGameState } from '../game/utils'
 import { createEmptyBoardDocument } from './boardDocument'
 
@@ -41,6 +42,7 @@ export interface Project {
     name: string
     updatedAt: number
     figureCatalog: FigureCatalog
+    figureTeams: FigureTeams
     catalogHistory: SliceHistory<FigureCatalog>
     boards: BoardDocument[]
     activeBoardId: string
@@ -50,6 +52,7 @@ export interface Project {
 
 export interface ProjectPersistData {
     figureCatalog: FigureCatalog
+    figureTeams: FigureTeams
     catalogHistory: SliceHistory<FigureCatalog>
     boards: BoardDocument[]
     activeBoardId: string
@@ -72,6 +75,7 @@ export interface LegacySingleBoardProject {
     boardHistory?: SliceHistory<unknown>
     previewDataUrl?: string
     figureCatalog?: FigureCatalog
+    figureTeams?: FigureTeams
     catalogHistory?: SliceHistory<FigureCatalog>
     boards?: BoardDocument[]
     activeBoardId?: string
@@ -141,6 +145,7 @@ function migrateLegacySingleBoard(project: LegacySingleBoardProject): Project {
         name: project.name,
         updatedAt: project.updatedAt,
         figureCatalog,
+        figureTeams: migrateFigureTeamsFromCatalog(figureCatalog, (project as Project).figureTeams),
         catalogHistory,
         boards: [boardDocument],
         activeBoardId: boardDocument.id,
@@ -180,6 +185,10 @@ export function migrateProject(project: LegacySingleBoardProject | Project): Pro
             name: project.name,
             updatedAt: project.updatedAt,
             figureCatalog: cloneFigureCatalog(project.figureCatalog),
+            figureTeams: migrateFigureTeamsFromCatalog(
+                cloneFigureCatalog(project.figureCatalog),
+                (project as Project).figureTeams,
+            ),
             catalogHistory: project.catalogHistory ?? historyInit<FigureCatalog>(),
             boards,
             activeBoardId: activeExists ? project.activeBoardId : boards[0]!.id,
@@ -214,6 +223,7 @@ export function getActiveBoardGameState(project: Project): GameState {
 export function projectToPersistData(project: Project): ProjectPersistData {
     return {
         figureCatalog: cloneFigureCatalog(project.figureCatalog),
+        figureTeams: migrateFigureTeamsFromCatalog(project.figureCatalog, project.figureTeams),
         catalogHistory: project.catalogHistory,
         boards: project.boards.map(board => ({
             ...board,
@@ -246,6 +256,7 @@ export function createEmptyProjectData(name: string): Project {
         name,
         updatedAt: Date.now(),
         figureCatalog: catalog,
+        figureTeams: migrateFigureTeamsFromCatalog(catalog),
         catalogHistory: historyInit<FigureCatalog>(),
         boards: [board],
         activeBoardId: board.id,

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { defaultGameContextValue } from '../utils'
 import { GameContextValue } from './types'
-import { FigureId, FigureMoveRule, FigureMoveDirection, FigurePlacement, FigureViewParams, FigureCatalog } from '../types/figures'
+import { FigureId, FigureMoveRule, FigureMoveDirection, FigurePlacement, FigureViewParams, FigureCatalog, FigureTeams } from '../types/figures'
 import { FigureEventRule } from '../types/events'
 import {
     createNewFigureDefinition,
@@ -26,11 +26,17 @@ import { ActiveBoardPersistPayload } from '../../projects/projectPersist'
 import { Mode } from '../types'
 import { BoardParameters } from '../types/boardParameters'
 import { normalizeBoardFigureAnimationSettings } from '../figureAnimation/resolveFigureAnimationSettings'
-import { resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../moveRules'
+import { resolveCanJumpOverOwnTeam, resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../moveRules'
 import { ConnectionParams } from '../types/connections'
 import { BoardStyleRule } from '../types/styleRules'
 import { cellParametersBrushStateInitialValue, connectionParamsBrushStateInitialValue } from './constants'
 import { migrateBoardAndCatalogEventRules } from '../state/boardEventRules'
+import {
+    applyTeamMembersToCatalog,
+    migrateFigureTeamsFromCatalog,
+    normalizeFigureTeams,
+} from '../figureTeams'
+import { normalizeFigureTeam } from '../figureView'
 import {
     FiguresSlice,
     BoardSlice,
@@ -75,6 +81,7 @@ export interface GameProviderProps {
     initialFiguresHistory: SliceHistory<FiguresSlice>
     initialBoardHistory: SliceHistory<BoardSlice>
     initialCatalogHistory: SliceHistory<FigureCatalog>
+    initialFigureTeams?: FigureTeams
     onPersist?: (data: ActiveBoardPersistPayload) => void
     onCollabOp?: (op: CollabOp | CollabOp[]) => void
 }
@@ -87,6 +94,7 @@ export function GameProvider({
     initialFiguresHistory,
     initialBoardHistory,
     initialCatalogHistory,
+    initialFigureTeams,
     onPersist,
     onCollabOp,
 }: GameProviderProps) {
@@ -113,6 +121,9 @@ export function GameProvider({
     const [figuresHistory, setFiguresHistory] = useState(initialFiguresHistory)
     const [boardHistory, setBoardHistory] = useState(initialBoardHistory)
     const [catalogHistory, setCatalogHistory] = useState(initialCatalogHistory)
+    const [figureTeams, setFigureTeamsState] = useState<FigureTeams>(() =>
+        migrateFigureTeamsFromCatalog(cloneFigureCatalog(initialCatalog), initialFigureTeams),
+    )
 
     const [state, setState] = useState<GameState>(() =>
         composeGameState(
@@ -263,12 +274,14 @@ export function GameProvider({
         figuresHistory,
         boardHistory,
         figureCatalog,
+        figureTeams,
         catalogHistory,
         figuresSlice,
         boardSlice,
         setFiguresSlice,
         setBoardSlice,
         setFigureCatalog,
+        setFigureTeams: setFigureTeamsState,
         setFiguresHistory,
         setBoardHistory,
         setCatalogHistory,
@@ -312,6 +325,7 @@ export function GameProvider({
         activeCell,
         figuresSlice,
         figureCatalog,
+        figureTeams,
         eventRules: boardSlice.eventRules ?? [],
         boardParameters: state.boardParameters,
         isFigureAnimating,
@@ -463,6 +477,7 @@ export function GameProvider({
         moveRules: FigureMoveRule[],
         jumpOverPieces?: boolean,
         canStepOnOwnTeam?: boolean,
+        canJumpOverOwnTeam?: boolean,
     ) => {
         const entry = figureCatalog.find(item => item.id === figureId)
         const currentState = entry?.states[Math.min(Math.max(0, stateIndex), (entry?.states.length ?? 1) - 1)]
@@ -473,6 +488,7 @@ export function GameProvider({
                 moveRules,
                 jumpOverPieces: jumpOverPieces ?? resolveJumpOverPieces(state),
                 canStepOnOwnTeam: canStepOnOwnTeam ?? resolveCanStepOnOwnTeam(state),
+                canJumpOverOwnTeam: canJumpOverOwnTeam ?? resolveCanJumpOverOwnTeam(state),
             })),
             true,
             {
@@ -482,6 +498,7 @@ export function GameProvider({
                 moveRules,
                 jumpOverPieces: jumpOverPieces ?? (currentState ? resolveJumpOverPieces(currentState) : true),
                 canStepOnOwnTeam: canStepOnOwnTeam ?? (currentState ? resolveCanStepOnOwnTeam(currentState) : false),
+                canJumpOverOwnTeam: canJumpOverOwnTeam ?? (currentState ? resolveCanJumpOverOwnTeam(currentState) : false),
             },
         )
     }, [figureCatalog, applyCatalogChange])
@@ -554,6 +571,39 @@ export function GameProvider({
             true,
             { kind: 'figure-team', figureId, team: normalizedTeam },
         )
+    }, [figureCatalog, applyCatalogChange])
+
+    const setFigureTeams = useCallback((teams: FigureTeams) => {
+        const normalized = normalizeFigureTeams(teams)
+        setFigureTeamsState(normalized)
+        emitCollabOp({ kind: 'figure-teams', teams: normalized })
+    }, [emitCollabOp])
+
+    const setTeamMembers = useCallback((teamId: number, figureIds: FigureId[]) => {
+        const nextCatalog = applyTeamMembersToCatalog(figureCatalog, teamId, figureIds)
+        const collabOps: CollabOp[] = []
+
+        for (const entry of figureCatalog) {
+            const previousTeam = normalizeFigureTeam(entry.team)
+            const nextEntry = nextCatalog.find(item => item.id === entry.id)
+            const nextTeam = normalizeFigureTeam(nextEntry?.team)
+
+            if (previousTeam === nextTeam) {
+                continue
+            }
+
+            collabOps.push({
+                kind: 'figure-team',
+                figureId: entry.id,
+                team: nextTeam,
+            })
+        }
+
+        if (collabOps.length === 0) {
+            return
+        }
+
+        applyCatalogChange(nextCatalog, true, collabOps)
     }, [figureCatalog, applyCatalogChange])
 
     const setFigureMoveDirection = useCallback((figureId: FigureId, moveDirection: FigureMoveDirection) => {
@@ -763,6 +813,7 @@ export function GameProvider({
             figuresHistory,
             boardHistory,
             figureCatalog,
+            figureTeams,
             catalogHistory,
             undoFigures,
             redoFigures,
@@ -798,6 +849,8 @@ export function GameProvider({
             addFigureState,
             removeFigureState,
             setFigureTeam,
+            setFigureTeams,
+            setTeamMembers,
             setFigureMoveDirection,
             setBoardEventRules,
             addFigure,
@@ -815,6 +868,7 @@ export function GameProvider({
             figuresHistory,
             boardHistory,
             figureCatalog,
+            figureTeams,
             catalogHistory,
             undoFigures,
             redoFigures,
@@ -845,6 +899,8 @@ export function GameProvider({
             addFigureState,
             removeFigureState,
             setFigureTeam,
+            setFigureTeams,
+            setTeamMembers,
             setFigureMoveDirection,
             setBoardEventRules,
             addFigure,

@@ -5,6 +5,7 @@ import {
 } from '../../types/events'
 import { FigurePlacement } from '../../types/figures'
 import {
+    FIGURE_SUBJECT_HOPPED_OVER,
     FIGURE_SUBJECT_MOVED,
     FIGURE_SUBJECT_STEPPED_ON,
     isConcreteFigureFilter,
@@ -99,6 +100,32 @@ function resolveFilteredSubjects(
     return instances
 }
 
+function resolveHoppedOverSubject(ctx: SubjectResolutionContext): SubjectInstance[] {
+    const hopped = ctx.move?.hoppedFigures ?? []
+
+    if (hopped.length === 0) {
+        return []
+    }
+
+    const hoppedIds = new Set(hopped.map(placement => placement.instanceId))
+    const board = ctx.beforeBoard ?? ctx.figuresByCoord
+    const instances: SubjectInstance[] = []
+
+    for (const { coord, placement } of iterBoardPlacements(board)) {
+        if (!hoppedIds.has(placement.instanceId)) {
+            continue
+        }
+
+        instances.push({
+            placement,
+            coord,
+            beforeCoord: coord,
+        })
+    }
+
+    return instances
+}
+
 function resolveEntryInstances(
     entry: FigureEventFigureFilter,
     ctx: SubjectResolutionContext,
@@ -109,6 +136,10 @@ function resolveEntryInstances(
 
     if (entry.figureId === FIGURE_SUBJECT_STEPPED_ON) {
         return resolveSteppedOnSubject(ctx)
+    }
+
+    if (entry.figureId === FIGURE_SUBJECT_HOPPED_OVER) {
+        return resolveHoppedOverSubject(ctx)
     }
 
     if (isFigureFilterAny(entry.figureId)) {

@@ -1,5 +1,5 @@
 
-import { FigureId, FigureMoveRule, FigurePlacement, FigureViewParams, FigureCatalog } from '../types/figures'
+import { FigureId, FigureMoveRule, FigureMoveDirection, FigurePlacement, FigureViewParams, FigureCatalog, FigureTeams } from '../types/figures'
 import { FigureEventRule } from '../types/events'
 import { CellParameters } from '../types/cells'
 import { GameState } from '../types/gameState'
@@ -23,6 +23,7 @@ export interface GameContextValue {
     figuresHistory: SliceHistory<FiguresSlice>
     boardHistory: SliceHistory<BoardSlice>
     figureCatalog: FigureCatalog
+    figureTeams: FigureTeams
     catalogHistory: SliceHistory<FigureCatalog>
     undoFigures: () => void
     redoFigures: () => void
@@ -72,10 +73,13 @@ export interface GameContextValue {
         moveRules: FigureMoveRule[],
         jumpOverPieces?: boolean,
         canStepOnOwnTeam?: boolean,
+        canJumpOverOwnTeam?: boolean,
     ) => void
     addFigureState: (figureId: FigureId) => void
     removeFigureState: (figureId: FigureId, stateIndex: number) => void
     setFigureTeam: (figureId: FigureId, team: number | undefined) => void
+    setFigureTeams: (teams: FigureTeams) => void
+    setTeamMembers: (teamId: number, figureIds: FigureId[]) => void
     setFigureMoveDirection: (figureId: FigureId, moveDirection: FigureMoveDirection) => void
     setBoardEventRules: (eventRules: FigureEventRule[]) => void
     addFigure: () => void

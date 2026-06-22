@@ -1,0 +1,49 @@
+.teamRow {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e8e8e8;
+}
+
+.teamRow:last-of-type {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.teamHeader {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.teamNameInput {
+    flex: 1;
+    min-width: 0;
+    height: 22px;
+    padding: 0 6px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.teamNameInput:focus {
+    outline: none;
+    border-color: #888;
+}
+
+.teamRemoveButton {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    border: 1px solid #999;
+    background: white;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.teamRemoveButton:hover {
+    background: #f5e0e0;
+    border-color: #a44;
+}

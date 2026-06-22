@@ -1,7 +1,8 @@
 import { GameState } from '../../game/types/gameState'
 import { SliceHistory } from '../../game/types/history'
-import { FigureCatalog } from '../../game/types/figures'
+import { FigureCatalog, FigureTeams } from '../../game/types/figures'
 import { BoardDocument, migrateProject, Project } from '../types'
+import { migrateFigureTeamsFromCatalog } from '../../game/figureTeams'
 
 export const MAX_VISITED_ROOMS = 10
 
@@ -16,6 +17,7 @@ export interface VisitedRoom {
     updatedAt: number
     lastVisitedAt: number
     figureCatalog: FigureCatalog
+    figureTeams: FigureTeams
     catalogHistory: SliceHistory<FigureCatalog>
     boards: BoardDocument[]
     activeBoardId: string
@@ -32,6 +34,7 @@ export function visitedRoomToProject(room: VisitedRoom): Project {
         name: room.name,
         updatedAt: room.updatedAt,
         figureCatalog: room.figureCatalog,
+        figureTeams: room.figureTeams,
         catalogHistory: room.catalogHistory,
         boards: room.boards,
         activeBoardId: room.activeBoardId,
@@ -102,7 +105,13 @@ export function migrateVisitedRoom(raw: unknown): VisitedRoom {
     const room = raw as Partial<VisitedRoom> & Partial<LegacyVisitedRoomV4> & Partial<LegacyVisitedRoomV3>
 
     if (room.boards && room.activeBoardId && room.figureCatalog) {
-        return room as VisitedRoom
+        return {
+            ...(room as VisitedRoom),
+            figureTeams: migrateFigureTeamsFromCatalog(
+                room.figureCatalog,
+                (room as VisitedRoom).figureTeams,
+            ),
+        }
     }
 
     if (room.gameState && room.hostProjectId && room.localProjectId) {
@@ -121,7 +130,7 @@ function wrapLegacySingleBoardRoom(legacy: {
     figuresHistory: BoardDocument['figuresHistory']
     boardHistory: BoardDocument['boardHistory']
     previewDataUrl?: string
-}): Pick<VisitedRoom, 'figureCatalog' | 'catalogHistory' | 'boards' | 'activeBoardId' | 'previewDataUrl'> {
+}): Pick<VisitedRoom, 'figureCatalog' | 'figureTeams' | 'catalogHistory' | 'boards' | 'activeBoardId' | 'previewDataUrl'> {
     const project: Project = migrateProject({
         id: 'legacy',
         name: 'legacy',
@@ -134,6 +143,7 @@ function wrapLegacySingleBoardRoom(legacy: {
 
     return {
         figureCatalog: project.figureCatalog,
+        figureTeams: project.figureTeams,
         catalogHistory: project.catalogHistory,
         boards: project.boards,
         activeBoardId: project.activeBoardId,
