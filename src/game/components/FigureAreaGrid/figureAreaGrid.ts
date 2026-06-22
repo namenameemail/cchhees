@@ -5,7 +5,6 @@ import {
     normalizeFigureAreaCells,
 } from '../../figureAreaCells'
 import {
-    clampGridN,
     getMoveGridCellSize,
     getMoveGridSize,
     isCenterOffset,
@@ -29,7 +28,14 @@ export function getMinAreaGridN(cells: FigureEventAreaCell[]): number {
 }
 
 export function clampAreaGridN(n: number, cells: FigureEventAreaCell[]): number {
-    return clampGridN(n, cells.map(cell => ({ x: cell.x, y: cell.y, n: 1 })))
+    const minN = getMinAreaGridN(cells)
+    const truncated = Math.trunc(n)
+
+    if (!Number.isFinite(truncated)) {
+        return minN
+    }
+
+    return Math.max(minN, Math.min(MAX_MOVE_GRID_N, truncated))
 }
 
 export function hasAreaCell(cells: FigureEventAreaCell[], x: number, y: number): boolean {

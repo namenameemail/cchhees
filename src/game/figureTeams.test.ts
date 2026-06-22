@@ -8,6 +8,12 @@ import {
     nextTeamId,
     normalizeFigureTeams,
 } from './figureTeams'
+import {
+    migrateBoardTeamMoveDirections,
+    normalizeTeamMoveDirections,
+    patchBoardTeamMoveDirection,
+    resolveBoardTeamMoveDirection,
+} from './boardTeamDirections'
 
 const catalog: FigureCatalog = [
     { id: 'A', states: [{ viewParams: {} }], team: 0 },
@@ -28,12 +34,12 @@ describe('normalizeFigureTeams', () => {
         ])
     })
 
-    it('preserves moveDirection when normalizing teams', () => {
+    it('strips moveDirection from teams', () => {
         expect(normalizeFigureTeams([
             { id: 0, name: 'White', moveDirection: 'right' },
             { id: 1, name: 'Black', moveDirection: 'up' },
         ])).toEqual([
-            { id: 0, name: 'White', moveDirection: 'right' },
+            { id: 0, name: 'White' },
             { id: 1, name: 'Black' },
         ])
     })
@@ -53,15 +59,54 @@ describe('migrateFigureTeamsFromCatalog', () => {
             { id: 1, name: defaultTeamName(1) },
         ])
     })
+})
 
-    it('infers moveDirection from catalog figures', () => {
-        const catalogWithDirection: FigureCatalog = [
-            { id: 'A', states: [{ viewParams: {} }], team: 0, moveDirection: 'right' },
-        ]
+describe('board team directions', () => {
+    it('migrates legacy team moveDirection to board parameters', () => {
+        const boardParameters = { n: 8, m: 8 } as never
+        const figureTeams = [{ id: 0, name: 'White', moveDirection: 'right' as const }]
 
-        expect(migrateFigureTeamsFromCatalog(catalogWithDirection)).toEqual([
-            { id: 0, name: defaultTeamName(0), moveDirection: 'right' },
-        ])
+        expect(migrateBoardTeamMoveDirections(boardParameters, figureTeams)).toEqual({
+            n: 8,
+            m: 8,
+            teamMoveDirections: { 0: 'right' },
+        })
+    })
+
+    it('resolves direction from board parameters', () => {
+        const boardParameters = {
+            n: 8,
+            m: 8,
+            teamMoveDirections: { 0: 'left' },
+        } as never
+
+        expect(resolveBoardTeamMoveDirection(boardParameters, 0)).toBe('left')
+        expect(resolveBoardTeamMoveDirection(boardParameters, 1)).toBeUndefined()
+    })
+
+    it('patches team direction on board', () => {
+        const boardParameters = { n: 8, m: 8 } as never
+
+        expect(patchBoardTeamMoveDirection(boardParameters, 0, 'down')).toEqual({
+            n: 8,
+            m: 8,
+            teamMoveDirections: { 0: 'down' },
+        })
+
+        expect(patchBoardTeamMoveDirection(
+            patchBoardTeamMoveDirection(boardParameters, 0, 'down'),
+            0,
+            'up',
+        )).toEqual({
+            n: 8,
+            m: 8,
+        })
+    })
+
+    it('normalizes teamMoveDirections map', () => {
+        expect(normalizeTeamMoveDirections({ 0: 'right', 1: 'up', x: 'left' })).toEqual({
+            0: 'right',
+        })
     })
 })
 

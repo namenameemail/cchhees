@@ -231,6 +231,10 @@
 }
 
 .moveRulesSection {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 12px;
     padding: 4px 6px;
     width: 100%;
     box-sizing: border-box;

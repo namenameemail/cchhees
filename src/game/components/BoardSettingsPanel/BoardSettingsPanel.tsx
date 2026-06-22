@@ -12,16 +12,18 @@ import { ProjectImageSelect } from '../../../projects/components/ProjectImageSel
 import { BoardStyleRules } from '../BoardStyleRules'
 import { BoardAxisNumberingsForm } from './BoardAxisNumberingsForm'
 import { BoardMarksForm } from './BoardMarksForm'
+import { BoardTeamDirectionsForm } from './BoardTeamDirectionsForm'
 import { normalizeAxisNumberingForBoard, resolveAxisNumberings } from '../../boardAxisLabels'
 import styles from './styles.module.css'
 
-type BoardSectionTab = 'view' | 'cells' | 'numbering' | 'marks'
+type BoardSectionTab = 'view' | 'cells' | 'numbering' | 'marks' | 'teams'
 
 const BOARD_SECTION_TABS: Array<{ id: BoardSectionTab; label: string }> = [
     { id: 'view', label: 'вид' },
     { id: 'cells', label: 'клетки' },
     { id: 'numbering', label: 'нумерация' },
     { id: 'marks', label: 'отметки' },
+    { id: 'teams', label: 'команды' },
 ]
 
 const BackgroundAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
@@ -230,6 +232,7 @@ export const BoardSettingsPanel: FC = () => {
                         {id === 'cells' && <BoardStyleRules />}
                         {id === 'numbering' && <BoardAxisNumberingsForm />}
                         {id === 'marks' && <BoardMarksForm />}
+                        {id === 'teams' && <BoardTeamDirectionsForm />}
                     </div>
                 ))}
             </div>

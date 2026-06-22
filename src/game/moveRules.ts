@@ -1,6 +1,16 @@
 import { BoardParameters } from './types/boardParameters'
 import { CellCoord, coordKey, coordsEqual, isCoordInGrid } from './types/coords'
-import { FigureCatalog, FigureDefinition, FigureId, FigureMoveDirection, FigureMoveRule, FigureMoveRuleLanding, FigurePlacement, FigureState, FigureTeams } from './types/figures'
+import {
+    FigureCatalog,
+    FigureDefinition,
+    FigureId,
+    FigureMoveDirection,
+    FigureMoveRule,
+    FigureMoveVariant,
+    FigurePlacement,
+    FigureState,
+    FigureTeams,
+} from './types/figures'
 import { FiguresSlice } from './state/slices'
 import { getTopOfStack, isStackOccupied } from './figureStack'
 import {
@@ -12,6 +22,7 @@ import {
     resolveFigureState,
     resolvePlacementStateIndex,
 } from './figureView'
+import { evaluateMoveVariantConditions, MoveVariantConditionContext } from './moveRules/evaluateMoveConditions'
 
 export interface MoveDelta {
     di: number
@@ -25,52 +36,32 @@ export function getMoveDelta(from: CellCoord, to: CellCoord): MoveDelta {
     }
 }
 
-export function matchMoveRule(delta: MoveDelta, rule: { x: number; y: number; n?: number }): number | null {
+export function matchMoveSteps(delta: MoveDelta, rule: { x: number; y: number }): number | null {
     const { x, y } = rule
     const { di, dj } = delta
 
-    if (x === 0 && y === 0) {
-        return null
-    }
-
-    if (di === 0 && dj === 0) {
+    if (x === 0 && y === 0 || di === 0 && dj === 0) {
         return null
     }
 
     if (x === 0) {
-        if (di !== 0) {
-            return null
-        }
-
-        if (dj % y !== 0) {
+        if (di !== 0 || dj % y !== 0) {
             return null
         }
 
         const k = dj / y
 
-        if (!Number.isInteger(k) || k < 1) {
-            return null
-        }
-
-        return satisfiesMoveDistance(k, rule.n)
+        return Number.isInteger(k) && k >= 1 ? k : null
     }
 
     if (y === 0) {
-        if (dj !== 0) {
-            return null
-        }
-
-        if (di % x !== 0) {
+        if (dj !== 0 || di % x !== 0) {
             return null
         }
 
         const k = di / x
 
-        if (!Number.isInteger(k) || k < 1) {
-            return null
-        }
-
-        return satisfiesMoveDistance(k, rule.n)
+        return Number.isInteger(k) && k >= 1 ? k : null
     }
 
     if (di % x !== 0 || dj % y !== 0) {
@@ -80,25 +71,15 @@ export function matchMoveRule(delta: MoveDelta, rule: { x: number; y: number; n?
     const kx = di / x
     const ky = dj / y
 
-    if (kx !== ky || !Number.isInteger(kx) || kx < 1) {
-        return null
-    }
-
-    return satisfiesMoveDistance(kx, rule.n)
+    return kx === ky && Number.isInteger(kx) && kx >= 1 ? kx : null
 }
 
-function satisfiesMoveDistance(k: number, n: number | undefined): number | null {
-    const resolvedN = n === undefined ? 1 : n
-
-    if (resolvedN === 0) {
-        return k
+function satisfiesVariantLength(k: number, length: number): boolean {
+    if (length === 0) {
+        return k >= 1
     }
 
-    if (k >= 1 && k <= resolvedN) {
-        return k
-    }
-
-    return null
+    return k >= 1 && k <= length
 }
 
 export function getCoordAlongRule(from: CellCoord, rule: { x: number; y: number }, k: number): CellCoord {
@@ -115,94 +96,62 @@ export function collectIntermediateCells(
 ): CellCoord[] {
     const cells: CellCoord[] = []
 
-    if (k > 1) {
-        for (let step = 1; step < k; step += 1) {
-            cells.push(getCoordAlongRule(from, rule, step))
-        }
-
-        return cells
+    for (let step = 1; step < k; step += 1) {
+        cells.push(getCoordAlongRule(from, rule, step))
     }
 
-    const ux = rule.x === 0 ? 0 : Math.sign(rule.x)
-    const uy = rule.y === 0 ? 0 : Math.sign(rule.y)
-    const steps = Math.max(Math.abs(rule.x), Math.abs(rule.y))
+    return cells
+}
 
-    for (let step = 1; step < steps; step += 1) {
+function gcd(a: number, b: number): number {
+    const absA = Math.abs(a)
+    const absB = Math.abs(b)
+
+    if (absA === 0) {
+        return absB
+    }
+
+    if (absB === 0) {
+        return absA
+    }
+
+    let x = absA
+    let y = absB
+
+    while (y !== 0) {
+        const remainder = x % y
+        x = y
+        y = remainder
+    }
+
+    return x
+}
+
+export function collectMinUnitPathCells(
+    from: CellCoord,
+    rule: { x: number; y: number },
+    k: number,
+): CellCoord[] {
+    const g = gcd(rule.x, rule.y)
+    const totalUnits = k * g
+    const unitX = rule.x / g
+    const unitY = rule.y / g
+    const cells: CellCoord[] = []
+
+    for (let step = 1; step < totalUnits; step += 1) {
         cells.push({
-            i: from.i + ux * step,
-            j: from.j + uy * step,
+            i: from.i + unitX * step,
+            j: from.j + unitY * step,
         })
     }
 
     return cells
 }
 
-function satisfiesJumpOverPath(
-    from: CellCoord,
-    rule: { x: number; y: number },
-    k: number,
-    figuresByCoord: FiguresSlice['figuresByCoord'],
-    actorPlacement?: FigurePlacement,
-    catalog?: FigureCatalog,
-    canJumpOverOwnTeam?: boolean,
-): boolean {
-    let hasJumpedFigure = false
-
-    for (const coord of collectIntermediateCells(from, rule, k)) {
-        if (!isStackOccupied({ figuresByCoord, tray: [] }, coord)) {
-            continue
-        }
-
-        const occupant = getTopOfStack({ figuresByCoord, tray: [] }, coord)
-
-        if (!occupant) {
-            continue
-        }
-
-        if (actorPlacement && occupant.instanceId === actorPlacement.instanceId) {
-            continue
-        }
-
-        if (
-            catalog
-            && actorPlacement
-            && areSameFigureTeam(catalog, actorPlacement.figureId, occupant.figureId)
-            && !canJumpOverOwnTeam
-        ) {
-            return false
-        }
-
-        hasJumpedFigure = true
-    }
-
-    return hasJumpedFigure
-}
-
-export function isIntermediatePathClear(
-    from: CellCoord,
-    rule: { x: number; y: number },
-    k: number,
-    figuresByCoord: FiguresSlice['figuresByCoord'],
-    jumpOverPieces: boolean,
-    actorPlacement?: FigurePlacement,
-    catalog?: FigureCatalog,
-    canJumpOverOwnTeam?: boolean,
-): boolean {
-    if (jumpOverPieces) {
-        return true
-    }
-
-    return collectIntermediateCells(from, rule, k).every(coord => (
-        !isIntermediateCellBlocking(coord, figuresByCoord, actorPlacement, catalog, canJumpOverOwnTeam)
-    ))
-}
-
-function isIntermediateCellBlocking(
+function isOccupiedByOther(
     coord: CellCoord,
     figuresByCoord: FiguresSlice['figuresByCoord'],
     actorPlacement?: FigurePlacement,
-    catalog?: FigureCatalog,
-    canJumpOverOwnTeam?: boolean,
 ): boolean {
     if (!isStackOccupied({ figuresByCoord, tray: [] }, coord)) {
         return false
@@ -214,36 +163,263 @@ function isIntermediateCellBlocking(
         return false
     }
 
-    if (actorPlacement && occupant.instanceId === actorPlacement.instanceId) {
+    return !actorPlacement || occupant.instanceId !== actorPlacement.instanceId
+}
+
+function isPathClear(
+    from: CellCoord,
+    rule: { x: number; y: number },
+    k: number,
+    figuresByCoord: FiguresSlice['figuresByCoord'],
+    actorPlacement?: FigurePlacement,
+    useMinUnitSteps = false,
+): boolean {
+    const pathCells = useMinUnitSteps
+        ? collectMinUnitPathCells(from, rule, k)
+        : collectIntermediateCells(from, rule, k)
+
+    return pathCells.every(coord => (
+        !isOccupiedByOther(coord, figuresByCoord, actorPlacement)
+    ))
+}
+
+function isLandingEmpty(
+    to: CellCoord,
+    figuresByCoord: FiguresSlice['figuresByCoord'],
+    actorPlacement?: FigurePlacement,
+): boolean {
+    return !isOccupiedByOther(to, figuresByCoord, actorPlacement)
+}
+
+function isCaptureLandingAllowed(
+    to: CellCoord,
+    figuresByCoord: FiguresSlice['figuresByCoord'],
+    actorPlacement: FigurePlacement | undefined,
+    allowOwnTeam: boolean,
+    catalog: FigureCatalog | undefined,
+): boolean {
+    if (!isOccupiedByOther(to, figuresByCoord, actorPlacement)) {
         return false
     }
 
-    if (
-        canJumpOverOwnTeam
-        && catalog
-        && actorPlacement
-        && areSameFigureTeam(catalog, actorPlacement.figureId, occupant.figureId)
-    ) {
+    if (allowOwnTeam || !catalog || !actorPlacement) {
+        return true
+    }
+
+    const targetAtTo = getTopOfStack({ figuresByCoord, tray: [] }, to)
+
+    if (!targetAtTo) {
         return false
     }
 
-    return true
+    return !areSameFigureTeam(catalog, actorPlacement.figureId, targetAtTo.figureId)
 }
 
-export function resolveJumpOverPieces(state: Pick<FigureState, 'jumpOverPieces'>): boolean {
-    return state.jumpOverPieces !== false
+function isJumpableOccupant(
+    coord: CellCoord,
+    figuresByCoord: FiguresSlice['figuresByCoord'],
+    actorPlacement: FigurePlacement | undefined,
+    allowOwnTeam: boolean,
+    catalog: FigureCatalog | undefined,
+): boolean {
+    if (!isOccupiedByOther(coord, figuresByCoord, actorPlacement)) {
+        return false
+    }
+
+    if (allowOwnTeam || !catalog || !actorPlacement) {
+        return true
+    }
+
+    const occupant = getTopOfStack({ figuresByCoord, tray: [] }, coord)
+
+    if (!occupant) {
+        return false
+    }
+
+    return !areSameFigureTeam(catalog, actorPlacement.figureId, occupant.figureId)
 }
 
-export function resolveCanStepOnOwnTeam(state: Pick<FigureState, 'canStepOnOwnTeam'>): boolean {
-    return state.canStepOnOwnTeam === true
+function collectJumpedFigures(
+    from: CellCoord,
+    rule: { x: number; y: number },
+    h: number,
+    figuresByCoord: FiguresSlice['figuresByCoord'],
+): FigurePlacement[] {
+    const hopped: FigurePlacement[] = []
+
+    for (let step = 1; step <= h; step += 1) {
+        const coord = getCoordAlongRule(from, rule, step)
+        const occupant = getTopOfStack({ figuresByCoord, tray: [] }, coord)
+
+        if (occupant) {
+            hopped.push(occupant)
+        }
+    }
+
+    return hopped
 }
 
-export function resolveCanJumpOverOwnTeam(state: Pick<FigureState, 'canJumpOverOwnTeam'>): boolean {
-    return state.canJumpOverOwnTeam === true
+function satisfiesJumpOverMove(
+    from: CellCoord,
+    to: CellCoord,
+    rule: { x: number; y: number },
+    k: number,
+    variant: FigureMoveVariant,
+    figuresByCoord: FiguresSlice['figuresByCoord'],
+    actorPlacement: FigurePlacement | undefined,
+    catalog: FigureCatalog | undefined,
+): FigurePlacement[] | null {
+    const h = k - 1
+
+    if (h < 1 || !satisfiesVariantLength(h, variant.length)) {
+        return null
+    }
+
+    const allowOwnTeam = variant.allowOwnTeam === true
+
+    for (let step = 1; step <= h; step += 1) {
+        const coord = getCoordAlongRule(from, rule, step)
+
+        if (!isJumpableOccupant(coord, figuresByCoord, actorPlacement, allowOwnTeam, catalog)) {
+            return null
+        }
+    }
+
+    if (!isLandingEmpty(to, figuresByCoord, actorPlacement)) {
+        return null
+    }
+
+    return collectJumpedFigures(from, rule, h, figuresByCoord)
 }
 
-export function resolveMoveRuleLanding(landing: FigureMoveRuleLanding | undefined): FigureMoveRuleLanding {
-    return landing ?? 'any'
+interface MoveCheckContext {
+    from: CellCoord
+    to: CellCoord
+    orientedRule: FigureMoveRule
+    k: number
+    figuresByCoord: FiguresSlice['figuresByCoord']
+    actorPlacement?: FigurePlacement
+    catalog?: FigureCatalog
+    boardParameters: BoardParameters
+    definitionId: FigureId
+}
+
+function buildConditionContext(
+    ctx: MoveCheckContext,
+    hoppedFigures?: FigurePlacement[],
+): MoveVariantConditionContext | null {
+    if (!ctx.actorPlacement || !ctx.catalog) {
+        return null
+    }
+
+    return {
+        from: ctx.from,
+        to: ctx.to,
+        actorPlacement: ctx.actorPlacement,
+        catalog: ctx.catalog,
+        figuresByCoord: ctx.figuresByCoord,
+        boardParameters: ctx.boardParameters,
+        ownerFigureId: ctx.definitionId,
+        hoppedFigures,
+    }
+}
+
+function satisfiesEmptyVariant(ctx: MoveCheckContext): boolean {
+    const variant = ctx.orientedRule.empty
+
+    if (!variant.enabled || !satisfiesVariantLength(ctx.k, variant.length)) {
+        return false
+    }
+
+    if (!isPathClear(
+        ctx.from,
+        ctx.orientedRule,
+        ctx.k,
+        ctx.figuresByCoord,
+        ctx.actorPlacement,
+        variant.emptyPath === true,
+    )) {
+        return false
+    }
+
+    if (!isLandingEmpty(ctx.to, ctx.figuresByCoord, ctx.actorPlacement)) {
+        return false
+    }
+
+    const conditionCtx = buildConditionContext(ctx)
+
+    if (!conditionCtx) {
+        return true
+    }
+
+    return evaluateMoveVariantConditions(variant.conditions, conditionCtx)
+}
+
+function satisfiesCaptureVariant(ctx: MoveCheckContext): boolean {
+    const variant = ctx.orientedRule.capture
+
+    if (!variant.enabled || !satisfiesVariantLength(ctx.k, variant.length)) {
+        return false
+    }
+
+    if (!isPathClear(ctx.from, ctx.orientedRule, ctx.k, ctx.figuresByCoord, ctx.actorPlacement)) {
+        return false
+    }
+
+    if (!isCaptureLandingAllowed(
+        ctx.to,
+        ctx.figuresByCoord,
+        ctx.actorPlacement,
+        variant.allowOwnTeam === true,
+        ctx.catalog,
+    )) {
+        return false
+    }
+
+    const conditionCtx = buildConditionContext(ctx)
+
+    if (!conditionCtx) {
+        return true
+    }
+
+    return evaluateMoveVariantConditions(variant.conditions, conditionCtx)
+}
+
+function satisfiesJumpOverVariant(ctx: MoveCheckContext): boolean {
+    const variant = ctx.orientedRule.jumpOver
+
+    if (!variant.enabled) {
+        return false
+    }
+
+    const hoppedFigures = satisfiesJumpOverMove(
+        ctx.from,
+        ctx.to,
+        ctx.orientedRule,
+        ctx.k,
+        variant,
+        ctx.figuresByCoord,
+        ctx.actorPlacement,
+        ctx.catalog,
+    )
+
+    if (!hoppedFigures) {
+        return false
+    }
+
+    const conditionCtx = buildConditionContext(ctx, hoppedFigures)
+
+    if (!conditionCtx) {
+        return true
+    }
+
+    return evaluateMoveVariantConditions(variant.conditions, conditionCtx)
+}
+
+function satisfiesMoveRuleVariants(ctx: MoveCheckContext): boolean {
+    return satisfiesEmptyVariant(ctx)
+        || satisfiesCaptureVariant(ctx)
+        || satisfiesJumpOverVariant(ctx)
 }
 
 export function rotateMoveVector(
@@ -285,68 +461,6 @@ export function orientMoveRule(rule: FigureMoveRule, direction: FigureMoveDirect
     }
 }
 
-function isLandingOnOwnTeamBlocked(
-    to: CellCoord,
-    figuresByCoord: FiguresSlice['figuresByCoord'],
-    actorPlacement: FigurePlacement | undefined,
-    canStepOnOwnTeam: boolean,
-    catalog: FigureCatalog | undefined,
-): boolean {
-    if (canStepOnOwnTeam || !catalog || !actorPlacement) {
-        return false
-    }
-
-    const targetAtTo = getTopOfStack({ figuresByCoord, tray: [] }, to)
-
-    if (!targetAtTo || targetAtTo.instanceId === actorPlacement.instanceId) {
-        return false
-    }
-
-    return areSameFigureTeam(catalog, actorPlacement.figureId, targetAtTo.figureId)
-}
-
-function satisfiesMoveRuleLanding(
-    rule: FigureMoveRule,
-    to: CellCoord,
-    figuresByCoord: FiguresSlice['figuresByCoord'],
-    actorPlacement: FigurePlacement | undefined,
-    canStepOnOwnTeam: boolean,
-    catalog: FigureCatalog | undefined,
-): boolean {
-    const landing = resolveMoveRuleLanding(rule.landing)
-    const targetAtTo = getTopOfStack({ figuresByCoord, tray: [] }, to)
-    const occupied = Boolean(
-        targetAtTo
-        && (!actorPlacement || targetAtTo.instanceId !== actorPlacement.instanceId),
-    )
-
-    if (landing === 'empty') {
-        return !occupied
-    }
-
-    if (landing === 'jumpOver') {
-        return !occupied
-    }
-
-    if (landing === 'capture') {
-        if (!occupied) {
-            return false
-        }
-
-        if (!catalog || !actorPlacement) {
-            return true
-        }
-
-        return !areSameFigureTeam(catalog, actorPlacement.figureId, targetAtTo!.figureId)
-    }
-
-    if (occupied) {
-        return !isLandingOnOwnTeamBlocked(to, figuresByCoord, actorPlacement, canStepOnOwnTeam, catalog)
-    }
-
-    return true
-}
-
 function resolvePlayStateForActor(
     definition: FigureDefinition,
     actorPlacement?: FigurePlacement,
@@ -384,63 +498,38 @@ export function isFigureMoveAllowed(
 
     const playState = resolvePlayStateForActor(definition, actorPlacement)
     const moveRules = normalizeFigureMoveRules(playState.moveRules)
-    const canStepOnOwnTeam = resolveCanStepOnOwnTeam(playState)
-    const canJumpOverOwnTeam = resolveCanJumpOverOwnTeam(playState)
 
     if (freeMove || moveRules.length === 0) {
-        if (isLandingOnOwnTeamBlocked(to, figuresByCoord, actorPlacement, canStepOnOwnTeam, catalog)) {
-            return false
-        }
-
-        return true
+        return isLandingEmpty(to, figuresByCoord, actorPlacement)
+            || isCaptureLandingAllowed(to, figuresByCoord, actorPlacement, true, catalog)
     }
 
     const delta = getMoveDelta(from, to)
-    const jumpOverPieces = resolveJumpOverPieces(playState)
     const moveDirection = catalog
-        ? resolveFigureMoveDirectionFromCatalog(catalog, definition.id, figureTeams)
+        ? resolveFigureMoveDirectionFromCatalog(catalog, definition.id, boardParameters, figureTeams)
         : 'up'
 
     for (const rule of moveRules) {
         const orientedRule = orientMoveRule(rule, moveDirection)
-        const k = matchMoveRule(delta, orientedRule)
+        const k = matchMoveSteps(delta, orientedRule)
 
         if (k === null) {
             continue
         }
 
-        const landing = resolveMoveRuleLanding(rule.landing)
-
-        if (landing === 'jumpOver') {
-            if (!satisfiesJumpOverPath(
-                from,
-                orientedRule,
-                k,
-                figuresByCoord,
-                actorPlacement,
-                catalog,
-                canJumpOverOwnTeam,
-            )) {
-                continue
-            }
-        } else if (!isIntermediatePathClear(
+        if (satisfiesMoveRuleVariants({
             from,
+            to,
             orientedRule,
             k,
             figuresByCoord,
-            jumpOverPieces,
             actorPlacement,
             catalog,
-            canJumpOverOwnTeam,
-        )) {
-            continue
+            boardParameters,
+            definitionId: definition.id,
+        })) {
+            return true
         }
-
-        if (!satisfiesMoveRuleLanding(rule, to, figuresByCoord, actorPlacement, canStepOnOwnTeam, catalog)) {
-            continue
-        }
-
-        return true
     }
 
     return false
@@ -450,38 +539,35 @@ export function collectHoppedFigures(
     from: CellCoord,
     to: CellCoord,
     moveRules: FigureMoveRule[],
-    jumpOverPieces: boolean,
     figuresByCoord: FiguresSlice['figuresByCoord'],
     moveDirection: FigureMoveDirection = 'up',
+    catalog?: FigureCatalog,
+    actorPlacement?: FigurePlacement,
 ): FigurePlacement[] {
     const delta = getMoveDelta(from, to)
 
     for (const rule of moveRules) {
         const orientedRule = orientMoveRule(rule, moveDirection)
-        const k = matchMoveRule(delta, orientedRule)
+        const k = matchMoveSteps(delta, orientedRule)
 
-        if (k === null) {
+        if (k === null || !orientedRule.jumpOver.enabled) {
             continue
         }
 
-        const landing = resolveMoveRuleLanding(rule.landing)
+        const hopped = satisfiesJumpOverMove(
+            from,
+            to,
+            orientedRule,
+            k,
+            orientedRule.jumpOver,
+            figuresByCoord,
+            actorPlacement,
+            catalog,
+        )
 
-        if (landing !== 'jumpOver' && !jumpOverPieces) {
-            continue
+        if (hopped) {
+            return hopped
         }
-
-        const hopped: FigurePlacement[] = []
-
-        for (const coord of collectIntermediateCells(from, orientedRule, k)) {
-            const stack = figuresByCoord[coordKey(coord)] ?? []
-            const top = stack[stack.length - 1]
-
-            if (top) {
-                hopped.push(top)
-            }
-        }
-
-        return hopped
     }
 
     return []
@@ -532,17 +618,21 @@ export function getLegalMoveDestinations(
         return destinations
     }
 
-    const jumpOverPieces = resolveJumpOverPieces(playState)
-    const canJumpOverOwnTeam = resolveCanJumpOverOwnTeam(playState)
     const moveDirection = catalog
-        ? resolveFigureMoveDirectionFromCatalog(catalog, definition.id, figureTeams)
+        ? resolveFigureMoveDirectionFromCatalog(catalog, definition.id, boardParameters, figureTeams)
         : 'up'
 
     for (const rule of moveRules) {
         const orientedRule = orientMoveRule(rule, moveDirection)
-        const resolvedN = orientedRule.n === undefined ? 1 : orientedRule.n
+        const maxK = Math.max(
+            orientedRule.empty.enabled && orientedRule.empty.length > 0 ? orientedRule.empty.length : 0,
+            orientedRule.capture.enabled && orientedRule.capture.length > 0 ? orientedRule.capture.length : 0,
+            orientedRule.jumpOver.enabled && orientedRule.jumpOver.length > 0 ? orientedRule.jumpOver.length + 1 : 0,
+        )
+        const hasInfinite = (orientedRule.empty.enabled && orientedRule.empty.length === 0)
+            || (orientedRule.capture.enabled && orientedRule.capture.length === 0)
 
-        if (resolvedN === 0) {
+        if (hasInfinite) {
             for (let k = 1; ; k += 1) {
                 const coord = getCoordAlongRule(from, orientedRule, k)
 
@@ -550,22 +640,9 @@ export function getLegalMoveDestinations(
                     break
                 }
 
-                if (!isIntermediatePathClear(
-                    from,
-                    orientedRule,
-                    k,
-                    figuresByCoord,
-                    jumpOverPieces,
-                    actorPlacement,
-                    catalog,
-                    canJumpOverOwnTeam,
-                )) {
-                    break
-                }
-
                 addDestination(coord)
 
-                if (!jumpOverPieces && isStackOccupied({ figuresByCoord, tray: [] }, coord)) {
+                if (!isPathClear(from, orientedRule, k, figuresByCoord, actorPlacement)) {
                     break
                 }
             }
@@ -573,7 +650,9 @@ export function getLegalMoveDestinations(
             continue
         }
 
-        for (let k = 1; k <= resolvedN; k += 1) {
+        const limit = Math.max(maxK, n + m)
+
+        for (let k = 1; k <= limit; k += 1) {
             const coord = getCoordAlongRule(from, orientedRule, k)
 
             if (!isCoordInGrid(coord, n, m)) {
@@ -620,4 +699,21 @@ export function isUnrestrictedFigureMovement(
     actorPlacement?: FigurePlacement,
 ): boolean {
     return !hasFigureMoveRules(resolvePlayStateForActor(definition, actorPlacement))
+}
+
+/** @deprecated use matchMoveSteps */
+export function matchMoveRule(delta: MoveDelta, rule: { x: number; y: number; n?: number }): number | null {
+    const k = matchMoveSteps(delta, rule)
+
+    if (k === null) {
+        return null
+    }
+
+    const resolvedN = rule.n === undefined ? 1 : rule.n
+
+    if (resolvedN === 0) {
+        return k
+    }
+
+    return k >= 1 && k <= resolvedN ? k : null
 }

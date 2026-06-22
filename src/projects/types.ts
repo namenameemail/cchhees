@@ -24,7 +24,7 @@ import {
     migrateGameStateStyleRules,
 } from '../game/styleRules/migrateStyleRules'
 import { createDefaultFigureCatalog, migrateToFigureCatalog } from '../game/figureView'
-import { migrateFigureTeamsFromCatalog } from '../game/figureTeams'
+import { migrateBoardTeamMoveDirections, migrateFigureTeamsFromCatalog } from '../game/figureTeams'
 import { initialGameState } from '../game/utils'
 import { createEmptyBoardDocument } from './boardDocument'
 
@@ -129,13 +129,21 @@ function migrateLegacySingleBoard(project: LegacySingleBoardProject): Project {
         ...styledState,
         figureCatalog: styledState.figureCatalog,
     }))
+    const migratedBoardSlice = {
+        ...boardSlice,
+        boardParameters: migrateBoardTeamMoveDirections(
+            boardSlice.boardParameters,
+            (project as Project).figureTeams,
+            figureCatalog,
+        ),
+    }
     const catalogHistory = historyInit<FigureCatalog>()
     const { figuresHistory: migratedFiguresHistory, boardHistory: migratedBoardHistory } = migrateBoardDocumentHistories(
         styledState,
         figuresHistory,
         boardHistory,
     )
-    const composedState = migrateCellShapesInGameState(composeGameState(figures, boardSlice, figureCatalog))
+    const composedState = migrateCellShapesInGameState(composeGameState(figures, migratedBoardSlice, figureCatalog))
 
     const boardDocument = createEmptyBoardDocument('Доска 1', composedState, migratedFiguresHistory, migratedBoardHistory)
     boardDocument.previewDataUrl = project.previewDataUrl
@@ -153,28 +161,49 @@ function migrateLegacySingleBoard(project: LegacySingleBoardProject): Project {
     }
 }
 
+function wrapMigrateStep(step: string, error: unknown): Error {
+    const detail = error instanceof Error ? error.message : String(error)
+    return new Error(`${step}: ${detail}`, { cause: error instanceof Error ? error : undefined })
+}
+
 export function migrateProject(project: LegacySingleBoardProject | Project): Project {
     if (project.boards && project.activeBoardId && project.figureCatalog) {
-        const boards = project.boards.map(item => {
-            const styledState = migrateGameStateStyleRules(item.gameState as Parameters<typeof migrateGameStateStyleRules>[0])
-            const { figures, board: boardSlice } = splitGameState(styledState)
-            const catalog = cloneFigureCatalog(project.figureCatalog!)
-            const { figuresHistory, boardHistory } = migrateBoardDocumentHistories(
-                styledState,
-                migrateFiguresHistory(
-                    normalizeSliceHistory(item.figuresHistory as SliceHistory<LegacyFiguresSlice>),
-                    styledState.boardParameters.n,
-                ),
-                migrateBoardHistory(
-                    normalizeSliceHistory(item.boardHistory as SliceHistory<LegacyBoardSlice>),
-                ),
-            )
+        const boards = project.boards.map((item, boardIndex) => {
+            try {
+                const styledState = migrateGameStateStyleRules(item.gameState as Parameters<typeof migrateGameStateStyleRules>[0])
+                const { figures, board: boardSlice } = splitGameState(styledState)
+                const catalog = cloneFigureCatalog(project.figureCatalog!)
+                const boardParameters = migrateBoardTeamMoveDirections(
+                    boardSlice.boardParameters,
+                    (project as Project).figureTeams,
+                    catalog,
+                )
+                const migratedBoardSlice = {
+                    ...boardSlice,
+                    boardParameters,
+                }
+                const { figuresHistory, boardHistory } = migrateBoardDocumentHistories(
+                    styledState,
+                    migrateFiguresHistory(
+                        normalizeSliceHistory(item.figuresHistory as SliceHistory<LegacyFiguresSlice>),
+                        styledState.boardParameters.n,
+                    ),
+                    migrateBoardHistory(
+                        normalizeSliceHistory(item.boardHistory as SliceHistory<LegacyBoardSlice>),
+                    ),
+                )
 
-            return {
-                ...item,
-                gameState: migrateCellShapesInGameState(composeGameState(figures, boardSlice, catalog)),
-                figuresHistory,
-                boardHistory,
+                return {
+                    ...item,
+                    gameState: migrateCellShapesInGameState(composeGameState(figures, migratedBoardSlice, catalog)),
+                    figuresHistory,
+                    boardHistory,
+                }
+            } catch (error) {
+                throw wrapMigrateStep(
+                    `board[${boardIndex}] «${item.name}» id=${item.id}`,
+                    error,
+                )
             }
         })
 
@@ -196,7 +225,11 @@ export function migrateProject(project: LegacySingleBoardProject | Project): Pro
         }
     }
 
-    return migrateLegacySingleBoard(project as LegacySingleBoardProject)
+    try {
+        return migrateLegacySingleBoard(project as LegacySingleBoardProject)
+    } catch (error) {
+        throw wrapMigrateStep('legacy single-board', error)
+    }
 }
 
 export function normalizeLoadedProject(raw: unknown): Project {

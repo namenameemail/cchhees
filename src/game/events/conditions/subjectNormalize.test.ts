@@ -27,6 +27,24 @@ describe('normalizeFigureEventRule subject migration', () => {
         })
     })
 
+    it('normalizes inFigureArea condition params', () => {
+        const normalized = normalizeFigureEventRule({
+            id: 'r-area',
+            type: FigureEventType.onMove,
+            params: { cause: 'any' },
+            conditions: [{
+                subject: { entries: [{ figureId: FIGURE_SUBJECT_MOVED }] },
+                type: FigureEventConditionType.inFigureArea,
+                params: { cells: [{ x: 2, y: 3 }] },
+            }],
+            actions: [],
+        })
+
+        expect(normalized?.conditions[0]?.params).toMatchObject({
+            cells: [{ x: 2, y: 3 }],
+        })
+    })
+
     it('keeps rule with empty actions and conditions', () => {
         const normalized = normalizeFigureEventRule({
             id: 'r-empty',

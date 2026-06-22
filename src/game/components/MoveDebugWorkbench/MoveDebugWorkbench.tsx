@@ -263,9 +263,9 @@ export const MoveDebugWorkbench: FC = () => {
                     move: {
                         from,
                         to,
-                        actorFigure: buildFigureMoveDebugInfo(catalog, fromPlacement, figureTeams),
+                        actorFigure: buildFigureMoveDebugInfo(catalog, fromPlacement, boardParameters, figureTeams),
                         targetFigure: moveInput.targetAtTo
-                            ? buildFigureMoveDebugInfo(catalog, moveInput.targetAtTo, figureTeams)
+                            ? buildFigureMoveDebugInfo(catalog, moveInput.targetAtTo, boardParameters, figureTeams)
                             : undefined,
                     },
                     chain: moveChain,

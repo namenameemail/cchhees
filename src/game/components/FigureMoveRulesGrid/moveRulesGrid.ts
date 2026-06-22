@@ -1,25 +1,12 @@
-import { FigureMoveRule, FigureMoveRuleLanding } from '../../types/figures'
+import { FigureMoveRule } from '../../types/figures'
 
 export const MAX_MOVE_GRID_N = 12
 export const MOVE_GRID_AREA_SIZE = 200
 export const MAX_MOVE_GRID_CELL_SIZE = 50
 export const MOVE_GRID_GAP = 0
 export const MOVE_GRID_PADDING = 0
-export const MIN_MOVE_RULE_N = 0
-export const MAX_MOVE_RULE_N = 100
-
-export const MOVE_RULE_LANDINGS: FigureMoveRuleLanding[] = ['empty', 'capture', 'any', 'jumpOver']
-
-export function resolveMoveRuleLanding(landing: FigureMoveRuleLanding | undefined): FigureMoveRuleLanding {
-    return landing ?? 'any'
-}
-
-export function cycleMoveRuleLanding(landing: FigureMoveRuleLanding | undefined): FigureMoveRuleLanding {
-    const resolved = resolveMoveRuleLanding(landing)
-    const index = MOVE_RULE_LANDINGS.indexOf(resolved)
-
-    return MOVE_RULE_LANDINGS[(index + 1) % MOVE_RULE_LANDINGS.length]
-}
+export const MIN_MOVE_RULE_LENGTH = 0
+export const MAX_MOVE_RULE_LENGTH = 100
 
 export function ruleKey(x: number, y: number): string {
     return `${x},${y}`
@@ -118,7 +105,7 @@ export function getRuleAt(rules: FigureMoveRule[], x: number, y: number): Figure
     return rulesToMap(rules).get(ruleKey(Math.trunc(x), Math.trunc(y)))
 }
 
-export function clampMoveRuleN(value: number | undefined): number {
+export function clampMoveRuleLength(value: number | undefined): number {
     if (value === undefined || Number.isNaN(value)) {
         return 1
     }
@@ -129,7 +116,7 @@ export function clampMoveRuleN(value: number | undefined): number {
         return 1
     }
 
-    return Math.max(MIN_MOVE_RULE_N, Math.min(MAX_MOVE_RULE_N, truncated))
+    return Math.max(MIN_MOVE_RULE_LENGTH, Math.min(MAX_MOVE_RULE_LENGTH, truncated))
 }
 
 export function getMoveGridSize(gridN: number): number {
@@ -156,4 +143,19 @@ export function iterGridCells(gridN: number): Array<{ gi: number; gj: number; x:
     }
 
     return cells
+}
+
+export function isSameOffset(
+    left: { x: number; y: number } | null | undefined,
+    right: { x: number; y: number } | null | undefined,
+): boolean {
+    if (!left || !right) {
+        return false
+    }
+
+    return Math.trunc(left.x) === Math.trunc(right.x) && Math.trunc(left.y) === Math.trunc(right.y)
+}
+
+export function hasEnabledVariant(rule: FigureMoveRule): boolean {
+    return rule.empty.enabled || rule.capture.enabled || rule.jumpOver.enabled
 }

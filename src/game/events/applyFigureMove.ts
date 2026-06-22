@@ -7,7 +7,6 @@ import { cloneFigurePlacement, normalizeFigureMoveRules, resolveFigureMoveDirect
 import { buildFigureMoveDebugInfo } from '../moveDebug/figureMoveDebugInfo'
 import {
     collectHoppedFigures,
-    resolveJumpOverPieces,
 } from '../moveRules'
 import { recordFigureStep, FigureStepRecorder } from '../figureAnimation/figureStepRecorder'
 import { runFigureEvents } from './runFigureEvents'
@@ -43,9 +42,19 @@ export function applyFigureMove(
         actor: input.actorPlacement,
         target: input.targetAtTo,
         swapOnEat: input.swapOnEat,
-        actorFigure: buildFigureMoveDebugInfo(input.catalog, input.actorPlacement, input.figureTeams),
+        actorFigure: buildFigureMoveDebugInfo(
+            input.catalog,
+            input.actorPlacement,
+            input.boardParameters,
+            input.figureTeams,
+        ),
         targetFigure: input.targetAtTo
-            ? buildFigureMoveDebugInfo(input.catalog, input.targetAtTo, input.figureTeams)
+            ? buildFigureMoveDebugInfo(
+                input.catalog,
+                input.targetAtTo,
+                input.boardParameters,
+                input.figureTeams,
+            )
             : undefined,
     })
 
@@ -95,9 +104,15 @@ export function applyFigureMove(
         input.from,
         input.to,
         moveRules,
-        resolveJumpOverPieces(actorState ?? {}),
         figuresBeforeMove,
-        resolveFigureMoveDirectionFromCatalog(input.catalog, input.actorPlacement.figureId, input.figureTeams),
+        resolveFigureMoveDirectionFromCatalog(
+            input.catalog,
+            input.actorPlacement.figureId,
+            input.boardParameters,
+            input.figureTeams,
+        ),
+        input.catalog,
+        input.actorPlacement,
     )
     const eatedFigures = input.swapOnEat && input.targetAtTo
         ? [cloneFigurePlacement(input.targetAtTo)]

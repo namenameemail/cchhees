@@ -9,6 +9,10 @@ import {
     createFigurePlacement,
     normalizeFigurePlacement,
     normalizeFigureMoveDirection,
+    normalizeFigureCatalog,
+    normalizeFigureMoveRules,
+    normalizeFigureState,
+    normalizeFigureTeam,
     updateFigureCatalogStateAtIndex,
 } from '../figureView'
 import { removeFigureFromBoard, removeFigureReferencesFromBoardEventRules } from '../state/figureReferences'
@@ -26,7 +30,7 @@ import { ActiveBoardPersistPayload } from '../../projects/projectPersist'
 import { Mode } from '../types'
 import { BoardParameters } from '../types/boardParameters'
 import { normalizeBoardFigureAnimationSettings } from '../figureAnimation/resolveFigureAnimationSettings'
-import { resolveCanJumpOverOwnTeam, resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../moveRules'
+import { normalizeBoardParameters } from '../boardAxisLabels'
 import { ConnectionParams } from '../types/connections'
 import { BoardStyleRule } from '../types/styleRules'
 import { cellParametersBrushStateInitialValue, connectionParamsBrushStateInitialValue } from './constants'
@@ -36,7 +40,6 @@ import {
     migrateFigureTeamsFromCatalog,
     normalizeFigureTeams,
 } from '../figureTeams'
-import { normalizeFigureTeam } from '../figureView'
 import {
     FiguresSlice,
     BoardSlice,
@@ -338,10 +341,10 @@ export function GameProvider({
     })
 
     const setBoardParameters = useCallback((value: BoardParameters) => {
-        const normalizedValue: BoardParameters = {
+        const normalizedValue = normalizeBoardParameters({
             ...value,
             figureAnimation: normalizeBoardFigureAnimationSettings(value.figureAnimation),
-        }
+        })
 
         const nextBoard: BoardSlice = {
             ...boardSlice,
@@ -475,30 +478,20 @@ export function GameProvider({
         figureId: FigureId,
         stateIndex: number,
         moveRules: FigureMoveRule[],
-        jumpOverPieces?: boolean,
-        canStepOnOwnTeam?: boolean,
-        canJumpOverOwnTeam?: boolean,
     ) => {
-        const entry = figureCatalog.find(item => item.id === figureId)
-        const currentState = entry?.states[Math.min(Math.max(0, stateIndex), (entry?.states.length ?? 1) - 1)]
-
         applyCatalogChange(
-            updateFigureCatalogStateAtIndex(figureCatalog, figureId, stateIndex, state => ({
-                ...state,
-                moveRules,
-                jumpOverPieces: jumpOverPieces ?? resolveJumpOverPieces(state),
-                canStepOnOwnTeam: canStepOnOwnTeam ?? resolveCanStepOnOwnTeam(state),
-                canJumpOverOwnTeam: canJumpOverOwnTeam ?? resolveCanJumpOverOwnTeam(state),
-            })),
+            updateFigureCatalogStateAtIndex(figureCatalog, figureId, stateIndex, state => (
+                normalizeFigureState({
+                    ...state,
+                    moveRules: normalizeFigureMoveRules(moveRules),
+                }, figureId)
+            )),
             true,
             {
                 kind: 'figure-move-rules',
                 figureId,
                 stateIndex,
-                moveRules,
-                jumpOverPieces: jumpOverPieces ?? (currentState ? resolveJumpOverPieces(currentState) : true),
-                canStepOnOwnTeam: canStepOnOwnTeam ?? (currentState ? resolveCanStepOnOwnTeam(currentState) : false),
-                canJumpOverOwnTeam: canJumpOverOwnTeam ?? (currentState ? resolveCanJumpOverOwnTeam(currentState) : false),
+                moveRules: normalizeFigureMoveRules(moveRules),
             },
         )
     }, [figureCatalog, applyCatalogChange])

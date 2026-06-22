@@ -113,6 +113,11 @@ export const TopBar: FC<TopBarProps> = ({ onOpenProjects }) => {
             )}
 
             <div id={TOP_BAR_BOARD_ACTIONS_SLOT_ID} className={styles.topBarActionsSlot} />
+            {import.meta.env.DEV ? (
+                <a className={styles.componentsLink} href="/components" title="Каталог компонентов">
+                    components
+                </a>
+            ) : null}
             <HostSnapshotBar progress={hostSnapshotProgress} />
             <JoinProgressBar progress={joinProgress} />
         </header>

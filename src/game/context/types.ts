@@ -71,9 +71,6 @@ export interface GameContextValue {
         figureId: FigureId,
         stateIndex: number,
         moveRules: FigureMoveRule[],
-        jumpOverPieces?: boolean,
-        canStepOnOwnTeam?: boolean,
-        canJumpOverOwnTeam?: boolean,
     ) => void
     addFigureState: (figureId: FigureId) => void
     removeFigureState: (figureId: FigureId, stateIndex: number) => void

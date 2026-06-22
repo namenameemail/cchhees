@@ -1,5 +1,5 @@
 import { SvgCellSizeParams } from '../cellSvgSize'
-import { FigureEventRule } from './events'
+import { FigureEventCondition, FigureEventRule } from './events'
 
 export type FigureId = string
 
@@ -33,22 +33,46 @@ export interface FigureViewParams extends SvgCellSizeParams {
     strokeDasharray?: string
 }
 
-export type FigureMoveRuleLanding = 'empty' | 'capture' | 'any' | 'jumpOver'
-
 export type FigureMoveDirection = 'up' | 'down' | 'left' | 'right'
+
+export type FigureMoveVariantKind = 'empty' | 'capture' | 'jumpOver'
+
+export interface FigureMoveVariant {
+    enabled: boolean
+    length: number
+    allowOwnTeam?: boolean
+    /** empty variant: path checked along min unit steps (gcd-normalized direction) */
+    emptyPath?: boolean
+    conditions?: FigureEventCondition[]
+}
 
 export interface FigureMoveRule {
     x: number
     y: number
+    empty: FigureMoveVariant
+    capture: FigureMoveVariant
+    jumpOver: FigureMoveVariant
+}
+
+/** @deprecated migrated to FigureMoveRule variants */
+export type LegacyFigureMoveRuleLanding = 'empty' | 'capture' | 'any' | 'jumpOver'
+
+/** @deprecated migrated to FigureMoveRule variants */
+export interface LegacyFigureMoveRule {
+    x: number
+    y: number
     n?: number
-    landing?: FigureMoveRuleLanding
+    landing?: LegacyFigureMoveRuleLanding
 }
 
 export interface FigureState {
     viewParams: FigureViewParams
     moveRules?: FigureMoveRule[]
+    /** @deprecated migrated into capture/jumpOver variants */
     jumpOverPieces?: boolean
+    /** @deprecated migrated into capture variant */
     canStepOnOwnTeam?: boolean
+    /** @deprecated migrated into jumpOver variant */
     canJumpOverOwnTeam?: boolean
 }
 
@@ -65,7 +89,7 @@ export interface FigureDefinition {
 export interface LegacyFigureDefinition {
     id: FigureId
     viewParams: FigureViewParams
-    moveRules?: FigureMoveRule[]
+    moveRules?: LegacyFigureMoveRule[]
     jumpOverPieces?: boolean
     canStepOnOwnTeam?: boolean
     canJumpOverOwnTeam?: boolean
@@ -76,6 +100,7 @@ export type FigureCatalog = FigureDefinition[]
 export interface FigureTeam {
     id: number
     name: string
+    /** @deprecated migrated to boardParameters.teamMoveDirections */
     moveDirection?: FigureMoveDirection
 }
 

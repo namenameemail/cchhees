@@ -1,0 +1,70 @@
+.panel {
+    flex: 1;
+    min-width: 220px;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 8px;
+    overflow: auto;
+}
+
+.placeholder {
+    margin: 0;
+    color: var(--text-muted, #888);
+    font-size: 13px;
+}
+
+.panelHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.offsetLabel {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.removeButton {
+    border: none;
+    background: transparent;
+    color: var(--text-muted, #888);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 4px;
+}
+
+.removeButton:hover {
+    color: var(--text, #111);
+}
+
+.variantRow {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border, #ddd);
+}
+
+.variantHeader {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.variantEnabled,
+.variantOwnTeam {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.variantLength {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}

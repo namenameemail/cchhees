@@ -1,4 +1,5 @@
 import { BoardMarksSettings } from './boardMarks'
+import { FigureMoveDirection } from './figures'
 
 export enum BoardBackgroundImageFit {
     tile = 'tile',
@@ -129,6 +130,7 @@ export interface BoardParameters {
     /** @deprecated migrated to axisNumberings */
     axisLabels?: BoardAxisLabelsSettings
     figureAnimation?: BoardFigureAnimationSettings
+    teamMoveDirections?: Partial<Record<number, FigureMoveDirection>>
 }
 
 export const AXIS_NUMBERING_FORMAT_OPTIONS: AxisNumberingFormat[] = ['digit', 'letter', 'roman']

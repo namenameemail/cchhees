@@ -7,24 +7,23 @@ import {
     NumberDragPointerLockInput,
     scaleNumberDragDelta,
 } from 'bbuutoonnss'
-import { FigureId, FigureMoveRule, FigureMoveRuleLanding } from '../../types/figures'
+import { FigureId, FigureMoveRule } from '../../types/figures'
 import { normalizeFigureMoveRules } from '../../figureView'
+import { createDefaultMoveRule } from '../../migrateFigureMoveRules'
 import { FigureSVG } from '../FigureSVG'
 import {
     clampGridN,
-    clampMoveRuleN,
-    cycleMoveRuleLanding,
     getMinGridN,
     getMoveGridCellSize,
     getMoveGridSize,
     getRuleAt,
+    hasEnabledVariant,
     isCenterOffset,
+    isSameOffset,
     iterGridCells,
     MAX_MOVE_GRID_N,
     MAX_MOVE_GRID_CELL_SIZE,
     MOVE_GRID_AREA_SIZE,
-    removeRule,
-    resolveMoveRuleLanding,
     upsertRule,
 } from './moveRulesGrid'
 import styles from './FigureMoveRulesGrid.module.css'
@@ -33,19 +32,11 @@ export interface FigureMoveRulesGridProps {
     figureId: FigureId
     stateIndex: number
     moveRules: FigureMoveRule[]
+    selectedOffset: { x: number; y: number } | null
     onChange: (rules: FigureMoveRule[]) => void
+    onSelect: (offset: { x: number; y: number } | null) => void
 }
 
-function formatRuleN(n: number | undefined): string {
-    const resolved = n === undefined ? 1 : n
-    return resolved === 0 ? '∞' : String(resolved)
-}
-
-function getRuleNDragValue(n: number | undefined): number {
-    return n === undefined ? 1 : n
-}
-
-const MOVE_RULES_DRAG_PIXELS_PER_STEP = 8
 const GRID_BORDER_DRAG_PIXELS_PER_STEP = 20
 
 type GridBorder = 'top' | 'bottom' | 'left' | 'right'
@@ -64,53 +55,44 @@ const GRID_BORDER_HANDLES: Array<{ border: GridBorder; className: keyof typeof s
     { border: 'right', className: 'gridResizeHandleRight' },
 ]
 
-const LANDING_LABELS: Record<FigureMoveRuleLanding, string> = {
-    empty: 'пустая',
-    capture: 'занятая',
-    any: 'любая',
-    jumpOver: 'перепрыг',
-}
+function getRuleCellClassName(rule: FigureMoveRule | undefined, selected: boolean): string {
+    const classes = [styles.cell]
 
-function getLandingCellClassName(landing: FigureMoveRuleLanding | undefined): string {
-    switch (resolveMoveRuleLanding(landing)) {
-        case 'empty':
-            return styles.cellRuleEmpty
-        case 'capture':
-            return styles.cellRuleCapture
-        case 'any':
-            return styles.cellRuleAny
-        case 'jumpOver':
-            return styles.cellRuleJumpOver
+    if (!rule || !hasEnabledVariant(rule)) {
+        classes.push(styles.cellEmpty)
+    } else {
+        if (rule.empty.enabled) {
+            classes.push(styles.cellRuleEmpty)
+        }
+
+        if (rule.capture.enabled) {
+            classes.push(styles.cellRuleCapture)
+        }
+
+        if (rule.jumpOver.enabled) {
+            classes.push(styles.cellRuleJumpOver)
+        }
     }
-}
 
-function formatRuleTitle(rule: FigureMoveRule, x: number, y: number): string {
-    const landing = LANDING_LABELS[resolveMoveRuleLanding(rule.landing)]
-    return `Ход (${x}, ${y}), n=${formatRuleN(rule.n)}, ${landing}. ЛКМ — удалить. ПКМ — режим. Перетаскивание — n.`
+    if (selected) {
+        classes.push(styles.cellSelected)
+    }
+
+    return classes.filter(Boolean).join(' ')
 }
 
 export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
     figureId,
     stateIndex,
     moveRules,
+    selectedOffset,
     onChange,
+    onSelect,
 }) => {
     const minGridN = useMemo(() => getMinGridN(moveRules), [moveRules])
     const [gridN, setGridN] = useState(minGridN)
     const [gridAreaSize, setGridAreaSize] = useState(MOVE_GRID_AREA_SIZE)
     const gridAreaRef = useRef<HTMLDivElement>(null)
-    const suppressCellClickRef = useRef(false)
-    const ruleDragMovedRef = useRef(false)
-
-    useEffect(() => {
-        const resetSuppress = () => {
-            suppressCellClickRef.current = false
-        }
-
-        window.addEventListener('pointerdown', resetSuppress, true)
-
-        return () => window.removeEventListener('pointerdown', resetSuppress, true)
-    }, [])
 
     useEffect(() => {
         setGridN(getMinGridN(moveRules))
@@ -166,11 +148,6 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
         event.preventDefault()
         event.stopPropagation()
 
-        if (suppressCellClickRef.current) {
-            suppressCellClickRef.current = false
-            return
-        }
-
         if (isCenterOffset(x, y)) {
             return
         }
@@ -178,73 +155,14 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
         const existing = getRuleAt(moveRules, x, y)
 
         if (existing) {
-            emitChange(removeRule(moveRules, x, y))
+            onSelect(isSameOffset(selectedOffset, { x, y }) ? null : { x, y })
             return
         }
 
-        emitChange(upsertRule(moveRules, { x, y, n: 1, landing: 'empty' }))
-    }, [emitChange, moveRules])
-
-    const handleCellContextMenu = useCallback((event: React.MouseEvent, x: number, y: number) => {
-        event.preventDefault()
-        event.stopPropagation()
-
-        if (isCenterOffset(x, y)) {
-            return
-        }
-
-        const existing = getRuleAt(moveRules, x, y)
-
-        if (!existing) {
-            emitChange(upsertRule(moveRules, { x, y, n: 1, landing: 'empty' }))
-            return
-        }
-
-        emitChange(upsertRule(moveRules, {
-            ...existing,
-            landing: cycleMoveRuleLanding(existing.landing),
-        }))
-    }, [emitChange, moveRules])
-
-    const handleRuleNDrag = useCallback((
-        x: number,
-        y: number,
-        event: DragEvent,
-        _pointerEvent: PointerEvent,
-        savedValue: number = 1,
-    ) => {
-        const existing = getRuleAt(moveRules, x, y)
-
-        if (!existing) {
-            return
-        }
-
-        if (event.isDragStart) {
-            ruleDragMovedRef.current = false
-        }
-
-        const delta = scaleNumberDragDelta(
-            getNumberDragDelta[NumberDragDirection.ny](event.x, event.y),
-            MOVE_RULES_DRAG_PIXELS_PER_STEP,
-        )
-
-        if (delta !== 0) {
-            ruleDragMovedRef.current = true
-        }
-
-        const nextN = clampMoveRuleN(savedValue + delta)
-
-        emitChange(upsertRule(moveRules, {
-            ...existing,
-            n: nextN,
-        }))
-    }, [emitChange, moveRules])
-
-    const handleRuleNDragEnd = useCallback((event: DragEvent) => {
-        suppressCellClickRef.current = ruleDragMovedRef.current
-            && Math.abs(event.x) + Math.abs(event.y) > 0
-        ruleDragMovedRef.current = false
-    }, [])
+        const nextRule = createDefaultMoveRule(x, y)
+        emitChange(upsertRule(moveRules, nextRule))
+        onSelect({ x, y })
+    }, [emitChange, moveRules, onSelect, selectedOffset])
 
     const cells = useMemo(() => iterGridCells(gridN), [gridN])
     const gridSize = getMoveGridSize(gridN)
@@ -256,7 +174,6 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
         [gridAreaSize, gridN],
     )
     const previewSize = Math.max(1, Math.floor(cellSize))
-    const cellFontSize = Math.min(12, Math.max(9, Math.floor(cellSize * 0.26)))
 
     return (
         <div className={styles.moveRulesGrid}>
@@ -271,7 +188,7 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
                         min={minGridN}
                         max={MAX_MOVE_GRID_N}
                         step={1}
-                        dragPixelsPerStep={MOVE_RULES_DRAG_PIXELS_PER_STEP}
+                        dragPixelsPerStep={GRID_BORDER_DRAG_PIXELS_PER_STEP}
                         changeOnChange
                         changeOnBlur
                         resetOnBlur
@@ -289,63 +206,38 @@ export const FigureMoveRulesGrid: FC<FigureMoveRulesGridProps> = ({
                     style={{ '--grid-size': gridSize } as React.CSSProperties}
                 >
                     {cells.map(({ gi, gj, x, y }) => {
-                    const rule = getRuleAt(moveRules, x, y)
-                    const isCenter = isCenterOffset(x, y)
+                        const rule = getRuleAt(moveRules, x, y)
+                        const isCenter = isCenterOffset(x, y)
+                        const selected = isSameOffset(selectedOffset, { x, y })
 
-                    if (isCenter) {
+                        if (isCenter) {
+                            return (
+                                <div
+                                    key={`${gi},${gj}`}
+                                    className={styles.cellCenter}
+                                    title="Фигура"
+                                >
+                                    <FigureSVG
+                                        className={styles.figurePreview}
+                                        figureId={figureId}
+                                        stateIndex={stateIndex}
+                                        width={previewSize}
+                                        height={previewSize}
+                                    />
+                                </div>
+                            )
+                        }
+
                         return (
                             <div
                                 key={`${gi},${gj}`}
-                                className={styles.cellCenter}
-                                title="Фигура"
-                            >
-                                <FigureSVG
-                                    className={styles.figurePreview}
-                                    figureId={figureId}
-                                    stateIndex={stateIndex}
-                                    width={previewSize}
-                                    height={previewSize}
-                                />
-                            </div>
+                                className={getRuleCellClassName(rule, selected)}
+                                title={rule
+                                    ? `Направление (${x}, ${y}). ЛКМ — выбрать.`
+                                    : `ЛКМ — добавить ход (${x}, ${y}).`}
+                                onClick={event => handleCellClick(event, x, y)}
+                            />
                         )
-                    }
-
-                    const cellClassName = [
-                        styles.cell,
-                        rule ? getLandingCellClassName(rule.landing) : styles.cellEmpty,
-                    ].filter(Boolean).join(' ')
-
-                    return (
-                        <div
-                            key={`${gi},${gj}`}
-                            className={cellClassName}
-                            title={rule
-                                ? formatRuleTitle(rule, x, y)
-                                : `ЛКМ — добавить ход (${x}, ${y}). ПКМ — добавить с режимом «пустая».`}
-                            onClick={event => handleCellClick(event, x, y)}
-                            onContextMenu={event => handleCellContextMenu(event, x, y)}
-                        >
-                            {rule ? (
-                                <DragHandler<number>
-                                    className={styles.ruleDragArea}
-                                    saveValue={getRuleNDragValue(rule.n)}
-                                    onChange={(event, pointerEvent, savedValue) => {
-                                        handleRuleNDrag(x, y, event, pointerEvent, savedValue)
-                                    }}
-                                    onDragEnd={(event, pointerEvent, savedValue) => {
-                                        handleRuleNDragEnd(event)
-                                    }}
-                                >
-                                    <span
-                                        className={styles.ruleMarker}
-                                        style={{ fontSize: cellFontSize }}
-                                    >
-                                        {formatRuleN(rule.n)}
-                                    </span>
-                                </DragHandler>
-                            ) : null}
-                        </div>
-                    )
                     })}
                 </div>
                 {GRID_BORDER_HANDLES.map(({ border, className }) => (

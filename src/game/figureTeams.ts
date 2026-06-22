@@ -5,7 +5,14 @@ import {
     FigureTeam,
     FigureTeams,
 } from './types/figures'
-import { normalizeFigureMoveDirection, normalizeFigureTeam } from './figureView'
+import { BoardParameters } from './types/boardParameters'
+import {
+    migrateBoardTeamMoveDirections,
+    resolveBoardTeamMoveDirection,
+} from './boardTeamDirections'
+import { normalizeFigureTeam } from './figureView'
+
+export { migrateBoardTeamMoveDirections }
 
 export const FIGURE_MOVE_DIRECTION_OPTIONS: Array<{ id: FigureMoveDirection; label: string }> = [
     { id: 'up', label: 'вверх' },
@@ -36,15 +43,8 @@ export function normalizeFigureTeams(teams: unknown): FigureTeams {
             continue
         }
 
-        const moveDirection = normalizeFigureMoveDirection((entry as FigureTeam).moveDirection)
-        const team: FigureTeam = { id, name }
-
-        if (moveDirection !== 'up') {
-            team.moveDirection = moveDirection
-        }
-
         seen.add(id)
-        result.push(team)
+        result.push({ id, name })
     }
 
     return result.sort((a, b) => a.id - b.id)
@@ -82,35 +82,7 @@ export function migrateFigureTeamsFromCatalog(
         }
     }
 
-    for (const [id, team] of byId) {
-        if (team.moveDirection !== undefined) {
-            continue
-        }
-
-        const inferred = inferTeamMoveDirectionFromCatalog(catalog, id)
-
-        if (inferred !== 'up') {
-            byId.set(id, { ...team, moveDirection: inferred })
-        }
-    }
-
     return [...byId.values()].sort((a, b) => a.id - b.id)
-}
-
-function inferTeamMoveDirectionFromCatalog(catalog: FigureCatalog, teamId: number): FigureMoveDirection {
-    for (const entry of catalog) {
-        if (normalizeFigureTeam(entry.team) !== teamId) {
-            continue
-        }
-
-        const direction = normalizeFigureMoveDirection(entry.moveDirection)
-
-        if (direction !== 'up') {
-            return direction
-        }
-    }
-
-    return 'up'
 }
 
 export function nextTeamId(teams: FigureTeams): number {
@@ -160,20 +132,11 @@ export function clearTeamFromCatalog(catalog: FigureCatalog, teamId: number): Fi
 }
 
 export function resolveTeamMoveDirection(
-    teams: FigureTeams | undefined,
+    boardParameters: BoardParameters | undefined,
     teamId: number | undefined,
+    legacyFigureTeams?: FigureTeams,
 ): FigureMoveDirection | undefined {
-    if (teamId === undefined || !teams) {
-        return undefined
-    }
-
-    const team = teams.find(entry => entry.id === teamId)
-
-    if (!team?.moveDirection) {
-        return undefined
-    }
-
-    return normalizeFigureMoveDirection(team.moveDirection)
+    return resolveBoardTeamMoveDirection(boardParameters, teamId, legacyFigureTeams)
 }
 
 export function resolveTeamSelectOptions(

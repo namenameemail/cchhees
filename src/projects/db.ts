@@ -91,7 +91,9 @@ function getDb() {
 export async function getAllProjects(): Promise<Project[]> {
     const db = await getDb()
     const projects = await db.getAll('projects')
-    return projects.sort((a, b) => b.updatedAt - a.updatedAt)
+    const sorted = projects.sort((a, b) => b.updatedAt - a.updatedAt)
+    console.log(`[projects] getAllProjects: db=${DB_NAME} count=${sorted.length}`)
+    return sorted
 }
 
 export async function getProject(id: string): Promise<Project | undefined> {

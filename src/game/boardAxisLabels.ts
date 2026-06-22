@@ -12,6 +12,7 @@ import {
     BoardAxisSideSettings,
     BoardParameters,
 } from './types/boardParameters'
+import { normalizeTeamMoveDirections } from './boardTeamDirections'
 
 export interface AxisGutters {
     top: number
@@ -849,11 +850,13 @@ export function getBoardPixelSize(parameters: BoardParameters): { width: number;
 
 export function normalizeBoardParameters(parameters: BoardParameters): BoardParameters {
     const axisNumberings = resolveAxisNumberings(parameters)
-    const { showAxisLabels: _show, axisLabels: _labels, ...rest } = parameters
+    const { showAxisLabels: _show, axisLabels: _labels, teamMoveDirections, ...rest } = parameters
+    const normalizedTeamMoveDirections = normalizeTeamMoveDirections(teamMoveDirections)
 
     return {
         ...rest,
         axisNumberings,
+        ...(normalizedTeamMoveDirections ? { teamMoveDirections: normalizedTeamMoveDirections } : {}),
     }
 }
 

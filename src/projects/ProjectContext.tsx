@@ -42,6 +42,7 @@ import {
 import { GameState } from '../game/types/gameState'
 import { migrateInlineAssets } from './assets/migrateInlineAssets'
 import { profileDebug } from '../profiler'
+import { projectsBootstrapLog } from './projectsBootstrapLog'
 import { CollabSnapshot } from '../collab/types'
 import { assetsDebugLog } from './assets/assetsDebugLog'
 import { importCollabSnapshotAsVisitedRoom } from './visitedRooms/importVisitedRoom'
@@ -431,6 +432,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
         async function bootstrap() {
             profileDebug('bootstrap', 'start', { generation })
+            projectsBootstrapLog.start(generation)
 
             try {
                 const [rawProjects, loadedVisitedRooms] = await Promise.all([
@@ -438,26 +440,72 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                     getAllVisitedRooms(),
                 ])
                 profileDebug('bootstrap', 'projects.fetched', { count: rawProjects.length, generation })
+                projectsBootstrapLog.fetchedFromDb(
+                    rawProjects.length,
+                    rawProjects.map(project => ({
+                        id: project.id,
+                        name: project.name,
+                        updatedAt: project.updatedAt,
+                    })),
+                )
 
                 let loaded: Project[] = []
+                let failedCount = 0
 
                 for (const project of rawProjects) {
+                    const format = project.boards?.length
+                        ? `multi-board(${project.boards.length})`
+                        : project.gameState
+                            ? 'legacy-single'
+                            : 'unknown'
+
+                    projectsBootstrapLog.migrateAttempt({
+                        id: project.id,
+                        name: project.name,
+                        format,
+                        catalogFigures: project.figureCatalog?.length ?? 0,
+                    })
+
                     try {
-                        loaded.push(migrateProject(project))
+                        const migrated = migrateProject(project)
+                        loaded.push(migrated)
+                        projectsBootstrapLog.migrateOk({
+                            id: migrated.id,
+                            name: migrated.name,
+                            boards: migrated.boards.length,
+                        })
                     } catch (error) {
-                        const detail = error instanceof Error
-                            ? `${error.name}: ${error.message}`
-                            : String(error)
-                        console.error('[ProjectProvider] migrateProject failed:', project.id, detail, error)
+                        failedCount += 1
+                        projectsBootstrapLog.migrateFailed(
+                            { id: project.id, name: project.name },
+                            error,
+                        )
                     }
                 }
 
-                loaded = await Promise.all(loaded.map(project => migrateProjectInlineAssets(project)))
+                const migratedLoaded: Project[] = []
+
+                for (const project of loaded) {
+                    try {
+                        migratedLoaded.push(await migrateProjectInlineAssets(project))
+                    } catch (error) {
+                        failedCount += 1
+                        projectsBootstrapLog.inlineAssetsFailed(
+                            { id: project.id, name: project.name },
+                            error,
+                        )
+                        migratedLoaded.push(project)
+                    }
+                }
+
+                loaded = migratedLoaded
+                projectsBootstrapLog.summary(rawProjects.length, loaded.length, failedCount)
 
                 if (loaded.length === 0) {
                     const project = createEmptyProject(getDefaultProjectName(0))
                     await putProject(project)
                     loaded = [project]
+                    projectsBootstrapLog.createdFallbackEmpty(project.name)
                 }
 
                 let savedId = await getCurrentProjectId()
@@ -475,15 +523,18 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 if (cancelled || generation !== bootstrapGenerationRef.current) {
+                    projectsBootstrapLog.bootstrapCancelled(generation)
                     return
                 }
 
                 setProjects(loaded)
                 setVisitedRooms(loadedVisitedRooms)
                 await applyCurrentSession(savedId ?? loaded[0].id, savedKind)
+                projectsBootstrapLog.ready(savedId ?? loaded[0].id, loaded.length, loadedVisitedRooms.length)
                 setIsReady(true)
             } catch (error) {
-                console.error('[ProjectProvider] bootstrap failed:', error)
+                projectsBootstrapLog.bootstrapFailed(error)
+                profileDebug('bootstrap', 'failed', { generation, error: String(error) })
 
                 if (cancelled || generation !== bootstrapGenerationRef.current) {
                     return
@@ -496,7 +547,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                     setVisitedRooms([])
                     await applyCurrentSession(project.id, 'local')
                 } catch (fallbackError) {
-                    console.error('[ProjectProvider] bootstrap fallback failed:', fallbackError)
+                    projectsBootstrapLog.bootstrapFailed(fallbackError)
                     setProjects([])
                     setVisitedRooms([])
                 } finally {

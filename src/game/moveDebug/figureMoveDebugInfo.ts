@@ -1,4 +1,5 @@
 import { FigureCatalog, FigureMoveDirection, FigureMoveRule, FigurePlacement, FigureTeams } from '../types/figures'
+import { BoardParameters } from '../types/boardParameters'
 import {
     normalizeFigureMoveRules,
     normalizeFigureTeam,
@@ -7,23 +8,20 @@ import {
     resolveFigureState,
     resolvePlacementStateIndex,
 } from '../figureView'
-import { resolveCanJumpOverOwnTeam, resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../moveRules'
 
 export interface FigureMoveDebugInfo {
     figureId: string
     stateIndex: number
     team?: number
     moveDirection: FigureMoveDirection
-    jumpOverPieces: boolean
-    canStepOnOwnTeam: boolean
-    canJumpOverOwnTeam: boolean
     moveRules: FigureMoveRule[]
 }
 
 export function buildFigureMoveDebugInfo(
     catalog: FigureCatalog,
     placement: FigurePlacement,
-    figureTeams?: FigureTeams,
+    boardParameters?: BoardParameters,
+    legacyFigureTeams?: FigureTeams,
 ): FigureMoveDebugInfo {
     const definition = resolveFigureDefinition(placement.figureId, catalog)
     const stateIndex = resolvePlacementStateIndex(placement)
@@ -34,12 +32,22 @@ export function buildFigureMoveDebugInfo(
         figureId: placement.figureId,
         stateIndex,
         ...(team !== undefined ? { team } : {}),
-        moveDirection: resolveFigureMoveDirectionFromCatalog(catalog, placement.figureId, figureTeams),
-        jumpOverPieces: resolveJumpOverPieces(state),
-        canStepOnOwnTeam: resolveCanStepOnOwnTeam(state),
-        canJumpOverOwnTeam: resolveCanJumpOverOwnTeam(state),
+        moveDirection: resolveFigureMoveDirectionFromCatalog(
+            catalog,
+            placement.figureId,
+            boardParameters,
+            legacyFigureTeams,
+        ),
         moveRules: normalizeFigureMoveRules(state.moveRules),
     }
+}
+
+function formatVariantBrief(enabled: boolean, length: number, suffix: string): string {
+    if (!enabled) {
+        return ''
+    }
+
+    return `${suffix}${length}`
 }
 
 export function formatMoveRulesBrief(rules: FigureMoveRule[]): string {
@@ -48,19 +56,19 @@ export function formatMoveRulesBrief(rules: FigureMoveRule[]): string {
     }
 
     return rules.map(rule => {
-        const n = rule.n ?? 1
-        const landing = rule.landing ?? 'any'
+        const parts = [
+            formatVariantBrief(rule.empty.enabled, rule.empty.length, 'e'),
+            formatVariantBrief(rule.capture.enabled, rule.capture.length, 'c'),
+            formatVariantBrief(rule.jumpOver.enabled, rule.jumpOver.length, 'j'),
+        ].filter(Boolean).join('+')
 
-        return `(${rule.x},${rule.y},n=${n},${landing})`
+        return `(${rule.x},${rule.y}:${parts || '-'})`
     }).join(';')
 }
 
 export function formatFigureMoveDebugBrief(info: FigureMoveDebugInfo): string {
     const teamPart = info.team !== undefined ? ` team=${info.team}` : ''
-    const jumpPart = info.jumpOverPieces ? ' jump=1' : ' jump=0'
-    const ownTeamPart = info.canStepOnOwnTeam ? ' ownTeam=1' : ' ownTeam=0'
-    const jumpOwnTeamPart = info.canJumpOverOwnTeam ? ' jumpOwnTeam=1' : ' jumpOwnTeam=0'
 
-    return `${info.figureId}#${info.stateIndex}${teamPart} dir=${info.moveDirection}${jumpPart}${ownTeamPart}${jumpOwnTeamPart}`
+    return `${info.figureId}#${info.stateIndex}${teamPart} dir=${info.moveDirection}`
         + ` rules=${formatMoveRulesBrief(info.moveRules)}`
 }

@@ -15,10 +15,9 @@ import { BoardStyleRule } from '../game/types/styleRules'
 import { BoardSlice, FiguresSlice, composeGameState, cloneFigureCatalog } from '../game/state/slices'
 import { cloneBoardSlice, cloneFiguresSlice } from '../game/state/reconcile'
 import { removeFigureFromBoard } from '../game/state/figureReferences'
-import { normalizeFigureCatalog, normalizeFigureEventRules, normalizeFigureMoveDirection, normalizeFigureMoveRules, resolveCollabStateIndex, updateFigureCatalogStateAtIndex } from '../game/figureView'
+import { normalizeFigureCatalog, normalizeFigureEventRules, normalizeFigureMoveDirection, normalizeFigureMoveRules, normalizeFigureState, resolveCollabStateIndex, updateFigureCatalogStateAtIndex } from '../game/figureView'
 import { normalizeFigureTeams } from '../game/figureTeams'
 import { stripCatalogEventRules } from '../game/state/boardEventRules'
-import { resolveCanJumpOverOwnTeam, resolveCanStepOnOwnTeam, resolveJumpOverPieces } from '../game/moveRules'
 import { GameState } from '../game/types/gameState'
 
 /** Minimal collaborative edit operation — only what changed. */
@@ -28,7 +27,7 @@ export type CollabOp =
     | { kind: 'style-rules'; boardId: string; styleRules: BoardStyleRule[] }
     | { kind: 'cell-parameters'; boardId: string; coordKey: string; parameters: CellParameters | null }
     | { kind: 'figure-view-params'; figureId: FigureId; viewParams: FigureViewParams; stateIndex?: number }
-    | { kind: 'figure-move-rules'; figureId: FigureId; moveRules: FigureMoveRule[]; jumpOverPieces?: boolean; canStepOnOwnTeam?: boolean; canJumpOverOwnTeam?: boolean; stateIndex?: number }
+    | { kind: 'figure-move-rules'; figureId: FigureId; moveRules: FigureMoveRule[]; stateIndex?: number; jumpOverPieces?: boolean; canStepOnOwnTeam?: boolean; canJumpOverOwnTeam?: boolean }
     | { kind: 'figure-states'; figureId: FigureId; states: FigureState[] }
     | { kind: 'figure-team'; figureId: FigureId; team?: number }
     | { kind: 'figure-teams'; teams: FigureTeams }
@@ -146,19 +145,15 @@ export function applyCollabOp(
             return {
                 figures: figuresSlice,
                 board: boardSlice,
-                catalog: updateFigureCatalogStateAtIndex(catalog, op.figureId, stateIndex, state => ({
-                    ...state,
-                    moveRules: normalizeFigureMoveRules(op.moveRules),
-                    jumpOverPieces: op.jumpOverPieces !== undefined
-                        ? op.jumpOverPieces !== false
-                        : resolveJumpOverPieces(state),
-                    canStepOnOwnTeam: op.canStepOnOwnTeam !== undefined
-                        ? op.canStepOnOwnTeam === true
-                        : resolveCanStepOnOwnTeam(state),
-                    canJumpOverOwnTeam: op.canJumpOverOwnTeam !== undefined
-                        ? op.canJumpOverOwnTeam === true
-                        : resolveCanJumpOverOwnTeam(state),
-                })),
+                catalog: updateFigureCatalogStateAtIndex(catalog, op.figureId, stateIndex, state => (
+                    normalizeFigureState({
+                        ...state,
+                        moveRules: normalizeFigureMoveRules(op.moveRules, {
+                            canStepOnOwnTeam: op.canStepOnOwnTeam ?? state.canStepOnOwnTeam,
+                            canJumpOverOwnTeam: op.canJumpOverOwnTeam ?? state.canJumpOverOwnTeam,
+                        }),
+                    }, op.figureId)
+                )),
             }
         }
         case 'figure-states':

@@ -1,10 +1,7 @@
 import React, { FC, useCallback, useMemo } from 'react'
-import cn from 'classnames'
 import { useGameContext } from '../../context'
-import { FigureMoveDirection } from '../../types/figures'
 import {
     defaultTeamName,
-    FIGURE_MOVE_DIRECTION_OPTIONS,
     getFiguresForTeam,
     nextTeamId,
 } from '../../figureTeams'
@@ -35,24 +32,6 @@ export const TeamsPanel: FC = () => {
                 ? { ...team, name: trimmed || defaultTeamName(teamId) }
                 : team
         )))
-    }, [figureTeams, setFigureTeams])
-
-    const handleMoveDirectionChange = useCallback((teamId: number, direction: FigureMoveDirection) => {
-        setFigureTeams(figureTeams.map(team => {
-            if (team.id !== teamId) {
-                return team
-            }
-
-            const next: typeof team = { ...team }
-
-            if (direction === 'up') {
-                delete next.moveDirection
-            } else {
-                next.moveDirection = direction
-            }
-
-            return next
-        }))
     }, [figureTeams, setFigureTeams])
 
     const handleRemoveTeam = useCallback((teamId: number) => {
@@ -91,25 +70,6 @@ export const TeamsPanel: FC = () => {
                                         >
                                             ×
                                         </button>
-                                    </div>
-                                    <div className={formStyles.moveDirectionRow}>
-                                        <span className={formStyles.stateRowLabel}>направление</span>
-                                        <div className={formStyles.moveDirectionTabs}>
-                                            {FIGURE_MOVE_DIRECTION_OPTIONS.map(({ id, label }) => (
-                                                <button
-                                                    key={id}
-                                                    type="button"
-                                                    className={cn(
-                                                        (team.moveDirection ?? 'up') === id
-                                                            ? formStyles.moveDirectionTabActive
-                                                            : formStyles.moveDirectionTab,
-                                                    )}
-                                                    onClick={() => handleMoveDirectionChange(team.id, id)}
-                                                >
-                                                    {label}
-                                                </button>
-                                            ))}
-                                        </div>
                                     </div>
                                     <TeamFiguresPicker
                                         selectedFigureIds={members}

@@ -12,7 +12,8 @@ import { formatMegabytes } from '../formatBytes'
 import { isProjectImportFile, PROJECT_FILE_EXTENSION } from '../projectFile'
 import { getProjectByteSize, readStorageEstimate, StorageEstimate } from '../storageEstimate'
 import { Project } from '../types'
-import { ProjectBoardsPreview, PREVIEW_SIZE_DEFAULT, PREVIEW_SIZE_MAX, PREVIEW_SIZE_MIN } from './ProjectBoardsPreview'
+import { projectsBootstrapLog } from '../projectsBootstrapLog'
+import { ProjectBoardsPreview, PREVIEW_SIZE_DEFAULT, PREVIEW_SIZE_MIN, PREVIEW_SIZE_MAX } from './ProjectBoardsPreview'
 import styles from './ProjectsModal.module.css'
 
 export interface ProjectsModalProps {
@@ -119,6 +120,7 @@ function HoldDeleteButton({
 
 export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
     const {
+        isReady,
         projects,
         visitedRooms,
         currentProjectId,
@@ -164,8 +166,9 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
             return
         }
 
+        projectsBootstrapLog.uiState(isReady, projects.length, open)
         void refreshStorageInfo()
-    }, [open, refreshStorageInfo])
+    }, [open, refreshStorageInfo, isReady, projects.length])
 
     useEffect(() => {
         if (visitedRooms.length === 0 && showVisitedRooms) {

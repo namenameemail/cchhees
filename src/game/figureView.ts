@@ -9,6 +9,7 @@ import {
     FigureId,
     FigureMoveDirection,
     FigureMoveRule,
+    FigureMoveVariant,
     FigurePlacement,
     FigurePlacementInput,
     FigureState,
@@ -17,6 +18,12 @@ import {
     FigureViewParams,
     LegacyFigureDefinition,
 } from './types/figures'
+import { BoardParameters } from './types/boardParameters'
+import {
+    cloneMoveRule,
+    createDefaultMoveRule,
+    migrateFigureMoveRulesInput,
+} from './migrateFigureMoveRules'
 import { CellCoord, coordKey } from './types/coords'
 import { resolveFigureFilterList, canonicalizeFigureFilterArray, normalizeFigureFilterEntry, FIGURE_FILTER_NONE, canonicalizeConditionSubjectEntries, FIGURE_SUBJECT_MOVED, FIGURE_SUBJECT_STEPPED_ON } from './figureFilter'
 import { resolveTeamMoveDirection } from './figureTeams'
@@ -50,6 +57,10 @@ import {
     StepCause,
 } from './types/events'
 import { migrateFigureEventRule } from './events/migrateEventRules'
+import {
+    migrateLegacyFigureAreaCells,
+    normalizeFigureAreaCells,
+} from './figureAreaCells'
 import {
     logFigureConditionDropped,
     logFigureConditionsNormalize,
@@ -96,24 +107,22 @@ export function createDefaultFigureState(figureId?: FigureId): FigureState {
     return {
         viewParams: getDefaultFigureViewParams(figureId),
         moveRules: [],
-        jumpOverPieces: true,
     }
 }
 
-export function cloneFigureState(state: FigureState): FigureState {
-    return {
-        viewParams: { ...state.viewParams },
-        moveRules: state.moveRules ? state.moveRules.map(rule => ({ ...rule })) : [],
-        jumpOverPieces: state.jumpOverPieces !== false,
-        canStepOnOwnTeam: state.canStepOnOwnTeam === true,
-        canJumpOverOwnTeam: state.canJumpOverOwnTeam === true,
-    }
-}
+function normalizeMoveVariant(variant: FigureMoveVariant | undefined, kind: 'empty' | 'capture' | 'jumpOver'): FigureMoveVariant {
+    const defaults = createDefaultMoveRule(1, 0)[kind]
+    const source = variant ?? defaults
+    const length = source.length === undefined ? defaults.length : Math.max(0, Math.trunc(source.length))
 
-export function createNewFigureDefinition(): FigureDefinition {
     return {
-        id: crypto.randomUUID(),
-        states: [createDefaultFigureState()],
+        enabled: source.enabled === true,
+        length,
+        ...(kind === 'empty' && source.emptyPath === true ? { emptyPath: true } : {}),
+        ...(kind === 'capture' || kind === 'jumpOver'
+            ? { allowOwnTeam: source.allowOwnTeam === true }
+            : {}),
+        conditions: source.conditions ?? [],
     }
 }
 
@@ -125,22 +134,51 @@ export function normalizeFigureMoveRule(rule: FigureMoveRule): FigureMoveRule | 
         return null
     }
 
-    const n = rule.n === undefined ? 1 : Math.trunc(rule.n)
-    const landing = rule.landing === 'empty' || rule.landing === 'capture' || rule.landing === 'any' || rule.landing === 'jumpOver'
-        ? rule.landing
-        : undefined
-
-    return landing ? { x, y, n, landing } : { x, y, n }
+    return {
+        x,
+        y,
+        empty: normalizeMoveVariant(rule.empty, 'empty'),
+        capture: normalizeMoveVariant(rule.capture, 'capture'),
+        jumpOver: normalizeMoveVariant(rule.jumpOver, 'jumpOver'),
+    }
 }
 
-export function normalizeFigureMoveRules(rules?: FigureMoveRule[]): FigureMoveRule[] {
+export function normalizeFigureMoveRules(
+    rules?: FigureMoveRule[],
+    stateFlags?: { canStepOnOwnTeam?: boolean; canJumpOverOwnTeam?: boolean },
+): FigureMoveRule[] {
     if (!rules?.length) {
         return []
     }
 
-    return rules
-        .map(normalizeFigureMoveRule)
-        .filter((rule): rule is FigureMoveRule => rule !== null)
+    const migrated = migrateFigureMoveRulesInput(rules, stateFlags)
+    const deduped = new Map<string, FigureMoveRule>()
+
+    for (const rule of migrated) {
+        const normalized = normalizeFigureMoveRule(rule)
+
+        if (!normalized) {
+            continue
+        }
+
+        deduped.set(`${normalized.x},${normalized.y}`, normalized)
+    }
+
+    return [...deduped.values()].sort((left, right) => (left.y - right.y) || (left.x - right.x))
+}
+
+export function createNewFigureDefinition(): FigureDefinition {
+    return {
+        id: crypto.randomUUID(),
+        states: [createDefaultFigureState()],
+    }
+}
+
+export function cloneFigureState(state: FigureState): FigureState {
+    return {
+        viewParams: { ...state.viewParams },
+        moveRules: state.moveRules ? state.moveRules.map(cloneMoveRule) : [],
+    }
 }
 
 export function hasFigureMoveRules(state: Pick<FigureState, 'moveRules'>): boolean {
@@ -174,10 +212,10 @@ export function normalizeFigureState(state: FigureState, figureId: FigureId): Fi
             strokeColor: viewParams.strokeColor?.trim() || defaults.strokeColor,
             strokeDasharray: viewParams.strokeDasharray?.trim() || undefined,
         }),
-        moveRules: normalizeFigureMoveRules(state.moveRules),
-        jumpOverPieces: state.jumpOverPieces !== false,
-        canStepOnOwnTeam: state.canStepOnOwnTeam === true,
-        canJumpOverOwnTeam: state.canJumpOverOwnTeam === true,
+        moveRules: normalizeFigureMoveRules(state.moveRules, {
+            canStepOnOwnTeam: state.canStepOnOwnTeam,
+            canJumpOverOwnTeam: state.canJumpOverOwnTeam,
+        }),
     }
 }
 
@@ -193,8 +231,7 @@ function extractStatesFromEntry(
     if (legacy.viewParams) {
         return [{
             viewParams: legacy.viewParams,
-            moveRules: legacy.moveRules,
-            jumpOverPieces: legacy.jumpOverPieces,
+            moveRules: legacy.moveRules as FigureState['moveRules'],
         }]
     }
 
@@ -829,13 +866,14 @@ export function resolveFigureMoveDirection(entry: Pick<FigureDefinition, 'moveDi
 export function resolveFigureMoveDirectionFromCatalog(
     catalog: FigureCatalog,
     figureId: FigureId,
-    figureTeams?: FigureTeams,
+    boardParameters?: BoardParameters,
+    legacyFigureTeams?: FigureTeams,
 ): FigureMoveDirection {
     const entry = catalog.find(item => item.id === figureId)
     const teamId = entry ? normalizeFigureTeam(entry.team) : undefined
 
     if (teamId !== undefined) {
-        const teamDirection = resolveTeamMoveDirection(figureTeams, teamId)
+        const teamDirection = resolveTeamMoveDirection(boardParameters, teamId, legacyFigureTeams)
 
         return teamDirection ?? 'up'
     }
@@ -918,7 +956,6 @@ export function migrateToFigureCatalog(state: {
                 states: [{
                     viewParams: viewParams ?? createPawnFigureViewParams(),
                     moveRules: [],
-                    jumpOverPieces: true,
                 }],
             })),
         )
