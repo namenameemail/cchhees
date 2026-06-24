@@ -25,6 +25,7 @@ import {
     toggleFigureStateInFilterArray,
 } from '../../figureFilter'
 import { FigureSVG } from '../FigureSVG'
+import { resolveFigureFilterPreviewSize } from '../../figureCellFit'
 import { logFigureFilterDebug } from './figureFilterArrayDebug'
 import selectStyles from './FigureStateSelect.module.css'
 import styles from './FigureFilterArrayField.module.css'
@@ -132,7 +133,7 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
     const statesTileRef = useRef<HTMLDivElement | null>(null)
 
     const previewSize = useMemo(
-        () => Math.min(cellXDistance, cellYDistance),
+        () => resolveFigureFilterPreviewSize(cellXDistance, cellYDistance),
         [cellXDistance, cellYDistance],
     )
 

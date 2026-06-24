@@ -91,4 +91,5 @@ export interface GameContextValue {
     moveRecMoveCount: number
     toggleMoveRec: () => void
     saveMoveRec: () => Promise<MoveRecSaveResult>
+    restoreDefaultFigures: (figures: FiguresSlice) => void
 }

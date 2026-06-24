@@ -662,8 +662,8 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
     }, [index, onRemove])
 
     return (
-        <div className={styles.eventRuleRow}>
-            <div className={styles.eventRuleEventCol}>
+        <div className={styles.eventRuleCard}>
+            <div className={styles.eventRuleCardHeader}>
                 <Form1
                     className={styles.eventEventFieldsForm}
                     value={rule}
@@ -674,23 +674,28 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
                     type="button"
                     className={styles.eventRuleRemove}
                     onClick={handleRemove}
+                    aria-label="Удалить событие"
                 >
                     x
                 </button>
             </div>
-            <div className={styles.eventRuleConditionsCol}>
-                <FormArray<FigureEventCondition>
-                    {...conditionsArrayProps}
-                    value={rule.conditions ?? []}
-                    onChange={handleConditionsChange}
-                />
-            </div>
-            <div className={styles.eventRuleActionsCol}>
-                <FormArray<GameAction>
-                    {...actionsArrayProps}
-                    value={rule.actions ?? []}
-                    onChange={handleActionsChange}
-                />
+            <div className={styles.eventRuleCardBody}>
+                <div className={styles.eventRuleConditionsCol}>
+                    <div className={styles.eventRuleColLabel}>Условия</div>
+                    <FormArray<FigureEventCondition>
+                        {...conditionsArrayProps}
+                        value={rule.conditions ?? []}
+                        onChange={handleConditionsChange}
+                    />
+                </div>
+                <div className={styles.eventRuleActionsCol}>
+                    <div className={styles.eventRuleColLabel}>Действия</div>
+                    <FormArray<GameAction>
+                        {...actionsArrayProps}
+                        value={rule.actions ?? []}
+                        onChange={handleActionsChange}
+                    />
+                </div>
             </div>
         </div>
     )
@@ -865,11 +870,6 @@ export const EventRulesTable: FC<EventRulesTableProps> = ({
 
     return (
         <div className={styles.eventRulesSection}>
-            <div className={styles.eventRulesTableHeader}>
-                <span>Событие</span>
-                <span>Условия</span>
-                <span>Действия</span>
-            </div>
             <div className={styles.eventRulesArray}>
                 {eventRules.map((rule, index) => (
                     <EventRuleRow
@@ -881,9 +881,9 @@ export const EventRulesTable: FC<EventRulesTableProps> = ({
                         onRemove={handleEventRuleRemove}
                     />
                 ))}
-                <div className={styles.eventRulesAddRow}>
-                    <button type="button" onClick={handleAddEventRule}>+</button>
-                </div>
+            </div>
+            <div className={styles.eventRulesAddRow}>
+                <button type="button" onClick={handleAddEventRule}>+ событие</button>
             </div>
         </div>
     )

@@ -10,6 +10,7 @@ import {
 import { FigureStateSelect } from './FigureStateSelect'
 import { FigureFilterArrayField, FigureFilterArrayFieldProps } from './FigureFilterArrayField'
 import { ConditionSubjectField, ConditionSubjectFieldProps } from './ConditionSubjectField'
+import formStyles from '../FigureParametersForm/styles.module.css'
 
 export interface FigureStateSelectFieldProps {
     figureField: string
@@ -129,7 +130,7 @@ export function createConditionSubjectFieldConfig<StateType extends Record<strin
         name: 'entries' as keyof StateType & string,
         Component: ConditionSubjectField,
         props: {
-            className,
+            className: className ?? formStyles.figureFilterArray,
             itemClassName,
             title,
             allowedRoles,

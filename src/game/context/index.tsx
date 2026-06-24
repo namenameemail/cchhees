@@ -307,6 +307,7 @@ export function GameProvider({
         redoFigures,
         undoBoard,
         redoBoard,
+        restoreFiguresToDefault,
     } = useSliceMutations({
         activeBoardIdRef,
         figuresSlice,
@@ -900,6 +901,7 @@ export function GameProvider({
             moveRecMoveCount,
             toggleMoveRec,
             saveMoveRec,
+            restoreDefaultFigures: restoreFiguresToDefault,
         }),
         [
             mode,
@@ -954,6 +956,7 @@ export function GameProvider({
             moveRecMoveCount,
             toggleMoveRec,
             saveMoveRec,
+            restoreFiguresToDefault,
         ],
     )
 

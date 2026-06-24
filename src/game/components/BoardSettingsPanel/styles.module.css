@@ -210,3 +210,41 @@ div.boardParametersForm {
     display: flex;
     align-items: center;
 }
+
+.placementPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+}
+
+.placementHint {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.35;
+    color: #555;
+}
+
+.placementActions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.placementButton {
+    padding: 6px 10px;
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    background: #f5f5f5;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.placementButton:hover:not(:disabled) {
+    background: #e8e8e8;
+}
+
+.placementButton:disabled {
+    opacity: 0.45;
+    cursor: default;
+}

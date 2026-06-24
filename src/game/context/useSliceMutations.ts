@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import type { MutableRefObject } from 'react'
-import { historyPush, historyRedo, historyUndo } from './history'
+import { historyPush, historyRedo, historyUndo, historyInit } from './history'
 import { CollabOp, normalizeCollabOps } from '../../collab/ops'
 import { CellCoord, isCoordInGrid } from '../types/coords'
 import { FigureCatalog } from '../types/figures'
@@ -201,6 +201,20 @@ export function useSliceMutations(options: {
         applyBoardChange(result.current, false, { kind: 'board-sync', boardId: activeBoardIdRef.current, board: result.current })
     }, [boardHistory, boardSlice, applyBoardChange, activeBoardIdRef, setBoardHistory])
 
+    const restoreFiguresToDefault = useCallback((nextFigures: FiguresSlice) => {
+        const cloned = cloneFiguresSlice(nextFigures)
+        setFiguresHistory(historyInit())
+        syncComposedState(cloned, boardSlice, figureCatalog)
+        emitCollabOp({ kind: 'figures', boardId: activeBoardIdRef.current, figures: cloned })
+    }, [
+        boardSlice,
+        figureCatalog,
+        syncComposedState,
+        emitCollabOp,
+        activeBoardIdRef,
+        setFiguresHistory,
+    ])
+
     return {
         syncComposedState,
         pushFiguresChange,
@@ -210,5 +224,6 @@ export function useSliceMutations(options: {
         redoFigures,
         undoBoard,
         redoBoard,
+        restoreFiguresToDefault,
     }
 }

@@ -90,6 +90,7 @@ export const ActionSubjectField: FC<ParameterInputComponentProps> = ({
                 value={subject.entries}
                 onChange={handleEntriesChange}
                 props={{
+                    className: formStyles.figureFilterArray,
                     showNearbyToggle: true,
                     nearbyEnabled: subject.nearby?.enabled === true,
                     onNearbyToggle: handleNearbyToggle,

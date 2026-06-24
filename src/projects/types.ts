@@ -34,6 +34,8 @@ export interface BoardDocument {
     gameState: GameState
     figuresHistory: SliceHistory<FiguresSlice>
     boardHistory: SliceHistory<BoardSlice>
+    /** Дефолтная расстановка фигур для кнопки «Сбросить». undefined = пустая доска. */
+    defaultFigures?: FiguresSlice
     previewDataUrl?: string
 }
 

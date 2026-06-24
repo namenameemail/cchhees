@@ -51,6 +51,8 @@ import {
     visitedRoomAsProject,
 } from './projectPersist'
 import { GameState } from '../game/types/gameState'
+import { FiguresSlice } from '../game/state/slices'
+import { cloneFiguresSlice } from '../game/state/reconcile'
 import { migrateInlineAssets } from './assets/migrateInlineAssets'
 import { profileDebug } from '../profiler'
 import { projectsBootstrapLog } from './projectsBootstrapLog'
@@ -96,6 +98,7 @@ export interface ProjectContextValue {
     renameBoard: (boardId: string, name: string) => Promise<void>
     deleteBoard: (boardId: string) => Promise<void>
     duplicateBoard: (boardId: string) => Promise<void>
+    setActiveBoardDefaultFigures: (figures: FiguresSlice) => Promise<void>
     promoteVisitedRoomToLocal: (hostProjectId: string) => Promise<void>
     replaceProjectGameState: (id: string, gameState: GameState) => Promise<void>
     exportProject: (id: string) => Promise<void>
@@ -141,6 +144,7 @@ const defaultContextValue: ProjectContextValue = {
     renameBoard: async () => {},
     deleteBoard: async () => {},
     duplicateBoard: async () => {},
+    setActiveBoardDefaultFigures: async () => {},
     promoteVisitedRoomToLocal: async () => {},
     replaceProjectGameState: async () => {},
     exportProject: async () => {},
@@ -963,6 +967,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                 structuredClone(source.boardHistory),
             )
 
+            if (source.defaultFigures) {
+                copy.defaultFigures = structuredClone(source.defaultFigures)
+            }
+
             return {
                 ...project,
                 boards: [...project.boards, copy],
@@ -975,6 +983,18 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         bumpGameSession()
         skipNextPersistRef.current = false
     }, [bumpGameSession, flushPendingSave, updateCurrentProjectBoards])
+
+    const setActiveBoardDefaultFigures = useCallback(async (figures: FiguresSlice) => {
+        await updateCurrentProjectBoards(project => ({
+            ...project,
+            boards: project.boards.map(board => (
+                board.id === project.activeBoardId
+                    ? { ...board, defaultFigures: cloneFiguresSlice(figures) }
+                    : board
+            )),
+            updatedAt: Date.now(),
+        }))
+    }, [updateCurrentProjectBoards])
 
     const currentProjectRef = useRef(currentProject)
     currentProjectRef.current = currentProject
@@ -1137,6 +1157,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             renameBoard,
             deleteBoard,
             duplicateBoard,
+            setActiveBoardDefaultFigures,
             promoteVisitedRoomToLocal,
             replaceProjectGameState,
             exportProject,
@@ -1177,6 +1198,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             renameBoard,
             deleteBoard,
             duplicateBoard,
+            setActiveBoardDefaultFigures,
             promoteVisitedRoomToLocal,
             replaceProjectGameState,
             exportProject,

@@ -1,6 +1,22 @@
 import { RefObject, useEffect, useState } from 'react'
 
 export const FIGURE_STRIP_CELL_MAX = 72
+/** Max tile size in condition/action figure filter fields (trigger + dropdown). */
+export const FIGURE_FILTER_PREVIEW_MAX_PX = 32
+
+export function resolveFigureFilterPreviewSize(
+    cellXDistance: number,
+    cellYDistance: number,
+): number {
+    if (cellXDistance <= 0 || cellYDistance <= 0) {
+        return FIGURE_FILTER_PREVIEW_MAX_PX
+    }
+
+    return Math.max(
+        16,
+        Math.min(Math.min(cellXDistance, cellYDistance), FIGURE_FILTER_PREVIEW_MAX_PX),
+    )
+}
 
 export function resolveStripCellPixelSize(
     cellXDistance: number,

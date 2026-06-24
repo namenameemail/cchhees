@@ -28,6 +28,7 @@ import {
     toggleSubjectRoleInEntries,
 } from '../../figureFilter'
 import { FigureSVG } from '../FigureSVG'
+import { resolveFigureFilterPreviewSize } from '../../figureCellFit'
 import selectStyles from './FigureStateSelect.module.css'
 import styles from './FigureFilterArrayField.module.css'
 import { HoppedOverSubjectIcon, MovedSubjectIcon, NearbySubjectIcon, SteppedOnSubjectIcon } from './SubjectRoleIcons'
@@ -137,7 +138,7 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
     const statesTileRef = useRef<HTMLDivElement | null>(null)
 
     const previewSize = useMemo(
-        () => Math.min(cellXDistance, cellYDistance),
+        () => resolveFigureFilterPreviewSize(cellXDistance, cellYDistance),
         [cellXDistance, cellYDistance],
     )
 

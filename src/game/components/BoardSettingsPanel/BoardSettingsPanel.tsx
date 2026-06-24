@@ -13,10 +13,11 @@ import { BoardStyleRules } from '../BoardStyleRules'
 import { BoardAxisNumberingsForm } from './BoardAxisNumberingsForm'
 import { BoardMarksForm } from './BoardMarksForm'
 import { BoardTeamDirectionsForm } from './BoardTeamDirectionsForm'
+import { BoardPlacementPanel } from './BoardPlacementPanel'
 import { normalizeAxisNumberingForBoard, resolveAxisNumberings } from '../../boardAxisLabels'
 import styles from './styles.module.css'
 
-type BoardSectionTab = 'view' | 'cells' | 'numbering' | 'marks' | 'teams'
+type BoardSectionTab = 'view' | 'cells' | 'numbering' | 'marks' | 'teams' | 'placement'
 
 const BOARD_SECTION_TABS: Array<{ id: BoardSectionTab; label: string }> = [
     { id: 'view', label: 'вид' },
@@ -24,6 +25,7 @@ const BOARD_SECTION_TABS: Array<{ id: BoardSectionTab; label: string }> = [
     { id: 'numbering', label: 'нумерация' },
     { id: 'marks', label: 'отметки' },
     { id: 'teams', label: 'команды' },
+    { id: 'placement', label: 'расстановка' },
 ]
 
 const BackgroundAssetSelectField: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
@@ -233,6 +235,7 @@ export const BoardSettingsPanel: FC = () => {
                         {id === 'numbering' && <BoardAxisNumberingsForm />}
                         {id === 'marks' && <BoardMarksForm />}
                         {id === 'teams' && <BoardTeamDirectionsForm />}
+                        {id === 'placement' && <BoardPlacementPanel />}
                     </div>
                 ))}
             </div>
