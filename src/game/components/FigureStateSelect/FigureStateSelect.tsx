@@ -6,7 +6,6 @@ import React, {
     useMemo,
     useRef,
     useState,
-    type CSSProperties,
     type FocusEvent,
     type MouseEvent,
 } from 'react'
@@ -21,6 +20,7 @@ import {
 import { FigureId } from '../../types/figures'
 import { FigureSVG } from '../FigureSVG'
 import styles from './FigureStateSelect.module.css'
+import { StatesPanelPortal } from './StatesPanelPortal'
 
 const FIGURES_PER_ROW = 5
 const FIGURES_PANEL_SCROLL_PADDING = 0
@@ -64,7 +64,6 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
     const [figuresPanelHovered, setFiguresPanelHovered] = useState(false)
     const [statesFigureId, setStatesFigureId] = useState<FigureId | null>(null)
     const [statesPanelHovered, setStatesPanelHovered] = useState(false)
-    const [statesOverlayStyle, setStatesOverlayStyle] = useState<CSSProperties | null>(null)
     const [openUpward, setOpenUpward] = useState(false)
 
     const rootRef = useRef<HTMLDivElement>(null)
@@ -181,58 +180,6 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
     const showStatesOverlay = showStatePicker
         && statesEntry != null
         && statesEntry.states.length > 1
-
-    const updateStatesOverlayPosition = useCallback(() => {
-        const panel = figuresPanelRef.current
-        const tile = statesTileRef.current
-
-        if (!panel || !tile) {
-            setStatesOverlayStyle(null)
-            return
-        }
-
-        const panelRect = panel.getBoundingClientRect()
-        const tileRect = tile.getBoundingClientRect()
-
-        setStatesOverlayStyle({
-            top: tileRect.top - panelRect.top,
-            left: tileRect.right - panelRect.left,
-            width: previewSize,
-            minHeight: tileRect.height,
-        })
-    }, [previewSize])
-
-    useEffect(() => {
-        if (!showStatesOverlay) {
-            setStatesOverlayStyle(null)
-            return
-        }
-
-        updateStatesOverlayPosition()
-    }, [showStatesOverlay, statesFigureId, previewSize, figureCatalog.length, updateStatesOverlayPosition])
-
-    useEffect(() => {
-        if (!showStatesOverlay) {
-            return
-        }
-
-        const scrollEl = figuresScrollRef.current
-        if (!scrollEl) {
-            return
-        }
-
-        const handleScroll = () => {
-            updateStatesOverlayPosition()
-        }
-
-        scrollEl.addEventListener('scroll', handleScroll, { passive: true })
-        window.addEventListener('resize', handleScroll)
-
-        return () => {
-            scrollEl.removeEventListener('scroll', handleScroll)
-            window.removeEventListener('resize', handleScroll)
-        }
-    }, [showStatesOverlay, updateStatesOverlayPosition])
 
     useEffect(() => {
         if (!statesFigureId) {
@@ -515,45 +462,45 @@ export const FigureStateSelect: FC<FigureStateSelectProps> = ({
                         })}
                     </div>
 
-                    {showStatesOverlay && statesEntry && statesOverlayStyle && (
-                        <div
-                            ref={statesPanelRef}
-                            className={styles.statesPanel}
-                            style={statesOverlayStyle}
-                            tabIndex={-1}
-                            onMouseEnter={handleStatesPanelMouseEnter}
-                            onMouseLeave={handleStatesPanelMouseLeave}
-                            onBlur={handleStatesPanelBlur}
-                        >
-                            {statesEntry.states.map((_, index) => (
-                                <button
-                                    key={index}
-                                    type="button"
-                                    className={cn(
-                                        styles.previewTile,
-                                        styles.stateOption,
-                                        resolvedFigureId === statesEntry.id
-                                        && resolvedStateIndex === index
-                                        && styles.previewTileActive,
-                                    )}
-                                    style={{ width: previewSize, height: previewSize }}
-                                    title={`${statesEntry.id} #${index}`}
-                                    onClick={(event) => handleStateSelect(
-                                        event,
-                                        statesEntry.id,
-                                        index,
-                                    )}
-                                >
-                                    <FigureSVG
-                                        figureId={statesEntry.id}
-                                        stateIndex={index}
-                                        width={previewSize}
-                                        height={previewSize}
-                                    />
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                    <StatesPanelPortal
+                        tileRef={statesTileRef}
+                        isOpen={showStatesOverlay}
+                        previewSize={previewSize}
+                        stateCount={statesEntry?.states.length ?? 0}
+                        panelRef={statesPanelRef}
+                        layoutDeps={[statesFigureId, previewSize, figureCatalog.length]}
+                        onMouseEnter={handleStatesPanelMouseEnter}
+                        onMouseLeave={handleStatesPanelMouseLeave}
+                        onBlur={handleStatesPanelBlur}
+                    >
+                        {statesEntry?.states.map((_, index) => (
+                            <button
+                                key={index}
+                                type="button"
+                                className={cn(
+                                    styles.previewTile,
+                                    styles.stateOption,
+                                    resolvedFigureId === statesEntry.id
+                                    && resolvedStateIndex === index
+                                    && styles.previewTileActive,
+                                )}
+                                style={{ width: previewSize, height: previewSize }}
+                                title={`${statesEntry.id} #${index}`}
+                                onClick={(event) => handleStateSelect(
+                                    event,
+                                    statesEntry.id,
+                                    index,
+                                )}
+                            >
+                                <FigureSVG
+                                    figureId={statesEntry.id}
+                                    stateIndex={index}
+                                    width={previewSize}
+                                    height={previewSize}
+                                />
+                            </button>
+                        ))}
+                    </StatesPanelPortal>
                 </div>
             )}
         </div>

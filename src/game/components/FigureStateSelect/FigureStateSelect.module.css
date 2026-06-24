@@ -119,6 +119,12 @@
     z-index: 1;
 }
 
+.statesPanelPortal {
+    position: fixed;
+    top: 0;
+    left: 0;
+}
+
 .statesPanel {
     position: absolute;
     z-index: 40;

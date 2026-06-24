@@ -11,21 +11,7 @@ import React, {
 import { createPortal } from 'react-dom'
 import cn from 'classnames'
 import selectStyles from './FigureStateSelect.module.css'
-
-const PANEL_Z_INDEX = 10000
-const VIEWPORT_PADDING = 4
-
-function clampPanelLeft(left: number, panelWidth: number): number {
-    const maxLeft = window.innerWidth - panelWidth - VIEWPORT_PADDING
-
-    return Math.max(VIEWPORT_PADDING, Math.min(left, maxLeft))
-}
-
-function clampPanelTop(top: number, panelHeight: number): number {
-    const maxTop = window.innerHeight - panelHeight - VIEWPORT_PADDING
-
-    return Math.max(VIEWPORT_PADDING, Math.min(top, maxTop))
-}
+import { clampPanelLeft, clampPanelTop, PANEL_Z_INDEX } from './panelPosition'
 
 function useFixedPanelStyle(
     anchorRef: RefObject<HTMLElement | null>,

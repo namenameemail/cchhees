@@ -5,7 +5,6 @@ import React, {
     useMemo,
     useRef,
     useState,
-    type CSSProperties,
     type FocusEvent,
     type MouseEvent,
 } from 'react'
@@ -30,6 +29,7 @@ import { logFigureFilterDebug } from './figureFilterArrayDebug'
 import selectStyles from './FigureStateSelect.module.css'
 import styles from './FigureFilterArrayField.module.css'
 import { FiguresPanelPortal } from './FiguresPanelPortal'
+import { StatesPanelPortal } from './StatesPanelPortal'
 
 const FIGURES_PER_ROW = 5
 const FIGURES_PANEL_SCROLL_PADDING = 0
@@ -124,7 +124,6 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
     const [figuresPanelHovered, setFiguresPanelHovered] = useState(false)
     const [statesFigureId, setStatesFigureId] = useState<FigureId | null>(null)
     const [statesPanelHovered, setStatesPanelHovered] = useState(false)
-    const [statesOverlayStyle, setStatesOverlayStyle] = useState<CSSProperties | null>(null)
 
     const rootRef = useRef<HTMLDivElement>(null)
     const figuresPanelRef = useRef<HTMLDivElement>(null)
@@ -224,58 +223,6 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
         const next = removeFigureFromFilterArray(entries, figureId)
         commitEntries(next, 'remove-figure', { figureId })
     }, [commitEntries, entries])
-
-    const updateStatesOverlayPosition = useCallback(() => {
-        const panel = figuresPanelRef.current
-        const tile = statesTileRef.current
-
-        if (!panel || !tile) {
-            setStatesOverlayStyle(null)
-            return
-        }
-
-        const panelRect = panel.getBoundingClientRect()
-        const tileRect = tile.getBoundingClientRect()
-
-        setStatesOverlayStyle({
-            top: tileRect.top - panelRect.top,
-            left: tileRect.right - panelRect.left,
-            width: previewSize,
-            minHeight: tileRect.height,
-        })
-    }, [previewSize])
-
-    useEffect(() => {
-        if (!showStatesOverlay) {
-            setStatesOverlayStyle(null)
-            return
-        }
-
-        updateStatesOverlayPosition()
-    }, [showStatesOverlay, statesFigureId, previewSize, figureCatalog.length, updateStatesOverlayPosition])
-
-    useEffect(() => {
-        if (!showStatesOverlay) {
-            return
-        }
-
-        const scrollEl = figuresScrollRef.current
-        if (!scrollEl) {
-            return
-        }
-
-        const handleScroll = () => {
-            updateStatesOverlayPosition()
-        }
-
-        scrollEl.addEventListener('scroll', handleScroll, { passive: true })
-        window.addEventListener('resize', handleScroll)
-
-        return () => {
-            scrollEl.removeEventListener('scroll', handleScroll)
-            window.removeEventListener('resize', handleScroll)
-        }
-    }, [showStatesOverlay, updateStatesOverlayPosition])
 
     useEffect(() => {
         if (!statesFigureId) {
@@ -596,20 +543,21 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
                         })}
                     </div>
 
-                    {showStatesOverlay && statesEntry && statesOverlayStyle && (
-                        <div
-                            ref={statesPanelRef}
-                            className={styles.statesPanelRight}
-                            style={statesOverlayStyle}
-                            tabIndex={-1}
-                            onMouseEnter={handleStatesPanelMouseEnter}
-                            onMouseLeave={handleStatesPanelMouseLeave}
-                            onBlur={handleStatesPanelBlur}
-                        >
-                            {statesEntry.states.map((_, index) => {
-                                const isStateSelected = selectedStateIndicesForHover.has(index)
+                    <StatesPanelPortal
+                        tileRef={statesTileRef}
+                        isOpen={showStatesOverlay}
+                        previewSize={previewSize}
+                        stateCount={statesEntry?.states.length ?? 0}
+                        panelRef={statesPanelRef}
+                        layoutDeps={[statesFigureId, previewSize, figureCatalog.length]}
+                        onMouseEnter={handleStatesPanelMouseEnter}
+                        onMouseLeave={handleStatesPanelMouseLeave}
+                        onBlur={handleStatesPanelBlur}
+                    >
+                        {statesEntry?.states.map((_, index) => {
+                            const isStateSelected = selectedStateIndicesForHover.has(index)
 
-                                return (
+                            return (
                                 <button
                                     key={index}
                                     type="button"
@@ -634,10 +582,9 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
                                         highlightSelection={isStateSelected}
                                     />
                                 </button>
-                                )
-                            })}
-                        </div>
-                    )}
+                            )
+                        })}
+                    </StatesPanelPortal>
                 </FiguresPanelPortal>
             )}
         </div>
