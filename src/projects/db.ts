@@ -1,5 +1,12 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb'
-import { Project, MetaRecord, CURRENT_PROJECT_ID_KEY, CURRENT_PROJECT_KIND_KEY } from './types'
+import {
+    Project,
+    MetaRecord,
+    ProjectsBackupRecord,
+    CURRENT_PROJECT_ID_KEY,
+    CURRENT_PROJECT_KIND_KEY,
+    LAST_KNOWN_PROJECT_COUNT_KEY,
+} from './types'
 import { ProjectAssetNewRecord, ProjectAssetRecord } from './assets/types'
 import { assetsDebugLog } from './assets/assetsDebugLog'
 import { MAX_VISITED_ROOMS, ProjectSessionKind, VisitedRoom, LegacyVisitedRoomV3, migrateLegacyVisitedRoomV3, migrateVisitedRoom } from './visitedRooms/types'
@@ -30,10 +37,18 @@ interface CchheesDB extends DBSchema {
         key: string
         value: VisitedRoom
     }
+    backups: {
+        key: string
+        value: ProjectsBackupRecord
+    }
 }
 
-const DB_NAME = 'cchhees'
-const DB_VERSION = 5
+export const DB_NAME = 'cchhees'
+export const DB_VERSION = 6
+export const MAX_PROJECT_BACKUPS = 5
+
+const DB_NAME_INTERNAL = DB_NAME
+const DB_VERSION_INTERNAL = DB_VERSION
 
 let dbPromise: Promise<IDBPDatabase<CchheesDB>> | undefined
 
@@ -64,7 +79,7 @@ async function migrateVisitedRoomsToHostProjectId(
 
 function getDb() {
     if (!dbPromise) {
-        dbPromise = openDB<CchheesDB>(DB_NAME, DB_VERSION, {
+        dbPromise = openDB<CchheesDB>(DB_NAME_INTERNAL, DB_VERSION_INTERNAL, {
             upgrade(db, oldVersion, _newVersion, transaction) {
                 if (!db.objectStoreNames.contains('projects')) {
                     db.createObjectStore('projects', { keyPath: 'id' })
@@ -81,6 +96,9 @@ function getDb() {
                 }
                 if (oldVersion < 4) {
                     return migrateVisitedRoomsToHostProjectId(db, transaction as unknown as VisitedRoomsMigrationTx)
+                }
+                if (oldVersion < 6 && !db.objectStoreNames.contains('backups')) {
+                    db.createObjectStore('backups', { keyPath: 'id' })
                 }
             },
         })
@@ -109,6 +127,82 @@ export async function putProject(project: Project): Promise<void> {
 export async function deleteProject(id: string): Promise<void> {
     const db = await getDb()
     await db.delete('projects', id)
+}
+
+export function getDbInfo(): { name: string; version: number } {
+    return { name: DB_NAME, version: DB_VERSION }
+}
+
+export async function createInitialProjectIfEmpty(
+    factory: () => Project,
+): Promise<{ projects: Project[]; created: boolean }> {
+    const db = await getDb()
+    const tx = db.transaction('projects', 'readwrite')
+    const countBefore = await tx.store.count()
+
+    if (countBefore === 0) {
+        await tx.store.add(factory())
+    }
+
+    await tx.done
+    return {
+        projects: await getAllProjects(),
+        created: countBefore === 0,
+    }
+}
+
+export async function getLastKnownProjectCount(): Promise<number> {
+    const db = await getDb()
+    const record = await db.get('meta', LAST_KNOWN_PROJECT_COUNT_KEY)
+
+    if (!record?.value) {
+        return 0
+    }
+
+    const parsed = Number(record.value)
+    return Number.isFinite(parsed) ? parsed : 0
+}
+
+export async function setLastKnownProjectCount(count: number): Promise<void> {
+    const db = await getDb()
+    await db.put('meta', { key: LAST_KNOWN_PROJECT_COUNT_KEY, value: String(count) })
+}
+
+export async function listBackupRecords(): Promise<ProjectsBackupRecord[]> {
+    const db = await getDb()
+    const backups = await db.getAll('backups')
+    return backups.sort((left, right) => right.createdAt - left.createdAt)
+}
+
+export async function putBackupRecord(record: ProjectsBackupRecord): Promise<void> {
+    const db = await getDb()
+    await db.put('backups', record)
+}
+
+export async function pruneProjectBackups(maxCount: number): Promise<void> {
+    const db = await getDb()
+    const backups = await listBackupRecords()
+
+    if (backups.length <= maxCount) {
+        return
+    }
+
+    const victims = backups.slice(maxCount)
+    const tx = db.transaction('backups', 'readwrite')
+    await Promise.all([
+        ...victims.map(item => tx.store.delete(item.id)),
+        tx.done,
+    ])
+}
+
+export async function restoreProjectsFromBackup(projects: Project[]): Promise<void> {
+    const db = await getDb()
+    const tx = db.transaction('projects', 'readwrite')
+
+    await Promise.all([
+        ...projects.map(project => tx.store.put(project)),
+        tx.done,
+    ])
 }
 
 export async function getCurrentProjectId(): Promise<string | undefined> {

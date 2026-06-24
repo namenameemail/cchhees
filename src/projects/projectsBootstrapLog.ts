@@ -1,3 +1,5 @@
+import { getDbInfo } from './db'
+
 const PREFIX = '[projects]'
 
 function log(message: string, ...args: unknown[]): void {
@@ -15,12 +17,20 @@ function formatError(error: unknown): { detail: string; stack?: string } {
     return { detail: String(error) }
 }
 
+function logOriginContext(): void {
+    const { name, version } = getDbInfo()
+    const origin = typeof location !== 'undefined' ? location.origin : 'unknown'
+    log(`context: origin=${origin} db=${name} v${version}`)
+}
+
 export const projectsBootstrapLog = {
     moduleLoaded(): void {
+        logOriginContext()
         log('logger loaded — ищите строки с префиксом [projects] в Console (уровень Default/Info)')
     },
 
     start(generation: number): void {
+        logOriginContext()
         log(`bootstrap start (gen=${generation})`)
     },
 
@@ -28,7 +38,7 @@ export const projectsBootstrapLog = {
         log(`indexedDB «cchhees».projects: ${rawCount} записей`)
 
         if (rawCount === 0) {
-            log('в IndexedDB нет проектов — будет создан пустой')
+            log('в IndexedDB нет проектов — будет проверка резервной копии или создан пустой')
         }
 
         for (const item of ids) {
@@ -86,13 +96,36 @@ export const projectsBootstrapLog = {
     },
 
     createdFallbackEmpty(name: string): void {
+        console.warn(
+            `${PREFIX} ⚠ создан пустой fallback «${name}» — проверьте origin=${typeof location !== 'undefined' ? location.origin : '?'} и резервные копии`,
+        )
         log(`ни один проект не загрузился — создан пустой «${name}»`)
+    },
+
+    autoRecovery(restoredCount: number, backupId: string, lastKnownCount: number): void {
+        console.warn(
+            `${PREFIX} ⚠ auto-recovery: восстановлено ${restoredCount} проект(ов) из backup ${backupId.slice(0, 8)} (lastKnown=${lastKnownCount})`,
+        )
+    },
+
+    backupWritten(count: number, backupId: string): void {
+        log(`backup saved: ${count} project(s) id=${backupId.slice(0, 8)}`)
+    },
+
+    dbReadFailed(error: unknown): void {
+        const { detail, stack } = formatError(error)
+        console.error(`${PREFIX} DB read/open FAILED — ${detail}`, error)
+
+        if (stack) {
+            console.error(`${PREFIX} stack:`, stack)
+        }
     },
 
     bootstrapFailed(error: unknown): void {
         const { detail, stack } = formatError(error)
 
         console.error(`${PREFIX} bootstrap FAILED — ${detail}`, error)
+        console.error(`${PREFIX} данные в IndexedDB НЕ удалены — повторите загрузку или восстановите из резервной копии`)
 
         if (stack) {
             console.error(`${PREFIX} stack:`, stack)

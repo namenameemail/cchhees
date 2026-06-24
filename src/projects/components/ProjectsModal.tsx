@@ -11,7 +11,7 @@ import { useProjectContext } from '../ProjectContext'
 import { formatMegabytes } from '../formatBytes'
 import { isProjectImportFile, PROJECT_FILE_EXTENSION } from '../projectFile'
 import { getProjectByteSize, readStorageEstimate, StorageEstimate } from '../storageEstimate'
-import { Project } from '../types'
+import { Project, ProjectsBackupRecord } from '../types'
 import { projectsBootstrapLog } from '../projectsBootstrapLog'
 import { ProjectBoardsPreview, PREVIEW_SIZE_DEFAULT, PREVIEW_SIZE_MIN, PREVIEW_SIZE_MAX } from './ProjectBoardsPreview'
 import styles from './ProjectsModal.module.css'
@@ -121,6 +121,7 @@ function HoldDeleteButton({
 export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
     const {
         isReady,
+        bootstrapRecoveryNotice,
         projects,
         visitedRooms,
         currentProjectId,
@@ -133,12 +134,16 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
         promoteVisitedRoomToLocal,
         exportProject,
         importProjectsFromFiles,
+        listBackups,
+        restoreBackup,
     } = useProjectContext()
 
     const [renamingId, setRenamingId] = useState<string | null>(null)
     const [renameValue, setRenameValue] = useState('')
     const [projectSizes, setProjectSizes] = useState<Record<string, number>>({})
     const [storageEstimate, setStorageEstimate] = useState<StorageEstimate | null>(null)
+    const [backups, setBackups] = useState<ProjectsBackupRecord[]>([])
+    const [isRestoringBackupId, setIsRestoringBackupId] = useState<string | null>(null)
     const [isImporting, setIsImporting] = useState(false)
     const [isDragActive, setIsDragActive] = useState(false)
     const [statusMessage, setStatusMessage] = useState<string | null>(null)
@@ -161,6 +166,11 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
         setProjectSizes(Object.fromEntries(sizes.map(item => [item.id, item.size])))
     }, [projects])
 
+    const refreshBackups = useCallback(async () => {
+        const records = await listBackups()
+        setBackups(records)
+    }, [listBackups])
+
     useEffect(() => {
         if (!open) {
             return
@@ -168,13 +178,34 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
 
         projectsBootstrapLog.uiState(isReady, projects.length, open)
         void refreshStorageInfo()
-    }, [open, refreshStorageInfo, isReady, projects.length])
+        void refreshBackups()
+
+        if (bootstrapRecoveryNotice) {
+            setStatusMessage(bootstrapRecoveryNotice)
+        }
+    }, [open, refreshStorageInfo, refreshBackups, isReady, projects.length, bootstrapRecoveryNotice])
 
     useEffect(() => {
         if (visitedRooms.length === 0 && showVisitedRooms) {
             setShowVisitedRooms(false)
         }
     }, [visitedRooms.length, showVisitedRooms])
+
+    const handleRestoreBackup = useCallback(async (backupId: string) => {
+        setIsRestoringBackupId(backupId)
+        setStatusMessage(null)
+
+        try {
+            await restoreBackup(backupId)
+            setStatusMessage('Проекты восстановлены из резервной копии')
+            onClose()
+        } catch (error) {
+            console.error('[ProjectsModal] restore backup failed:', error)
+            setStatusMessage(error instanceof Error ? error.message : 'Не удалось восстановить резервную копию')
+        } finally {
+            setIsRestoringBackupId(null)
+        }
+    }, [restoreBackup, onClose])
 
     const handleOverlayClick = useCallback((e: React.MouseEvent) => {
         if (e.target === e.currentTarget) {
@@ -570,6 +601,34 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
                         })
                             : projects.map(project => renderLocalProject(project))}
                     </div>
+
+                    {backups.length > 0 && (
+                        <section className={styles.restoreSection}>
+                            <h2 className={styles.restoreTitle}>Восстановление</h2>
+                            <p className={styles.restoreHint}>
+                                Локальные резервные копии для origin {typeof location !== 'undefined' ? location.origin : 'unknown'}.
+                            </p>
+                            <ul className={styles.restoreList}>
+                                {backups.map(backup => (
+                                    <li key={backup.id} className={styles.restoreItem}>
+                                        <div className={styles.restoreMeta}>
+                                            <span>{formatUpdatedAt(backup.createdAt)}</span>
+                                            <span>{backup.count} проект(ов)</span>
+                                            <span className={styles.restoreOrigin}>{backup.origin}</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className={styles.restoreButton}
+                                            disabled={isRestoringBackupId !== null}
+                                            onClick={() => void handleRestoreBackup(backup.id)}
+                                        >
+                                            {isRestoringBackupId === backup.id ? 'Восстановление...' : 'Восстановить'}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </section>
+                    )}
                 </div>
 
                 {statusMessage && (

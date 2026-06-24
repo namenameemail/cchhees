@@ -5,6 +5,7 @@ import { CollabProvider } from './collab/CollabProvider'
 import { AssetsProvider } from './projects/assets/AssetsContext'
 import { TopBar } from './projects/components/TopBar'
 import { ProjectsModal } from './projects/components/ProjectsModal'
+import { BootstrapErrorBanner } from './projects/components/BootstrapErrorBanner'
 import styles from './App.module.css'
 
 function App() {
@@ -14,6 +15,7 @@ function App() {
         <ProjectProvider>
             <CollabProvider>
                 <AssetsProvider>
+                    <BootstrapErrorBanner />
                     <TopBar onOpenProjects={() => setModalOpen(true)} />
                     <div className={styles.appBody}>
                         <Game />

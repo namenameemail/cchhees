@@ -1,0 +1,40 @@
+.banner {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    background: #fff3cd;
+    border-bottom: 1px solid #ffc107;
+    color: #664d03;
+    font-size: 13px;
+}
+
+.content {
+    min-width: 0;
+}
+
+.content p {
+    margin: 6px 0 0;
+}
+
+.hint {
+    font-size: 12px;
+    opacity: 0.9;
+}
+
+.retryButton {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid #664d03;
+    border-radius: 4px;
+    background: #fff;
+    color: #664d03;
+}
+
+.retryButton:hover {
+    background: #664d03;
+    color: #fff;
+}

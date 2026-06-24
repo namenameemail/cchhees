@@ -8,26 +8,37 @@ import React, {
     useState,
 } from 'react'
 import {
+    createInitialProjectIfEmpty,
     deleteAssetsByProjectId,
     deleteProject as deleteProjectFromDb,
     getAllProjects,
     getAllVisitedRooms,
     getCurrentProjectId,
     getCurrentProjectKind,
+    getLastKnownProjectCount,
     putProject,
     putVisitedRoom,
     setCurrentProjectSession,
+    setLastKnownProjectCount,
 } from './db'
 import { createEmptyProject, getDefaultProjectName } from './createProject'
+import { migrateRawProjects } from './projectBootstrap'
+import {
+    listProjectBackups,
+    restoreProjectBackup,
+    scheduleProjectsBackup,
+    tryRestoreFromLatestBackup,
+    writeProjectsBackupNow,
+} from './projectBackups'
 import { exportProjectToFile, importProjectFromFile } from './projectFile'
 import {
     Project,
     ProjectPersistData,
-    migrateProject,
     getActiveBoard,
     getActiveBoardGameState,
     projectToPersistData,
     BoardDocument,
+    ProjectsBackupRecord,
 } from './types'
 import { createEmptyBoardDocument, resolveBoardName } from './boardDocument'
 import {
@@ -59,6 +70,8 @@ export type ProjectPreviewCapture = () => Promise<string | null>
 
 export interface ProjectContextValue {
     isReady: boolean
+    bootstrapError: string | null
+    bootstrapRecoveryNotice: string | null
     projects: Project[]
     visitedRooms: VisitedRoom[]
     currentProject: Project | null
@@ -69,6 +82,9 @@ export interface ProjectContextValue {
     gameSessionEpoch: number
     persistProjectData: (data: ActiveBoardPersistPayload) => void
     registerPreviewCapture: (capture: ProjectPreviewCapture | null) => void
+    retryBootstrap: () => void
+    listBackups: () => Promise<ProjectsBackupRecord[]>
+    restoreBackup: (backupId: string) => Promise<void>
     createProject: (name?: string) => Promise<void>
     renameProject: (id: string, name: string) => Promise<void>
     deleteProject: (id: string) => Promise<void>
@@ -99,6 +115,8 @@ export interface ProjectContextValue {
 
 const defaultContextValue: ProjectContextValue = {
     isReady: false,
+    bootstrapError: null,
+    bootstrapRecoveryNotice: null,
     projects: [],
     visitedRooms: [],
     currentProject: null,
@@ -109,6 +127,9 @@ const defaultContextValue: ProjectContextValue = {
     gameSessionEpoch: 0,
     persistProjectData: () => {},
     registerPreviewCapture: () => {},
+    retryBootstrap: () => {},
+    listBackups: async () => [],
+    restoreBackup: async () => {},
     createProject: async () => {},
     renameProject: async () => {},
     deleteProject: async () => {},
@@ -139,6 +160,9 @@ export const ProjectContext = createContext<ProjectContextValue>(defaultContextV
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
     const [isReady, setIsReady] = useState(false)
+    const [bootstrapError, setBootstrapError] = useState<string | null>(null)
+    const [bootstrapRecoveryNotice, setBootstrapRecoveryNotice] = useState<string | null>(null)
+    const [bootstrapAttempt, setBootstrapAttempt] = useState(0)
     const [projects, setProjects] = useState<Project[]>([])
     const [visitedRooms, setVisitedRooms] = useState<VisitedRoom[]>([])
     const [currentProjectId, setCurrentProjectIdState] = useState<string | null>(null)
@@ -283,7 +307,11 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         pendingPersistRef.current = null
         assetsDebugLog.persistProject(updated.id, 'gameState saved — assets store unchanged')
 
-        setProjects(prev => prev.map(item => item.id === updated.id ? updated : item))
+        setProjects(prev => {
+            const next = prev.map(item => item.id === updated.id ? updated : item)
+            scheduleProjectsBackup(next)
+            return next
+        })
         void refreshProjectPreview(projectId, updated)
     }, [refreshProjectPreview])
 
@@ -426,13 +454,85 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
     const bootstrapGenerationRef = useRef(0)
 
+    const retryBootstrap = useCallback(() => {
+        setBootstrapError(null)
+        setBootstrapRecoveryNotice(null)
+        setIsReady(false)
+        setBootstrapAttempt(attempt => attempt + 1)
+    }, [])
+
+    const listBackups = useCallback(async () => {
+        return listProjectBackups()
+    }, [])
+
+    const restoreBackup = useCallback(async (backupId: string) => {
+        await restoreProjectBackup(backupId)
+        retryBootstrap()
+    }, [retryBootstrap])
+
     useEffect(() => {
         const generation = ++bootstrapGenerationRef.current
         let cancelled = false
 
+        const isCancelled = () => cancelled || generation !== bootstrapGenerationRef.current
+
+        async function ensureLoadedProjects(): Promise<Project[]> {
+            if (isCancelled()) {
+                return []
+            }
+
+            const lastKnownCount = await getLastKnownProjectCount()
+
+            if (lastKnownCount > 0) {
+                const restored = await tryRestoreFromLatestBackup()
+
+                if (restored && !isCancelled()) {
+                    projectsBootstrapLog.autoRecovery(
+                        restored.projects.length,
+                        restored.backupId,
+                        lastKnownCount,
+                    )
+                    setBootstrapRecoveryNotice(
+                        `Восстановлено ${restored.projects.length} проект(ов) из локальной резервной копии`,
+                    )
+
+                    const { loaded, failedCount } = await migrateRawProjects(
+                        restored.projects,
+                        migrateProjectInlineAssets,
+                    )
+                    projectsBootstrapLog.summary(restored.projects.length, loaded.length, failedCount)
+
+                    if (loaded.length > 0) {
+                        return loaded
+                    }
+                }
+
+                const origin = typeof location !== 'undefined' ? location.origin : 'unknown'
+                throw new Error(
+                    `Раньше на ${origin} было ${lastKnownCount} проект(ов), но сейчас база пуста и резервная копия не найдена. Проверьте другой origin в chrome://indexeddb-internals`,
+                )
+            }
+
+            if (isCancelled()) {
+                return []
+            }
+
+            const initial = await createInitialProjectIfEmpty(() => (
+                createEmptyProject(getDefaultProjectName(0))
+            ))
+
+            if (initial.created) {
+                projectsBootstrapLog.createdFallbackEmpty(getDefaultProjectName(0))
+            }
+
+            const { loaded } = await migrateRawProjects(initial.projects, migrateProjectInlineAssets)
+            return loaded
+        }
+
         async function bootstrap() {
             profileDebug('bootstrap', 'start', { generation })
             projectsBootstrapLog.start(generation)
+            setBootstrapError(null)
 
             try {
                 const [rawProjects, loadedVisitedRooms] = await Promise.all([
@@ -449,63 +549,23 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                     })),
                 )
 
-                let loaded: Project[] = []
-                let failedCount = 0
-
-                for (const project of rawProjects) {
-                    const format = project.boards?.length
-                        ? `multi-board(${project.boards.length})`
-                        : project.gameState
-                            ? 'legacy-single'
-                            : 'unknown'
-
-                    projectsBootstrapLog.migrateAttempt({
-                        id: project.id,
-                        name: project.name,
-                        format,
-                        catalogFigures: project.figureCatalog?.length ?? 0,
-                    })
-
-                    try {
-                        const migrated = migrateProject(project)
-                        loaded.push(migrated)
-                        projectsBootstrapLog.migrateOk({
-                            id: migrated.id,
-                            name: migrated.name,
-                            boards: migrated.boards.length,
-                        })
-                    } catch (error) {
-                        failedCount += 1
-                        projectsBootstrapLog.migrateFailed(
-                            { id: project.id, name: project.name },
-                            error,
-                        )
-                    }
-                }
-
-                const migratedLoaded: Project[] = []
-
-                for (const project of loaded) {
-                    try {
-                        migratedLoaded.push(await migrateProjectInlineAssets(project))
-                    } catch (error) {
-                        failedCount += 1
-                        projectsBootstrapLog.inlineAssetsFailed(
-                            { id: project.id, name: project.name },
-                            error,
-                        )
-                        migratedLoaded.push(project)
-                    }
-                }
-
-                loaded = migratedLoaded
+                let { loaded, failedCount } = await migrateRawProjects(
+                    rawProjects,
+                    migrateProjectInlineAssets,
+                )
                 projectsBootstrapLog.summary(rawProjects.length, loaded.length, failedCount)
 
                 if (loaded.length === 0) {
-                    const project = createEmptyProject(getDefaultProjectName(0))
-                    await putProject(project)
-                    loaded = [project]
-                    projectsBootstrapLog.createdFallbackEmpty(project.name)
+                    loaded = await ensureLoadedProjects()
+                }
+
+                if (isCancelled()) {
+                    projectsBootstrapLog.bootstrapCancelled(generation)
+                    return
+                }
+
+                if (loaded.length === 0) {
+                    throw new Error('Не удалось загрузить или создать проекты')
                 }
 
                 let savedId = await getCurrentProjectId()
@@ -517,42 +577,44 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                     if (!room) {
                         savedKind = 'local'
                     }
-                } else if (!savedId || !loaded.some(item => item.id === savedId)) {
+                }
+
+                if (savedKind !== 'visited' && (!savedId || !loaded.some(item => item.id === savedId))) {
                     savedId = loaded[0].id
                     savedKind = 'local'
                 }
 
-                if (cancelled || generation !== bootstrapGenerationRef.current) {
-                    projectsBootstrapLog.bootstrapCancelled(generation)
-                    return
+                if (savedKind === 'visited' && savedId && !loaded.some(item => item.id === savedId)) {
+                    savedId = loaded[0].id
+                    savedKind = 'local'
                 }
 
                 setProjects(loaded)
                 setVisitedRooms(loadedVisitedRooms)
                 await applyCurrentSession(savedId ?? loaded[0].id, savedKind)
+                await setLastKnownProjectCount(loaded.length)
+
+                const backup = await writeProjectsBackupNow(loaded)
+
+                if (backup) {
+                    projectsBootstrapLog.backupWritten(backup.count, backup.id)
+                }
+
                 projectsBootstrapLog.ready(savedId ?? loaded[0].id, loaded.length, loadedVisitedRooms.length)
                 setIsReady(true)
             } catch (error) {
+                projectsBootstrapLog.dbReadFailed(error)
                 projectsBootstrapLog.bootstrapFailed(error)
                 profileDebug('bootstrap', 'failed', { generation, error: String(error) })
 
-                if (cancelled || generation !== bootstrapGenerationRef.current) {
+                if (isCancelled()) {
                     return
                 }
 
-                try {
-                    const project = createEmptyProject(getDefaultProjectName(0))
-                    await putProject(project)
-                    setProjects([project])
-                    setVisitedRooms([])
-                    await applyCurrentSession(project.id, 'local')
-                } catch (fallbackError) {
-                    projectsBootstrapLog.bootstrapFailed(fallbackError)
-                    setProjects([])
-                    setVisitedRooms([])
-                } finally {
-                    setIsReady(true)
-                }
+                setBootstrapError(error instanceof Error ? error.message : String(error))
+                setProjects([])
+                setVisitedRooms([])
+                setIsReady(true)
             }
         }
 
@@ -565,7 +627,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                 clearTimeout(debounceTimerRef.current)
             }
         }
-    }, [applyCurrentSession])
+    }, [applyCurrentSession, bootstrapAttempt, migrateProjectInlineAssets])
 
     useEffect(() => {
         return () => {
@@ -580,7 +642,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         const project = createEmptyProject(projectName)
 
         await putProject(project)
-        setProjects(prev => [project, ...prev])
+        setProjects(prev => {
+            const next = [project, ...prev]
+            scheduleProjectsBackup(next)
+            void setLastKnownProjectCount(next.length)
+            return next
+        })
         skipNextPersistRef.current = true
         await applyCurrentSession(project.id, 'local')
         bumpGameSession()
@@ -698,9 +765,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         let nextProjects = projectsRef.current.filter(item => item.id !== id)
 
         if (nextProjects.length === 0) {
-            const project = createEmptyProject(getDefaultProjectName(0))
-            await putProject(project)
-            nextProjects = [project]
+            const initial = await createInitialProjectIfEmpty(() => (
+                createEmptyProject(getDefaultProjectName(0))
+            ))
+            nextProjects = initial.projects.length > 0 ? [initial.projects[0]!] : []
         }
 
         await deleteProjectFromDb(id)
@@ -1043,6 +1111,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     const value = useMemo(
         () => ({
             isReady,
+            bootstrapError,
+            bootstrapRecoveryNotice,
             projects,
             visitedRooms,
             currentProject,
@@ -1053,6 +1123,9 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             gameSessionEpoch,
             persistProjectData,
             registerPreviewCapture,
+            retryBootstrap,
+            listBackups,
+            restoreBackup,
             createProject,
             renameProject,
             deleteProject,
@@ -1078,6 +1151,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         }),
         [
             isReady,
+            bootstrapError,
+            bootstrapRecoveryNotice,
             projects,
             visitedRooms,
             currentProject,
@@ -1088,6 +1163,9 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             gameSessionEpoch,
             persistProjectData,
             registerPreviewCapture,
+            retryBootstrap,
+            listBackups,
+            restoreBackup,
             createProject,
             renameProject,
             deleteProject,

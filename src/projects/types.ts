@@ -65,6 +65,15 @@ export interface MetaRecord {
 
 export const CURRENT_PROJECT_ID_KEY = 'currentProjectId'
 export const CURRENT_PROJECT_KIND_KEY = 'currentProjectKind'
+export const LAST_KNOWN_PROJECT_COUNT_KEY = 'lastKnownProjectCount'
+
+export interface ProjectsBackupRecord {
+    id: string
+    createdAt: number
+    origin: string
+    count: number
+    projects: Project[]
+}
 
 export interface LegacySingleBoardProject {
     id: string

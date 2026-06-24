@@ -416,6 +416,70 @@
     display: none;
 }
 
+.restoreSection {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.restoreTitle {
+    margin: 0 0 6px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.restoreHint {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: #666;
+}
+
+.restoreList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.restoreItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 10px;
+    background: #f7f7f7;
+    border-radius: 4px;
+}
+
+.restoreMeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 12px;
+    color: #333;
+}
+
+.restoreOrigin {
+    color: #666;
+}
+
+.restoreButton {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    background: #fff;
+}
+
+.restoreButton:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
 @media (hover: none) {
     .actions {
         opacity: 1;
