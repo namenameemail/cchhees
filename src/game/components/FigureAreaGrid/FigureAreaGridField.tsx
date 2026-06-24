@@ -1,6 +1,8 @@
 import React, { FC, useCallback, useMemo } from 'react'
 import { ParameterInputComponentProps } from '../../../components/Form1'
 import { Form1FieldConfig } from '../../../components/Form1/types'
+import { useGameContext } from '../../context'
+import { resolveFigureMoveDirectionFromCatalog } from '../../figureView'
 import { FigureEventAreaCell, FigureEventFigureFilter } from '../../types/events'
 import { isConcreteFigureFilter } from '../../figureFilter'
 import { FigureAreaGrid } from './FigureAreaGrid'
@@ -10,6 +12,7 @@ export interface FigureAreaGridFieldProps {
     title?: string
     previewFigureId?: string
     previewStateIndex?: number
+    orientToMoveDirection?: boolean
 }
 
 export const FigureAreaGridField: FC<ParameterInputComponentProps> = ({
@@ -17,9 +20,16 @@ export const FigureAreaGridField: FC<ParameterInputComponentProps> = ({
     formState,
     onFieldsChange,
 }) => {
-    const { className, previewFigureId: previewFigureIdProp, previewStateIndex: previewStateIndexProp } = props as FigureAreaGridFieldProps
+    const {
+        className,
+        previewFigureId: previewFigureIdProp,
+        previewStateIndex: previewStateIndexProp,
+        orientToMoveDirection,
+    } = props as FigureAreaGridFieldProps
     const cells = (formState?.cells ?? []) as FigureEventAreaCell[]
     const anchorFigures = formState?.anchorFigures as FigureEventFigureFilter[] | undefined
+
+    const { figureCatalog, state, figureTeams } = useGameContext()
 
     const preview = useMemo(() => {
         if (previewFigureIdProp) {
@@ -41,6 +51,19 @@ export const FigureAreaGridField: FC<ParameterInputComponentProps> = ({
         }
     }, [anchorFigures, previewFigureIdProp, previewStateIndexProp])
 
+    const moveDirection = useMemo(() => {
+        if (!orientToMoveDirection || !preview?.figureId) {
+            return undefined
+        }
+
+        return resolveFigureMoveDirectionFromCatalog(
+            figureCatalog,
+            preview.figureId,
+            state.boardParameters,
+            figureTeams,
+        )
+    }, [figureCatalog, figureTeams, orientToMoveDirection, preview?.figureId, state.boardParameters])
+
     const handleChange = useCallback((nextCells: FigureEventAreaCell[]) => {
         onFieldsChange?.({ cells: nextCells })
     }, [onFieldsChange])
@@ -51,6 +74,7 @@ export const FigureAreaGridField: FC<ParameterInputComponentProps> = ({
                 cells={cells}
                 previewFigureId={preview?.figureId}
                 previewStateIndex={preview?.stateIndex}
+                moveDirection={moveDirection}
                 onChange={handleChange}
             />
         </div>

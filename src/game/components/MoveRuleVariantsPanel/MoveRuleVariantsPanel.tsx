@@ -4,7 +4,7 @@ import { FormArray } from '../../../components/FormArray'
 import { FigureId, FigureMoveRule, FigureMoveVariant, FigureMoveVariantKind } from '../../types/figures'
 import { FigureEventCondition } from '../../types/events'
 import { cloneMoveRule } from '../../migrateFigureMoveRules'
-import { createEventConditionsArrayProps } from '../eventConditionsForm'
+import { createMoveConditionsArrayProps } from '../eventConditionsForm'
 import { clampMoveRuleLength } from '../FigureMoveRulesGrid/moveRulesGrid'
 import styles from './MoveRuleVariantsPanel.module.css'
 import formStyles from '../FigureParametersForm/styles.module.css'
@@ -41,7 +41,7 @@ const VariantRow: FC<VariantRowProps> = ({
     onVariantChange,
 }) => {
     const conditionsArrayProps = useMemo(
-        () => createEventConditionsArrayProps(figureId),
+        () => createMoveConditionsArrayProps(figureId),
         [figureId],
     )
 

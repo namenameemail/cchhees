@@ -28,7 +28,7 @@ function formatTime(): string {
     return new Date().toISOString().slice(11, 23)
 }
 
-function formatSnapshot(figures: FiguresSlice): Array<Record<string, unknown>> {
+export function formatBoardSnapshot(figures: FiguresSlice): Array<Record<string, unknown>> {
     const items: Array<Record<string, unknown>> = []
 
     for (const [key, stack] of Object.entries(figures.figuresByCoord)) {
@@ -65,7 +65,7 @@ export function logMoveDebugSnapshot(
     figures: FiguresSlice,
 ): MoveDebugLogEntry {
     return createMoveDebugLogEntry('snapshot', label, {
-        figures: formatSnapshot(figures),
+        figures: formatBoardSnapshot(figures),
         trayCount: figures.tray.length,
     })
 }
@@ -125,7 +125,7 @@ export interface MoveDebugSaveResult {
     detail?: Record<string, unknown>
 }
 
-async function persistJsonToProfiling(
+export async function persistJsonToProfiling(
     fileName: string,
     data: unknown,
 ): Promise<{ path: string }> {

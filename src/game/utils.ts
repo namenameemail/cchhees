@@ -126,4 +126,8 @@ export const defaultGameContextValue: GameContextValue = {
         overlayItems: [],
         hiddenInstanceIds: new Set(),
     },
+    moveRecActive: false,
+    moveRecMoveCount: 0,
+    toggleMoveRec: mockFn,
+    saveMoveRec: async () => ({ ok: false, error: 'not available' }),
 }

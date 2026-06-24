@@ -6,14 +6,16 @@ import { atLeastOne, integerStep, nonNegative } from '../../components/Form1/num
 import { FigureId } from '../types/figures'
 import { FigureEventCondition, FigureEventConditionType } from '../types/events'
 import {
+    ConditionContext,
+    getConditionTypesForContext,
+} from '../events/conditions/conditionContexts'
+import {
     createConditionSubjectFieldConfig,
     createFigureFilterArrayFieldConfig,
 } from './FigureStateSelect/FigureStateSelectField'
 import { createFigureAreaGridFieldConfig } from './FigureAreaGrid/FigureAreaGridField'
 import { FIGURE_FILTER_ANY, FIGURE_SUBJECT_MOVED } from '../figureFilter'
 import formStyles from './FigureParametersForm/styles.module.css'
-
-const figureEventConditionTypeOptions = Object.values(FigureEventConditionType)
 
 const figureEventConditionTypeLabels: Record<FigureEventConditionType, string> = {
     [FigureEventConditionType.inBoardArea]: 'находится в области доски',
@@ -33,6 +35,7 @@ const figureEventConditionTypeLabels: Record<FigureEventConditionType, string> =
     [FigureEventConditionType.isNotFigure]: 'не является',
     [FigureEventConditionType.exitedBoard]: 'вышла за границу доски',
     [FigureEventConditionType.hoppedOverFigures]: 'перепрыгнула фигуры',
+    [FigureEventConditionType.hasFigureInArea]: 'имеет фигуру в области',
 }
 
 const conditionMatchModeOptions = ['any', 'all'] as const
@@ -66,6 +69,7 @@ function getDefaultConditionParams(type: FigureEventConditionType) {
         case FigureEventConditionType.aboveFigures:
         case FigureEventConditionType.belowFigures:
         case FigureEventConditionType.hoppedOverFigures:
+        case FigureEventConditionType.hasFigureInArea:
             return { figures: [{ figureId: FIGURE_FILTER_ANY }], matchMode: 'any' }
         case FigureEventConditionType.steppedOnByFigure:
             return { stepperFigures: [{ figureId: FIGURE_FILTER_ANY }], matchMode: 'any' }
@@ -90,9 +94,23 @@ function getDefaultConditionParams(type: FigureEventConditionType) {
     }
 }
 
+function getDefaultConditionParamsForType(type: FigureEventConditionType) {
+    const defaults = getDefaultConditionParams(type)
+
+    if (type === FigureEventConditionType.hasFigureInArea) {
+        return {
+            ...defaults,
+            cells: [{ x: 0, y: 1 }],
+        }
+    }
+
+    return defaults
+}
+
 function getConditionParamsConfig(
     type: FigureEventConditionType,
     ownerFigureId?: FigureId,
+    context?: ConditionContext,
 ) {
     switch (type) {
         case FigureEventConditionType.inBoardArea:
@@ -133,6 +151,27 @@ function getConditionParamsConfig(
                     name: 'includePassive',
                     Component: ManualCheckbox,
                     props: { text: 'пассивный вход' },
+                },
+            ]
+        case FigureEventConditionType.hasFigureInArea:
+            return [
+                createFigureFilterArrayFieldConfig('figures', {
+                    allowAny: true,
+                    className: formStyles.figureFilterArray,
+                    itemClassName: formStyles.figureFilterArrayItem,
+                }),
+                createFigureAreaGridFieldConfig('cells', {
+                    className: formStyles.figureAreaGridField,
+                    previewFigureId: ownerFigureId,
+                    orientToMoveDirection: context === 'move',
+                }),
+                {
+                    name: 'matchMode',
+                    type: ParameterTypes.SelectArray,
+                    props: {
+                        className: formStyles.eventTypeSelect,
+                        options: conditionMatchModeOptions,
+                    },
                 },
             ]
         case FigureEventConditionType.onCells:
@@ -249,14 +288,23 @@ function getConditionParamsConfig(
     }
 }
 
-export function createEventConditionsArrayProps(ownerFigureId?: FigureId) {
+interface CreateConditionsArrayPropsOptions {
+    ownerFigureId?: FigureId
+    context: ConditionContext
+}
+
+function createConditionsArrayProps({ ownerFigureId, context }: CreateConditionsArrayPropsOptions) {
+    const conditionTypeOptions = getConditionTypesForContext(context)
+    const isMoveContext = context === 'move'
+
     return {
         className: formStyles.eventConditionsArray,
         itemClassName: formStyles.eventConditionItem,
         itemFormClassName: formStyles.eventConditionItemForm,
         addButtonClassName: formStyles.eventConditionsAddRow,
         itemConfig: (item: FigureEventCondition) => {
-            const paramsConfig = getConditionParamsConfig(item.type, ownerFigureId)
+            const paramsConfig = getConditionParamsConfig(item.type, ownerFigureId, context)
+            const restrictSubjectRoles = item.type === FigureEventConditionType.hasFigureInArea
             const fields: Form1FieldConfig<FigureEventCondition>[] = [
                 {
                     name: 'subject',
@@ -264,7 +312,9 @@ export function createEventConditionsArrayProps(ownerFigureId?: FigureId) {
                     props: {
                         className: formStyles.eventParamsForm,
                         config: [
-                            createConditionSubjectFieldConfig({}) as unknown as Form1FieldConfig<FigureEventCondition['subject']>,
+                            createConditionSubjectFieldConfig({
+                                ...(restrictSubjectRoles ? { allowedRoles: ['moved'] as const } : {}),
+                            }) as unknown as Form1FieldConfig<FigureEventCondition['subject']>,
                             {
                                 name: 'matchMode',
                                 type: ParameterTypes.SelectArray,
@@ -282,7 +332,7 @@ export function createEventConditionsArrayProps(ownerFigureId?: FigureId) {
                     type: ParameterTypes.SelectArray,
                     props: {
                         className: formStyles.eventTypeSelect,
-                        options: figureEventConditionTypeOptions,
+                        options: conditionTypeOptions,
                         optionLabels: figureEventConditionTypeLabels,
                     },
                 },
@@ -301,15 +351,36 @@ export function createEventConditionsArrayProps(ownerFigureId?: FigureId) {
 
             return fields
         },
-        getItemInitialValue: (): FigureEventCondition => ({
-            subject: {
-                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
-                matchMode: 'any',
-            },
-            type: FigureEventConditionType.landedOnFigure,
-            params: getDefaultConditionParams(FigureEventConditionType.landedOnFigure),
-        }),
+        getItemInitialValue: (): FigureEventCondition => {
+            if (isMoveContext) {
+                return {
+                    subject: {
+                        entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                        matchMode: 'any',
+                    },
+                    type: FigureEventConditionType.hasFigureInArea,
+                    params: getDefaultConditionParamsForType(FigureEventConditionType.hasFigureInArea),
+                }
+            }
+
+            return {
+                subject: {
+                    entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                    matchMode: 'any',
+                },
+                type: FigureEventConditionType.landedOnFigure,
+                params: getDefaultConditionParamsForType(FigureEventConditionType.landedOnFigure),
+            }
+        },
     }
+}
+
+export function createEventConditionsArrayProps(ownerFigureId?: FigureId) {
+    return createConditionsArrayProps({ ownerFigureId, context: 'event' })
+}
+
+export function createMoveConditionsArrayProps(ownerFigureId?: FigureId) {
+    return createConditionsArrayProps({ ownerFigureId, context: 'move' })
 }
 
 export { figureEventConditionTypeLabels }

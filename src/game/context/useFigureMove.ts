@@ -2,10 +2,10 @@ import { useCallback } from 'react'
 import type { MutableRefObject } from 'react'
 import { Mode } from '../types'
 import { CellCoord, coordsEqual } from '../types/coords'
-import { FigureCatalog, FigureTeams } from '../types/figures'
+import { FigureCatalog, FigurePlacement, FigureTeams } from '../types/figures'
 import { FigureEventRule } from '../types/events'
 import { BoardParameters } from '../types/boardParameters'
-import { BoardSlice, FiguresSlice } from '../state/slices'
+import { FiguresSlice } from '../state/slices'
 import { applyFigureMove } from '../events/applyFigureMove'
 import { computeFigureMoveSteps } from '../figureAnimation/figureStepRecorder'
 import {
@@ -15,6 +15,53 @@ import {
 import { getTopOfStack } from '../figureStack'
 import { isFigureMoveAllowed } from '../moveRules'
 import { resolveFigureDefinition } from '../figureView'
+import { cloneFiguresSlice } from '../state/reconcile'
+import { beginMoveDebugChain, collectMoveDebugChain } from '../moveDebug/moveDebugChainCollector'
+import { buildFigureMoveDebugInfo } from '../moveDebug/figureMoveDebugInfo'
+import {
+    appendMoveRecMove,
+    isMoveRecActive,
+    saveMoveRecToProject,
+} from '../moveDebug/moveRecLog'
+
+function recordCompletedMove(options: {
+    from: CellCoord
+    to: CellCoord
+    before: FiguresSlice
+    after: FiguresSlice
+    actorPlacement: FigurePlacement
+    targetAtTo?: FigurePlacement
+    catalog: FigureCatalog
+    boardParameters: BoardParameters
+    figureTeams: FigureTeams
+    onMoveRecRecorded?: () => void
+}): void {
+    appendMoveRecMove({
+        from: options.from,
+        to: options.to,
+        before: options.before,
+        after: options.after,
+        chain: collectMoveDebugChain(),
+        actorFigure: buildFigureMoveDebugInfo(
+            options.catalog,
+            options.actorPlacement,
+            options.boardParameters,
+            options.figureTeams,
+        ),
+        targetFigure: options.targetAtTo
+            ? buildFigureMoveDebugInfo(
+                options.catalog,
+                options.targetAtTo,
+                options.boardParameters,
+                options.figureTeams,
+            )
+            : undefined,
+    })
+
+    void saveMoveRecToProject().finally(() => {
+        options.onMoveRecRecorded?.()
+    })
+}
 
 export function useFigureMove(options: {
     mode: Mode
@@ -31,6 +78,7 @@ export function useFigureMove(options: {
     pushFiguresChange: (nextFigures: FiguresSlice) => void
     playFigureStepSequenceLocal: (steps: FiguresSlice[], boardParameters: BoardParameters) => Promise<void>
     freeMove?: boolean
+    onMoveRecRecorded?: () => void
 }) {
     const {
         mode,
@@ -47,6 +95,7 @@ export function useFigureMove(options: {
         pushFiguresChange,
         playFigureStepSequenceLocal,
         freeMove,
+        onMoveRecRecorded,
     } = options
 
     return useCallback((to: CellCoord) => {
@@ -100,10 +149,34 @@ export function useFigureMove(options: {
             eventRules,
         }
 
+        const recording = isMoveRecActive()
+        const beforeSlice = recording ? cloneFiguresSlice(figuresSlice) : null
+
+        if (recording) {
+            beginMoveDebugChain()
+        }
+
         const animationSettings = resolveFigureAnimationSettings(boardParameters)
 
         if (mode !== Mode.Game || isInstantFigureAnimation(animationSettings)) {
-            pushFiguresChange(applyFigureMove(figuresSlice, moveInput))
+            const after = applyFigureMove(figuresSlice, moveInput)
+            pushFiguresChange(after)
+
+            if (recording && beforeSlice) {
+                recordCompletedMove({
+                    from,
+                    to,
+                    before: beforeSlice,
+                    after,
+                    actorPlacement: fromPlacement,
+                    targetAtTo,
+                    catalog: figureCatalog,
+                    boardParameters,
+                    figureTeams,
+                    onMoveRecRecorded,
+                })
+            }
+
             return
         }
 
@@ -113,7 +186,23 @@ export function useFigureMove(options: {
         void (async () => {
             try {
                 await playFigureStepSequenceLocal(steps, boardParameters)
-                pushFiguresChange(steps[steps.length - 1])
+                const after = steps[steps.length - 1]
+                pushFiguresChange(after)
+
+                if (recording && beforeSlice) {
+                    recordCompletedMove({
+                        from,
+                        to,
+                        before: beforeSlice,
+                        after,
+                        actorPlacement: fromPlacement,
+                        targetAtTo,
+                        catalog: figureCatalog,
+                        boardParameters,
+                        figureTeams,
+                        onMoveRecRecorded,
+                    })
+                }
             } finally {
                 isMoveAnimatingRef.current = false
                 prevFiguresSliceRef.current = steps[steps.length - 1]
@@ -134,5 +223,6 @@ export function useFigureMove(options: {
         isMoveAnimatingRef,
         prevFiguresSliceRef,
         freeMove,
+        onMoveRecRecorded,
     ])
 }

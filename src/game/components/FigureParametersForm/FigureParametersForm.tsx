@@ -24,10 +24,10 @@ import {
 } from '../../types/events'
 import { ScalableFigurePreview } from '../ScalableFigurePreview'
 import {
-    createConditionSubjectFieldConfig,
     createFigureFilterArrayFieldConfig,
     createFigureStateFieldConfig,
 } from '../FigureStateSelect/FigureStateSelectField'
+import { ActionSubjectField } from '../FigureStateSelect/ActionSubjectField'
 import { createFigureAreaGridFieldConfig } from '../FigureAreaGrid/FigureAreaGridField'
 import { FIGURE_FILTER_ANY, FIGURE_SUBJECT_MOVED, FIGURE_SUBJECT_STEPPED_ON } from '../../figureFilter'
 import { FigureMoveRulesGrid } from '../FigureMoveRulesGrid/FigureMoveRulesGrid'
@@ -452,6 +452,7 @@ function sanitizeEventActions(
 function createEventActionsArrayProps(
     figureOptions: FigureId[],
     eventType: FigureEventType,
+    ownerFigureId?: FigureId,
     defaultAction: GameActionType = GameActionType.setSelfState,
     actionTypeOptions: GameActionType[] = gameActionTypeOptions,
 ) {
@@ -505,22 +506,9 @@ function createEventActionsArrayProps(
             if (item.type !== GameActionType.spawnFigure) {
                 fields.push({
                     name: 'subject',
-                    type: ParameterTypes.Form1,
+                    Component: ActionSubjectField,
                     props: {
-                        className: styles.eventParamsForm,
-                        config: [
-                            createConditionSubjectFieldConfig({
-                            }) as unknown as Form1FieldConfig<NonNullable<GameAction['subject']>>,
-                            {
-                                name: 'matchMode',
-                                type: ParameterTypes.SelectArray,
-                                props: {
-                                    className: styles.eventTypeSelect,
-                                    options: conditionMatchModeOptions,
-                                },
-                                visibility: (subject) => (subject.entries?.length ?? 0) > 1,
-                            },
-                        ],
+                        ownerFigureId,
                     },
                 })
             }
@@ -578,6 +566,7 @@ function getEventRuleEventFields(
 function getEventRuleActionsArrayProps(
     rule: FigureEventRule,
     figureOptions: FigureId[],
+    ownerFigureId?: FigureId,
 ) {
     const isBoundaryEvent = isBoundaryEventType(rule.type)
     const defaultAction = isBoundaryEvent
@@ -587,7 +576,13 @@ function getEventRuleActionsArrayProps(
         ? boundaryActionTypeOptions
         : gameActionTypeOptions
 
-    return createEventActionsArrayProps(figureOptions, rule.type, defaultAction, actionOptions)
+    return createEventActionsArrayProps(
+        figureOptions,
+        rule.type,
+        ownerFigureId,
+        defaultAction,
+        actionOptions,
+    )
 }
 
 interface EventRuleRowProps {
@@ -618,8 +613,8 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
     )
 
     const actionsArrayProps = useMemo(
-        () => getEventRuleActionsArrayProps(rule, figureOptions),
-        [rule, figureOptions],
+        () => getEventRuleActionsArrayProps(rule, figureOptions, figureId),
+        [rule, figureOptions, figureId],
     )
 
     const handleRuleChange = useCallback((nextRule: FigureEventRule) => {

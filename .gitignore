@@ -15,6 +15,7 @@ dist-ssr
 profiling/latest.json
 profiling/console.log
 profiling/move_debug.json
+profiling/move_rec.json
 profiling/sessions/
 
 # Editor directories and files

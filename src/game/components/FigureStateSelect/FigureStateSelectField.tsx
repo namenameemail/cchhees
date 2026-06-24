@@ -117,11 +117,13 @@ export function createFigureStateFieldConfig<StateType extends Record<string, un
 }
 
 export type { FigureFilterArrayFieldProps } from './FigureFilterArrayField'
+export { createActionSubjectFieldConfig } from './ActionSubjectField'
+export type { ActionSubjectFieldProps } from './ActionSubjectField'
 
 export function createConditionSubjectFieldConfig<StateType extends Record<string, unknown>>(
     options: ConditionSubjectFieldProps = {},
 ): Form1FieldConfig<StateType> {
-    const { className, itemClassName, title } = options
+    const { className, itemClassName, title, allowedRoles } = options
 
     return {
         name: 'entries' as keyof StateType & string,
@@ -130,6 +132,7 @@ export function createConditionSubjectFieldConfig<StateType extends Record<strin
             className,
             itemClassName,
             title,
+            allowedRoles,
         },
     }
 }

@@ -4,6 +4,7 @@ import {
     FigureEventCondition,
     FigureEventConditionMatchMode,
     FigureEventConditionParamsFigureList,
+    FigureEventConditionParamsHasFigureInArea,
     FigureEventConditionParamsInFigureArea,
     FigureEventConditionParamsLandedInFigureArea,
     FigureEventConditionParamsLandedOnCell,
@@ -22,9 +23,11 @@ import {
 import { FigureId, FigurePlacement } from '../../types/figures'
 import {
     normalizeFigureEventParamsEnterFigureArea,
+    resolveFigureMoveDirectionFromCatalog,
     resolvePlacementStateIndex,
 } from '../../figureView'
-import { matchesFigureFilterList } from '../../figureFilter'
+import { orientAreaCells } from '../../moveRules'
+import { canonicalizeFigureFilterArray, matchesFigureFilterList } from '../../figureFilter'
 import {
     getStackPlacementsByFilter,
     getTopOfStack,
@@ -44,7 +47,7 @@ import {
 } from '../geometry'
 import { MoveEventContext, TriggeredFigureEvent } from '../types'
 import { SteppedOnEvent } from '../steppedOnQueue'
-import { resolveSubjectInstances, subjectHasBoardScanEntries, isOnlyMovedSubject, SubjectResolutionContext } from './resolveSubject'
+import { resolveSubjectInstances, subjectHasBoardScanEntries, isOnlyMovedSubject, SubjectInstance, SubjectResolutionContext } from './resolveSubject'
 
 export interface ConditionMatchContext {
     areaAnchor?: TriggeredFigureEvent['areaAnchor']
@@ -114,10 +117,33 @@ function evaluateQuantified(
         : results.some(Boolean)
 }
 
+function subjectIncludesPlacement(
+    instances: SubjectInstance[],
+    placement: FigurePlacement,
+): boolean {
+    return instances.some(item => item.placement.instanceId === placement.instanceId)
+}
+
 function resolveSubjectMatchMode(
     subject: FigureEventCondition['subject'],
 ): FigureEventConditionMatchMode {
     return resolveMatchMode(subject.matchMode)
+}
+
+function resolveMovedActorAfterCoord(item: SubjectInstance, ctx: ConditionEvalContext): CellCoord {
+    if (ctx.move && item.placement.instanceId === ctx.move.actorPlacement.instanceId) {
+        return ctx.move.to
+    }
+
+    return item.coord
+}
+
+function resolveMovedActorBeforeCoord(item: SubjectInstance, ctx: ConditionEvalContext): CellCoord {
+    if (ctx.move && item.placement.instanceId === ctx.move.actorPlacement.instanceId) {
+        return ctx.move.from
+    }
+
+    return item.beforeCoord ?? item.coord
 }
 
 function evaluateSingleCondition(
@@ -217,6 +243,10 @@ function evaluateSingleCondition(
                 return []
             }
 
+            if (!subjectIncludesPlacement(instances, ctx.move.actorPlacement)) {
+                return []
+            }
+
             const dx = ctx.move.to.i - ctx.move.from.i
             const dy = ctx.move.to.j - ctx.move.from.j
             const matched = dx === Math.trunc(params.dx) && dy === Math.trunc(params.dy)
@@ -228,7 +258,7 @@ function evaluateSingleCondition(
                 return []
             }
 
-            const results = instances.map(item => isInsideRect(item.coord, params))
+            const results = instances.map(item => isInsideRect(resolveMovedActorAfterCoord(item, ctx), params))
             return evaluateQuantified(results, subjectMatchMode)
                 ? [mergeContext(base, { triggerConditionType: condition.type })]
                 : []
@@ -239,7 +269,7 @@ function evaluateSingleCondition(
                 return []
             }
 
-            const results = instances.map(item => isSameCell(item.coord, params.x, params.y))
+            const results = instances.map(item => isSameCell(resolveMovedActorAfterCoord(item, ctx), params.x, params.y))
             return evaluateQuantified(results, subjectMatchMode)
                 ? [mergeContext(base, { triggerConditionType: condition.type })]
                 : []
@@ -325,9 +355,12 @@ function evaluateSingleCondition(
                 const anchorBefore = resolvePlacementCoordBefore(anchorPlacement, beforeBoard)
 
                 for (const item of instances) {
+                    const subjectAfter = resolveMovedActorAfterCoord(item, ctx)
+                    const subjectBefore = resolveMovedActorBeforeCoord(item, ctx)
+
                     if (!isNewlyInArea(
-                        item.coord,
-                        item.beforeCoord ?? item.coord,
+                        subjectAfter,
+                        subjectBefore,
                         anchorAfter,
                         anchorBefore,
                         cells,
@@ -345,7 +378,7 @@ function evaluateSingleCondition(
 
                     triggered.push(mergeContext(base, {
                         areaAnchor: anchorAfter,
-                        subjectCoord: item.coord,
+                        subjectCoord: subjectAfter,
                         subjectPlacement: item.placement,
                         triggerMode,
                         includePassive: params?.includePassive,
@@ -371,9 +404,12 @@ function evaluateSingleCondition(
                 const ownerBefore = resolvePlacementCoordBefore(ownerPlacement, beforeBoard)
 
                 for (const item of instances) {
+                    const subjectAfter = resolveMovedActorAfterCoord(item, ctx)
+                    const subjectBefore = resolveMovedActorBeforeCoord(item, ctx)
+
                     if (!isNewlyInArea(
-                        item.coord,
-                        item.beforeCoord ?? item.coord,
+                        subjectAfter,
+                        subjectBefore,
                         ownerAfter,
                         ownerBefore,
                         cells,
@@ -391,7 +427,7 @@ function evaluateSingleCondition(
 
                     triggered.push(mergeContext(base, {
                         areaAnchor: ownerAfter,
-                        subjectCoord: item.coord,
+                        subjectCoord: subjectAfter,
                         subjectPlacement: item.placement,
                         triggerMode,
                         includePassive: params?.includePassive,
@@ -404,6 +440,12 @@ function evaluateSingleCondition(
         }
         case FigureEventConditionType.steppedOnByFigure: {
             const params = condition.params as FigureEventConditionParamsSteppedOnByFigure | undefined
+            const target = ctx.move?.targetAtTo ?? ctx.steppedOn?.targetPlacement
+
+            if (!target || !subjectIncludesPlacement(instances, target)) {
+                return []
+            }
+
             const stepper = ctx.move?.stepperPlacement ?? ctx.steppedOn?.stepperPlacement
 
             if (!stepper) {
@@ -440,6 +482,11 @@ function evaluateSingleCondition(
             return [mergeContext(base, { triggerConditionType: condition.type })]
         case FigureEventConditionType.hoppedOverFigures: {
             const params = condition.params as FigureEventConditionParamsFigureList | undefined
+
+            if (!ctx.move || !subjectIncludesPlacement(instances, ctx.move.actorPlacement)) {
+                return []
+            }
+
             const hopped = ctx.hoppedFigures ?? []
             const mode = resolveMatchMode(params?.matchMode)
             const results = hopped.map(placement => matchesFigureFilterList(
@@ -449,6 +496,69 @@ function evaluateSingleCondition(
             ))
 
             return evaluateQuantified(results, mode)
+                ? [mergeContext(base, { triggerConditionType: condition.type })]
+                : []
+        }
+        case FigureEventConditionType.hasFigureInArea: {
+            const params = condition.params as FigureEventConditionParamsHasFigureInArea | undefined
+            const rawCells = params?.cells ?? []
+            if (!rawCells.length) {
+                return []
+            }
+
+            const moveDirection = ctx.move
+                ? resolveFigureMoveDirectionFromCatalog(
+                    ctx.move.catalog,
+                    ctx.ownerFigureId ?? ctx.move.ownerFigureId ?? ctx.move.actorPlacement.figureId,
+                    ctx.move.boardParameters,
+                )
+                : 'up'
+            const cells = orientAreaCells(rawCells, moveDirection)
+
+            const figureMode = resolveMatchMode(params?.matchMode)
+            const filters = canonicalizeFigureFilterArray(params?.figures)
+
+            const results = instances.map(item => {
+                const areaPlacements: FigurePlacement[] = []
+
+                for (const cell of cells) {
+                    const targetCoord: CellCoord = {
+                        i: item.coord.i + cell.x,
+                        j: item.coord.j + cell.y,
+                    }
+                    const stack = ctx.figuresByCoord[coordKey(targetCoord)] ?? []
+
+                    for (const placement of stack) {
+                        if (placement.instanceId === item.placement.instanceId) {
+                            continue
+                        }
+
+                        areaPlacements.push(placement)
+                    }
+                }
+
+                if (figureMode === 'all') {
+                    if (!filters.length) {
+                        return false
+                    }
+
+                    return filters.every(filter => areaPlacements.some(placement => (
+                        matchesFigureFilterList(
+                            [filter],
+                            placement.figureId,
+                            resolvePlacementStateIndex(placement),
+                        )
+                    )))
+                }
+
+                return areaPlacements.some(placement => matchesFigureFilterList(
+                    params?.figures,
+                    placement.figureId,
+                    resolvePlacementStateIndex(placement),
+                ))
+            })
+
+            return evaluateQuantified(results, subjectMatchMode)
                 ? [mergeContext(base, { triggerConditionType: condition.type })]
                 : []
         }

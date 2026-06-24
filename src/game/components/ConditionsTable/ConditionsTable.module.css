@@ -1,0 +1,67 @@
+.root {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+}
+
+.header {
+    display: grid;
+    grid-template-columns: minmax(80px, 1fr) minmax(80px, 1fr) minmax(60px, 1.5fr) auto auto;
+    gap: 4px;
+    font-size: 10px;
+    opacity: 0.7;
+    padding: 0 2px;
+}
+
+.headerWithPhase {
+    grid-template-columns: minmax(80px, 1fr) minmax(80px, 1fr) minmax(60px, 1.5fr) minmax(60px, 0.8fr) auto;
+}
+
+.row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.summary {
+    display: grid;
+    grid-template-columns: minmax(80px, 1fr) minmax(80px, 1fr) minmax(60px, 1.5fr) auto auto;
+    gap: 4px;
+    align-items: center;
+    font-size: 11px;
+    padding: 2px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.summaryWithPhase {
+    grid-template-columns: minmax(80px, 1fr) minmax(80px, 1fr) minmax(60px, 1.5fr) minmax(60px, 0.8fr) auto;
+}
+
+.cell {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.expandButton,
+.removeButton {
+    flex: 0 0 auto;
+    padding: 0 4px;
+    min-width: 18px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.editForm {
+    padding: 4px 2px;
+}
+
+.addRow {
+    align-self: flex-start;
+    padding: 0 6px;
+    font-size: 11px;
+    cursor: pointer;
+}

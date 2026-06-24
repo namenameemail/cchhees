@@ -1,5 +1,6 @@
-import { coordsEqual } from '../../types/coords'
+import { CellCoord, coordKey, coordsEqual } from '../../types/coords'
 import {
+    FigureEventAreaCell,
     FigureEventConditionSubject,
     FigureEventType,
     GameAction,
@@ -24,6 +25,51 @@ import {
 export interface ActionSubjectContext extends SubjectResolutionContext {
     ownerFigureId?: FigureId
     eventType?: FigureEventType
+}
+
+export function isSubjectNearbyEnabled(
+    subject: FigureEventConditionSubject | undefined,
+): boolean {
+    return subject?.nearby?.enabled === true
+        && (subject.nearby.cells?.length ?? 0) > 0
+}
+
+function resolveNearbyFromAnchors(
+    anchors: SubjectInstance[],
+    cells: FigureEventAreaCell[],
+    figuresByCoord: SubjectResolutionContext['figuresByCoord'],
+): SubjectInstance[] {
+    const seen = new Set<string>()
+    const instances: SubjectInstance[] = []
+
+    for (const anchor of anchors) {
+        for (const cell of cells) {
+            const targetCoord: CellCoord = {
+                i: anchor.coord.i + cell.x,
+                j: anchor.coord.j + cell.y,
+            }
+            const stack = figuresByCoord[coordKey(targetCoord)] ?? []
+
+            for (const placement of stack) {
+                if (placement.instanceId === anchor.placement.instanceId) {
+                    continue
+                }
+
+                if (seen.has(placement.instanceId)) {
+                    continue
+                }
+
+                seen.add(placement.instanceId)
+                instances.push({
+                    placement,
+                    coord: targetCoord,
+                    beforeCoord: targetCoord,
+                })
+            }
+        }
+    }
+
+    return instances
 }
 
 function defaultSubjectEntries(eventType?: FigureEventType): FigureEventConditionSubject['entries'] {
@@ -51,30 +97,44 @@ function migrateLegacySetOtherStateTarget(
     }
 }
 
+function withNearbyFromAction(
+    subject: FigureEventConditionSubject,
+    action: GameAction,
+): FigureEventConditionSubject {
+    if (!action.subject?.nearby) {
+        return subject
+    }
+
+    return {
+        ...subject,
+        nearby: action.subject.nearby,
+    }
+}
+
 export function resolveActionSubject(
     action: GameAction,
     eventType?: FigureEventType,
     ownerFigureId?: FigureId,
 ): FigureEventConditionSubject {
     if (action.subject?.entries?.length) {
-        return {
+        return withNearbyFromAction({
             entries: action.subject.entries,
             matchMode: action.subject.matchMode ?? 'any',
-        }
+        }, action)
     }
 
     if (action.type === GameActionType.setOtherState) {
         const params = action.params as SetOtherStateActionParams
-        return {
+        return withNearbyFromAction({
             entries: migrateLegacySetOtherStateTarget(params?.target, ownerFigureId),
             matchMode: 'any',
-        }
+        }, action)
     }
 
-    return {
+    return withNearbyFromAction({
         entries: defaultSubjectEntries(eventType),
         matchMode: 'any',
-    }
+    }, action)
 }
 
 function satisfiesMatchMode(
@@ -180,6 +240,20 @@ export function resolveActionSubjects(
 
     if (!satisfiesMatchMode(subject, ctx)) {
         return []
+    }
+
+    if (subject.nearby?.enabled === true) {
+        const cells = subject.nearby.cells ?? []
+
+        if (!cells.length) {
+            return []
+        }
+
+        return resolveNearbyFromAnchors(
+            resolveSubjectInstances(subject, ctx),
+            cells,
+            ctx.figuresByCoord,
+        )
     }
 
     let instances = resolveSubjectInstances(subject, ctx)

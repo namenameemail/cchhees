@@ -71,6 +71,13 @@ import { useGameCollabSync } from './useGameCollabSync'
 import { useSliceMutations } from './useSliceMutations'
 import { useFigureMove } from './useFigureMove'
 import { isKeyboardTargetEditable } from '../keyboard'
+import {
+    getMoveRecMoveCount,
+    isMoveRecActive,
+    saveMoveRecToProject,
+    startMoveRecRecording,
+    stopMoveRecRecording,
+} from '../moveDebug/moveRecLog'
 
 export { applyRemotePersistDataFromProject } from './remotePersist'
 
@@ -323,6 +330,41 @@ export function GameProvider({
         notifyPersistIfNeeded()
     }, [notifyPersistIfNeeded])
 
+    const [moveRecActive, setMoveRecActive] = useState(false)
+    const [moveRecMoveCount, setMoveRecMoveCount] = useState(0)
+
+    const refreshMoveRecMoveCount = useCallback(() => {
+        setMoveRecMoveCount(getMoveRecMoveCount())
+    }, [])
+
+    const toggleMoveRec = useCallback(() => {
+        if (isMoveRecActive()) {
+            stopMoveRecRecording()
+            setMoveRecActive(false)
+            return
+        }
+
+        startMoveRecRecording({
+            boardParameters: state.boardParameters,
+            figureTeams,
+            catalog: figureCatalog,
+            eventRules: boardSlice.eventRules ?? [],
+            figuresSlice,
+        })
+        setMoveRecActive(true)
+        setMoveRecMoveCount(0)
+    }, [
+        boardSlice.eventRules,
+        figureCatalog,
+        figureTeams,
+        figuresSlice,
+        state.boardParameters,
+    ])
+
+    const saveMoveRec = useCallback(async () => {
+        return saveMoveRecToProject()
+    }, [])
+
     const moveActiveCellFigureTo = useFigureMove({
         mode,
         activeCell,
@@ -338,6 +380,7 @@ export function GameProvider({
         pushFiguresChange,
         playFigureStepSequenceLocal,
         freeMove: isFreeMoveEnabled,
+        onMoveRecRecorded: refreshMoveRecMoveCount,
     })
 
     const setBoardParameters = useCallback((value: BoardParameters) => {
@@ -853,6 +896,10 @@ export function GameProvider({
             applyRemoteOps,
             isFigureAnimating,
             figureBoardAnimations,
+            moveRecActive,
+            moveRecMoveCount,
+            toggleMoveRec,
+            saveMoveRec,
         }),
         [
             mode,
@@ -903,6 +950,10 @@ export function GameProvider({
             applyRemoteOps,
             isFigureAnimating,
             figureBoardAnimations,
+            moveRecActive,
+            moveRecMoveCount,
+            toggleMoveRec,
+            saveMoveRec,
         ],
     )
 

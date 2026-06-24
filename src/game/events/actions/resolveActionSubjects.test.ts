@@ -172,6 +172,168 @@ describe('resolveActionSubjects', () => {
         expect(instances).toEqual([])
     })
 
+    it('resolves nearby figures around moved anchor', () => {
+        const actor = createFigurePlacement('king')
+        const rook = createFigurePlacement('rook')
+        const ctx = buildActionSubjectResolutionContext({
+            from: { i: 0, j: 2 },
+            to: { i: 2, j: 2 },
+            actorPlacement: actor,
+            boardParameters: { n: 8, m: 8 } as never,
+            catalog: [],
+            eventRules: [],
+            stepCause: 'manual',
+            eventType: FigureEventType.onMove,
+        }, {
+            [coordKey({ i: 0, j: 2 })]: [actor],
+            [coordKey({ i: 1, j: 2 })]: [rook],
+        })
+
+        const instances = resolveActionSubjects({
+            type: GameActionType.moveToTray,
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                matchMode: 'any',
+                nearby: {
+                    enabled: true,
+                    cells: [{ x: 1, y: 0 }],
+                },
+            },
+            params: {},
+        }, ctx)
+
+        expect(instances).toHaveLength(1)
+        expect(instances[0]?.placement.instanceId).toBe(rook.instanceId)
+        expect(instances[0]?.coord).toEqual({ i: 1, j: 2 })
+    })
+
+    it('does not include anchor in its own nearby scan', () => {
+        const actor = createFigurePlacement('pawn')
+        const ctx = buildActionSubjectResolutionContext({
+            from: { i: 2, j: 2 },
+            to: { i: 3, j: 2 },
+            actorPlacement: actor,
+            boardParameters: { n: 8, m: 8 } as never,
+            catalog: [],
+            eventRules: [],
+            stepCause: 'manual',
+            eventType: FigureEventType.onMove,
+        }, {
+            [coordKey({ i: 2, j: 2 })]: [actor],
+        })
+
+        const instances = resolveActionSubjects({
+            type: GameActionType.moveToTray,
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                matchMode: 'any',
+                nearby: {
+                    enabled: true,
+                    cells: [{ x: 0, y: 0 }],
+                },
+            },
+            params: {},
+        }, ctx)
+
+        expect(instances).toEqual([])
+    })
+
+    it('finds another anchor when it falls in nearby area', () => {
+        const king = createFigurePlacement('king')
+        const rook = createFigurePlacement('rook')
+        const ctx = buildActionSubjectResolutionContext({
+            from: { i: 0, j: 2 },
+            to: { i: 2, j: 2 },
+            actorPlacement: king,
+            targetAtTo: rook,
+            boardParameters: { n: 8, m: 8 } as never,
+            catalog: [],
+            eventRules: [],
+            stepCause: 'manual',
+            eventType: FigureEventType.onMove,
+        }, {
+            [coordKey({ i: 0, j: 2 })]: [king],
+            [coordKey({ i: 1, j: 2 })]: [rook],
+        })
+
+        const instances = resolveActionSubjects({
+            type: GameActionType.moveToTray,
+            subject: {
+                entries: [
+                    { figureId: FIGURE_SUBJECT_MOVED },
+                    { figureId: 'rook' },
+                ],
+                matchMode: 'any',
+                nearby: {
+                    enabled: true,
+                    cells: [{ x: 1, y: 0 }],
+                },
+            },
+            params: {},
+        }, ctx)
+
+        expect(instances).toHaveLength(1)
+        expect(instances[0]?.placement.instanceId).toBe(rook.instanceId)
+    })
+
+    it('returns empty for nearby when matchMode all is not satisfied', () => {
+        const actor = createFigurePlacement('pawn')
+        const ctx = buildActionSubjectResolutionContext({
+            from: { i: 0, j: 0 },
+            to: { i: 1, j: 1 },
+            actorPlacement: actor,
+            boardParameters: { n: 8, m: 8 } as never,
+            catalog: [],
+            eventRules: [],
+            stepCause: 'manual',
+            eventType: FigureEventType.onMove,
+        }, { [coordKey({ i: 0, j: 0 })]: [actor] })
+
+        const instances = resolveActionSubjects({
+            type: GameActionType.moveToTray,
+            subject: {
+                entries: [
+                    { figureId: FIGURE_SUBJECT_MOVED },
+                    { figureId: FIGURE_SUBJECT_STEPPED_ON },
+                ],
+                matchMode: 'all',
+                nearby: {
+                    enabled: true,
+                    cells: [{ x: 1, y: 0 }],
+                },
+            },
+            params: {},
+        }, ctx)
+
+        expect(instances).toEqual([])
+    })
+
+    it('returns empty when nearby enabled but cells are empty', () => {
+        const actor = createFigurePlacement('pawn')
+        const ctx = buildActionSubjectResolutionContext({
+            from: { i: 0, j: 0 },
+            to: { i: 1, j: 1 },
+            actorPlacement: actor,
+            boardParameters: { n: 8, m: 8 } as never,
+            catalog: [],
+            eventRules: [],
+            stepCause: 'manual',
+            eventType: FigureEventType.onMove,
+        }, { [coordKey({ i: 0, j: 0 })]: [actor] })
+
+        const instances = resolveActionSubjects({
+            type: GameActionType.moveToTray,
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                matchMode: 'any',
+                nearby: { enabled: true, cells: [] },
+            },
+            params: {},
+        }, ctx)
+
+        expect(instances).toEqual([])
+    })
+
     it('returns empty for spawnFigure', () => {
         const actor = createFigurePlacement('pawn')
         const ctx = buildActionSubjectResolutionContext({

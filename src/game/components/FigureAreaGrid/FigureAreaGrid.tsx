@@ -7,8 +7,9 @@ import {
     NumberDragPointerLockInput,
     scaleNumberDragDelta,
 } from 'bbuutoonnss'
-import { FigureId } from '../../types/figures'
+import { FigureId, FigureMoveDirection } from '../../types/figures'
 import { FigureEventAreaCell } from '../../types/events'
+import { moveDirectionGridTransform } from '../../moveRules'
 import { FigureSVG } from '../FigureSVG'
 import {
     AREA_GRID_AREA_SIZE,
@@ -29,6 +30,7 @@ export interface FigureAreaGridProps {
     cells: FigureEventAreaCell[]
     previewFigureId?: FigureId
     previewStateIndex?: number
+    moveDirection?: FigureMoveDirection
     onChange: (cells: FigureEventAreaCell[]) => void
 }
 
@@ -54,6 +56,7 @@ export const FigureAreaGrid: FC<FigureAreaGridProps> = ({
     cells,
     previewFigureId,
     previewStateIndex = 0,
+    moveDirection,
     onChange,
 }) => {
     const normalizedCells = useMemo(() => normalizeAreaCells(cells), [cells])
@@ -130,6 +133,9 @@ export const FigureAreaGrid: FC<FigureAreaGridProps> = ({
         [gridAreaSize, gridN],
     )
     const previewSize = Math.max(1, Math.floor(cellSize))
+    const gridTransform = moveDirection
+        ? moveDirectionGridTransform(moveDirection)
+        : undefined
 
     return (
         <div className={styles.areaGrid}>
@@ -156,7 +162,10 @@ export const FigureAreaGrid: FC<FigureAreaGridProps> = ({
                 <div
                     ref={gridAreaRef}
                     className={styles.gridArea}
-                    style={{ '--grid-size': gridSize } as React.CSSProperties}
+                    style={{
+                        '--grid-size': gridSize,
+                        ...(gridTransform ? { transform: gridTransform, transformOrigin: 'center' } : {}),
+                    } as React.CSSProperties}
                 >
                     {gridCells.map(({ gi, gj, x, y }) => {
                         const isCenter = isCenterOffset(x, y)

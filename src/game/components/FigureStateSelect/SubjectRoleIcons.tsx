@@ -45,3 +45,11 @@ export const HoppedOverSubjectIcon: FC<SubjectRoleIconProps> = ({ size }) => (
         <circle cx="20" cy="12" r="3" fill="#555" opacity="0.35" />
     </svg>
 )
+
+export const NearbySubjectIcon: FC<SubjectRoleIconProps> = ({ size }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="#6b7280" strokeWidth="1.5" strokeDasharray="2 2" />
+        <circle cx="12" cy="12" r="3" fill="#555" />
+        <circle cx="17" cy="8" r="2" fill="#2f6fbe" />
+    </svg>
+)

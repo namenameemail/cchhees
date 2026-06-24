@@ -13,6 +13,7 @@ import { CellCoord } from '../types/coords'
 import { ProjectPersistData } from '../../projects/types'
 import { CollabOp } from '../../collab/ops'
 import { FigureBoardAnimationState } from '../figureAnimation/playStepAnimation'
+import type { MoveRecSaveResult } from '../moveDebug/moveRecLog'
 
 export interface GameContextValue {
     mode: Mode
@@ -86,4 +87,8 @@ export interface GameContextValue {
     applyRemoteOps: (ops: CollabOp[]) => GameState
     isFigureAnimating: boolean
     figureBoardAnimations: FigureBoardAnimationState
+    moveRecActive: boolean
+    moveRecMoveCount: number
+    toggleMoveRec: () => void
+    saveMoveRec: () => Promise<MoveRecSaveResult>
 }

@@ -22,6 +22,7 @@ import {
     resolveFigureState,
     resolvePlacementStateIndex,
 } from './figureView'
+import { FigureEventAreaCell } from './types/events'
 import { evaluateMoveVariantConditions, MoveVariantConditionContext } from './moveRules/evaluateMoveConditions'
 
 export interface MoveDelta {
@@ -448,6 +449,36 @@ export function rotateMoveVector(
     return {
         x: rotated.x === 0 ? 0 : Math.trunc(rotated.x),
         y: rotated.y === 0 ? 0 : Math.trunc(rotated.y),
+    }
+}
+
+export function orientAreaCell(
+    cell: FigureEventAreaCell,
+    direction: FigureMoveDirection,
+): FigureEventAreaCell {
+    const rotated = rotateMoveVector(cell.x, cell.y, direction)
+
+    return { x: rotated.x, y: rotated.y }
+}
+
+export function orientAreaCells(
+    cells: FigureEventAreaCell[],
+    direction: FigureMoveDirection,
+): FigureEventAreaCell[] {
+    return cells.map(cell => orientAreaCell(cell, direction))
+}
+
+export function moveDirectionGridTransform(direction: FigureMoveDirection): string {
+    switch (direction) {
+        case 'right':
+            return 'rotate(-90deg)'
+        case 'down':
+            return 'rotate(180deg)'
+        case 'left':
+            return 'rotate(90deg)'
+        case 'up':
+        default:
+            return 'none'
     }
 }
 

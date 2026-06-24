@@ -40,7 +40,7 @@ function resolveMovedSubject(ctx: SubjectResolutionContext): SubjectInstance[] {
         return []
     }
 
-    const coord = move?.to ?? steppedOn?.targetCoord ?? steppedOn?.stepperCoord
+    const coord = move?.from ?? steppedOn?.stepperCoord
 
     if (!coord) {
         return []

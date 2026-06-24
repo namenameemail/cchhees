@@ -52,6 +52,7 @@ export enum FigureEventConditionType {
     isNotFigure = 'isNotFigure',
     exitedBoard = 'exitedBoard',
     hoppedOverFigures = 'hoppedOverFigures',
+    hasFigureInArea = 'hasFigureInArea',
 }
 
 /** @deprecated legacy persisted subject — migrated on load */
@@ -63,9 +64,16 @@ export interface LegacyFigureEventConditionSubject {
     filter?: FigureEventFigureFilter
 }
 
+export interface FigureEventSubjectNearby {
+    enabled?: boolean
+    cells?: FigureEventAreaCell[]
+}
+
 export interface FigureEventConditionSubject {
     entries: FigureEventFigureFilter[]
     matchMode?: FigureEventConditionMatchMode
+    /** только GameAction.subject */
+    nearby?: FigureEventSubjectNearby
 }
 
 export interface FigureEventBoardRect {
@@ -85,7 +93,7 @@ export interface FigureEventAreaCell {
     y: number
 }
 
-export interface FigureEventConditionParamsInBoardArea extends FigureEventBoardRect {}
+export interface FigureEventConditionParamsInBoardArea extends FigureEventBoardRect { }
 
 export interface FigureEventConditionParamsInFigureArea {
     anchorFigures?: FigureEventFigureFilter[]
@@ -102,14 +110,14 @@ export interface FigureEventConditionParamsFigureList {
     matchMode?: FigureEventConditionMatchMode
 }
 
-export interface FigureEventConditionParamsLeftCell extends FigureEventCoord {}
+export interface FigureEventConditionParamsLeftCell extends FigureEventCoord { }
 
 export interface FigureEventConditionParamsMovedBy {
     dx: number
     dy: number
 }
 
-export interface FigureEventConditionParamsLandedInBoardArea extends FigureEventBoardRect {}
+export interface FigureEventConditionParamsLandedInBoardArea extends FigureEventBoardRect { }
 
 export interface FigureEventConditionParamsLandedInFigureArea {
     anchorFigures?: FigureEventFigureFilter[]
@@ -117,7 +125,7 @@ export interface FigureEventConditionParamsLandedInFigureArea {
     includePassive?: boolean
 }
 
-export interface FigureEventConditionParamsLandedOnCell extends FigureEventCoord {}
+export interface FigureEventConditionParamsLandedOnCell extends FigureEventCoord { }
 
 export interface FigureEventConditionParamsLandedOnFigure {
     figures?: FigureEventFigureFilter[]
@@ -136,6 +144,12 @@ export interface FigureEventConditionParamsSteppedOnByFigure {
     matchMode?: FigureEventConditionMatchMode
 }
 
+export interface FigureEventConditionParamsHasFigureInArea {
+    figures?: FigureEventFigureFilter[]
+    cells?: FigureEventAreaCell[]
+    matchMode?: FigureEventConditionMatchMode
+}
+
 export type FigureEventConditionParams =
     | FigureEventConditionParamsInBoardArea
     | FigureEventConditionParamsInFigureArea
@@ -149,6 +163,7 @@ export type FigureEventConditionParams =
     | FigureEventConditionParamsLandedOnFigure
     | FigureEventConditionParamsFigureEnteredArea
     | FigureEventConditionParamsSteppedOnByFigure
+    | FigureEventConditionParamsHasFigureInArea
     | Record<string, never>
 
 export interface FigureEventCondition {
@@ -219,7 +234,7 @@ export interface LegacyFigureEventParamsEnterCell {
 }
 
 /** @deprecated migrated to conditions */
-export interface LegacyFigureEventParamsEnterRect extends FigureEventBoardRect {}
+export interface LegacyFigureEventParamsEnterRect extends FigureEventBoardRect { }
 
 /** @deprecated migrated to conditions */
 export interface LegacyFigureEventParamsEnterFigureArea {

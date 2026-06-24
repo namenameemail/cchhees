@@ -43,6 +43,7 @@ import {
     FigureEventParamsSteppedOnBy,
     LegacyFigureEventParamsSteppedOnBy,
     FigureEventRule,
+    FigureEventSubjectNearby,
     FigureEventType,
     GameAction,
     GameActionType,
@@ -363,6 +364,36 @@ function migrateSetOtherStateTargetToEntries(
     }
 }
 
+function normalizeActionSubjectNearby(
+    nearby?: FigureEventSubjectNearby,
+): FigureEventSubjectNearby | undefined {
+    if (nearby?.enabled !== true) {
+        return undefined
+    }
+
+    const cells = normalizeFigureAreaCells(nearby.cells)
+
+    if (!cells.length) {
+        return undefined
+    }
+
+    return { enabled: true, cells }
+}
+
+function buildNormalizedActionSubject(
+    entries: FigureEventConditionSubject['entries'],
+    matchMode: FigureEventConditionSubject['matchMode'],
+    nearby?: FigureEventSubjectNearby,
+): FigureEventConditionSubject {
+    const normalizedNearby = normalizeActionSubjectNearby(nearby)
+
+    return {
+        entries: canonicalizeConditionSubjectEntries(entries),
+        matchMode: matchMode === 'all' ? 'all' : 'any',
+        ...(normalizedNearby ? { nearby: normalizedNearby } : {}),
+    }
+}
+
 function normalizeGameActionSubject(
     action: GameAction,
     eventType?: FigureEventType,
@@ -373,30 +404,27 @@ function normalizeGameActionSubject(
     }
 
     if (action.subject?.entries?.length) {
-        return {
-            entries: canonicalizeConditionSubjectEntries(action.subject.entries),
-            matchMode: action.subject.matchMode === 'all' ? 'all' : 'any',
-        }
+        return buildNormalizedActionSubject(
+            action.subject.entries,
+            action.subject.matchMode,
+            action.subject.nearby,
+        )
     }
 
     if (action.type === GameActionType.setOtherState) {
         const params = action.params as SetOtherStateActionParams
-        return {
-            entries: canonicalizeConditionSubjectEntries(
-                migrateSetOtherStateTargetToEntries(params?.target, ownerFigureId),
-            ),
-            matchMode: 'any',
-        }
+        return buildNormalizedActionSubject(
+            migrateSetOtherStateTargetToEntries(params?.target, ownerFigureId),
+            'any',
+            action.subject?.nearby,
+        )
     }
 
     const entries = eventType === FigureEventType.steppedOnBy
         ? [{ figureId: FIGURE_SUBJECT_STEPPED_ON }]
         : [{ figureId: FIGURE_SUBJECT_MOVED }]
 
-    return {
-        entries: canonicalizeConditionSubjectEntries(entries),
-        matchMode: 'any',
-    }
+    return buildNormalizedActionSubject(entries, 'any', action.subject?.nearby)
 }
 
 export function normalizeGameAction(
@@ -753,6 +781,24 @@ function normalizeFigureEventConditionParams(
         }
         case FigureEventConditionType.exitedBoard:
             return {}
+        case FigureEventConditionType.hasFigureInArea: {
+            const areaParams = params as {
+                figures?: FigureEventFigureFilter[]
+                cells?: FigureEventAreaCell[]
+                matchMode?: 'any' | 'all'
+            } | undefined
+            const cells = normalizeFigureAreaCells(areaParams?.cells)
+
+            if (!cells.length) {
+                return undefined
+            }
+
+            return {
+                figures: canonicalizeFigureFilterArray(areaParams?.figures),
+                cells,
+                matchMode: areaParams?.matchMode === 'all' ? 'all' : 'any',
+            }
+        }
         default:
             return undefined
     }

@@ -7,6 +7,9 @@ import {
     isFigureMoveAllowed,
     matchMoveRule,
     matchMoveSteps,
+    moveDirectionGridTransform,
+    orientAreaCell,
+    orientAreaCells,
     orientMoveRule,
     rotateMoveVector,
 } from './moveRules'
@@ -394,6 +397,21 @@ describe('moveRules', () => {
         expect(rotateMoveVector(0, 1, 'right')).toEqual({ x: -1, y: 0 })
         expect(rotateMoveVector(0, 1, 'down')).toEqual({ x: 0, y: -1 })
         expect(rotateMoveVector(0, 1, 'left')).toEqual({ x: 1, y: 0 })
+    })
+
+    it('orientAreaCell and orientAreaCells rotate like move rules', () => {
+        expect(orientAreaCell({ x: 0, y: 1 }, 'right')).toEqual({ x: -1, y: 0 })
+        expect(orientAreaCells([{ x: 0, y: 1 }, { x: 3, y: 0 }], 'right')).toEqual([
+            { x: -1, y: 0 },
+            { x: 0, y: 3 },
+        ])
+    })
+
+    it('moveDirectionGridTransform maps directions to CSS transforms', () => {
+        expect(moveDirectionGridTransform('up')).toBe('none')
+        expect(moveDirectionGridTransform('right')).toBe('rotate(-90deg)')
+        expect(moveDirectionGridTransform('down')).toBe('rotate(180deg)')
+        expect(moveDirectionGridTransform('left')).toBe('rotate(90deg)')
     })
 
     it('orientMoveRule rotates offset and keeps variants', () => {

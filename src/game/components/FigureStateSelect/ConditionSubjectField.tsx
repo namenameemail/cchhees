@@ -31,17 +31,23 @@ import {
 import { FigureSVG } from '../FigureSVG'
 import selectStyles from './FigureStateSelect.module.css'
 import styles from './FigureFilterArrayField.module.css'
-import { HoppedOverSubjectIcon, MovedSubjectIcon, SteppedOnSubjectIcon } from './SubjectRoleIcons'
+import { HoppedOverSubjectIcon, MovedSubjectIcon, NearbySubjectIcon, SteppedOnSubjectIcon } from './SubjectRoleIcons'
 import { FiguresPanelPortal } from './FiguresPanelPortal'
 
 const FIGURES_PER_ROW = 5
 const FIGURES_PANEL_SCROLL_PADDING = 0
 const FIGURES_GRID_GAP = 0
 
+export type ConditionSubjectRole = 'moved' | 'steppedOn' | 'hoppedOver'
+
 export interface ConditionSubjectFieldProps {
     className?: string
     itemClassName?: string
     title?: string
+    allowedRoles?: ConditionSubjectRole[]
+    showNearbyToggle?: boolean
+    nearbyEnabled?: boolean
+    onNearbyToggle?: () => void
 }
 
 function isRelatedTargetInside(
@@ -75,7 +81,15 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
         className,
         itemClassName,
         title,
+        allowedRoles,
+        showNearbyToggle,
+        nearbyEnabled,
+        onNearbyToggle,
     } = props as ConditionSubjectFieldProps
+
+    const showMovedRole = !allowedRoles || allowedRoles.includes('moved')
+    const showSteppedOnRole = !allowedRoles || allowedRoles.includes('steppedOn')
+    const showHoppedOverRole = !allowedRoles || allowedRoles.includes('hoppedOver')
 
     const { state } = useGameContext()
     const {
@@ -536,7 +550,7 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
                                 selectStyles.figureTile,
                                 hasMovedRole && styles.figureTileSelected,
                             )}
-                            style={{ width: previewSize, height: previewSize }}
+                            style={{ width: previewSize, height: previewSize, display: showMovedRole ? undefined : 'none' }}
                             title="наступающая"
                             onClick={(event) => handleToggleRole(event, FIGURE_SUBJECT_MOVED)}
                         >
@@ -549,7 +563,7 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
                                 selectStyles.figureTile,
                                 hasSteppedOnRole && styles.figureTileSelected,
                             )}
-                            style={{ width: previewSize, height: previewSize }}
+                            style={{ width: previewSize, height: previewSize, display: showSteppedOnRole ? undefined : 'none' }}
                             title="наступаемая"
                             onClick={(event) => handleToggleRole(event, FIGURE_SUBJECT_STEPPED_ON)}
                         >
@@ -562,12 +576,31 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
                                 selectStyles.figureTile,
                                 hasHoppedOverRole && styles.figureTileSelected,
                             )}
-                            style={{ width: previewSize, height: previewSize }}
+                            style={{ width: previewSize, height: previewSize, display: showHoppedOverRole ? undefined : 'none' }}
                             title="перепрыгнутая"
                             onClick={(event) => handleToggleRole(event, FIGURE_SUBJECT_HOPPED_OVER)}
                         >
                             <HoppedOverSubjectIcon size={previewSize * 0.75} />
                         </div>
+
+                        {showNearbyToggle && (
+                            <div
+                                className={cn(
+                                    selectStyles.previewTile,
+                                    selectStyles.figureTile,
+                                    nearbyEnabled && styles.figureTileSelected,
+                                )}
+                                style={{ width: previewSize, height: previewSize }}
+                                title="фигуры рядом"
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    onNearbyToggle?.()
+                                }}
+                            >
+                                <NearbySubjectIcon size={previewSize * 0.75} />
+                            </div>
+                        )}
 
                         <div
                             className={cn(

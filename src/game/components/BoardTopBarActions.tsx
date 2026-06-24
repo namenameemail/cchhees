@@ -2,6 +2,7 @@ import React, { FC, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useGameContext } from '../context'
 import { BoardExportButton } from './BoardExportButton'
+import { MoveRecControls } from './MoveRecControls'
 import styles from './BoardTopBarActions.module.css'
 
 export const TOP_BAR_BOARD_ACTIONS_SLOT_ID = 'top-bar-board-actions'
@@ -20,6 +21,7 @@ export const BoardTopBarActions: FC<BoardTopBarActionsProps> = ({ boardRef }) =>
 
     return createPortal(
         <div className={styles.root}>
+            {import.meta.env.DEV && <MoveRecControls />}
             <button
                 type="button"
                 onClick={undoBoard}
