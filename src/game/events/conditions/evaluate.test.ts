@@ -449,6 +449,37 @@ describe('condition subject filtering', () => {
         expect(matches.length).toBe(1)
     })
 
+    it('movedBy orients delta when orientToTeamDirection is true', () => {
+        const actor = createFigurePlacement('king')
+        const catalog = [{ id: 'king', team: 0, states: [{ viewParams: {} }] }]
+        const boardParameters = {
+            ...testBoardParameters,
+            teamMoveDirections: { 0: 'right' as const },
+        }
+
+        const matches = evaluateAllConditions([{
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                matchMode: 'any',
+            },
+            type: FigureEventConditionType.movedBy,
+            params: { dx: 0, dy: 1, orientToTeamDirection: true },
+        }], {
+            move: {
+                from: { i: 2, j: 2 },
+                to: { i: 1, j: 2 },
+                actorPlacement: actor,
+                boardParameters,
+                catalog,
+                eventRules: [],
+                stepCause: 'manual',
+            },
+            figuresByCoord: { '1,2': [actor] },
+        })
+
+        expect(matches.length).toBe(1)
+    })
+
     it('hoppedOverFigures rejects when hopper does not match subject filter', () => {
         const actor = createFigurePlacement('knight')
         const pawn = createFigurePlacement('pawn')
@@ -531,6 +562,7 @@ describe('hasFigureInArea', () => {
                 figures: [{ figureId: 'pawn' }],
                 cells: [{ x: 0, y: 1 }],
                 matchMode: 'any',
+                orientToTeamDirection: true,
             },
         }], {
             move: {
@@ -664,6 +696,7 @@ describe('hasFigureInArea', () => {
                 figures: [{ figureId: 'pawn' }],
                 cells: [{ x: 0, y: 1 }],
                 matchMode: 'any',
+                orientToTeamDirection: true,
             },
         }], {
             move: {
@@ -702,6 +735,7 @@ describe('hasFigureInArea', () => {
                 figures: [{ figureId: 'pawn' }],
                 cells: [{ x: 0, y: 1 }],
                 matchMode: 'any',
+                orientToTeamDirection: true,
             },
         }], {
             move: {

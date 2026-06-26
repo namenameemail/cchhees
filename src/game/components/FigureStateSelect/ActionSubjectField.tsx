@@ -6,7 +6,10 @@ import { FigureEventAreaCell, FigureEventConditionSubject } from '../../types/ev
 import { FigureId } from '../../types/figures'
 import { isConcreteFigureFilter } from '../../figureFilter'
 import { FigureAreaGrid } from '../FigureAreaGrid/FigureAreaGrid'
+import { useGameContext } from '../../context'
+import { resolveFigureMoveDirectionFromCatalog } from '../../figureView'
 import { ConditionSubjectField } from './ConditionSubjectField'
+import { TeamOrientCheckbox } from '../TeamOrientCheckbox'
 import formStyles from '../FigureParametersForm/styles.module.css'
 
 const conditionMatchModeOptions = ['any', 'all'] as const
@@ -24,6 +27,7 @@ export const ActionSubjectField: FC<ParameterInputComponentProps> = ({
 }) => {
     const { className, ownerFigureId } = props as ActionSubjectFieldProps
     const subject = (value ?? { entries: [] }) as FigureEventConditionSubject
+    const { figureCatalog, state, figureTeams } = useGameContext()
 
     const previewFigure = useMemo(() => {
         if (ownerFigureId) {
@@ -41,6 +45,19 @@ export const ActionSubjectField: FC<ParameterInputComponentProps> = ({
             stateIndex: concrete.stateIndex ?? 0,
         }
     }, [ownerFigureId, subject.entries])
+
+    const nearbyMoveDirection = useMemo(() => {
+        if (subject.nearby?.orientToTeamDirection !== true || !previewFigure?.figureId) {
+            return undefined
+        }
+
+        return resolveFigureMoveDirectionFromCatalog(
+            figureCatalog,
+            previewFigure.figureId,
+            state.boardParameters,
+            figureTeams,
+        )
+    }, [figureCatalog, figureTeams, previewFigure?.figureId, state.boardParameters, subject.nearby?.orientToTeamDirection])
 
     const handleSubjectPatch = useCallback((patch: Partial<FigureEventConditionSubject>) => {
         onChange(name, { ...subject, ...patch })
@@ -111,10 +128,25 @@ export const ActionSubjectField: FC<ParameterInputComponentProps> = ({
 
             {subject.nearby?.enabled === true && (
                 <div className={formStyles.figureAreaGridField}>
+                    <TeamOrientCheckbox
+                        name="nearbyOrient"
+                        value={subject.nearby.orientToTeamDirection}
+                        onChange={(_name, checked) => {
+                            handleSubjectPatch({
+                                nearby: {
+                                    ...subject.nearby,
+                                    enabled: true,
+                                    orientToTeamDirection: checked,
+                                },
+                            })
+                        }}
+                        props={{}}
+                    />
                     <FigureAreaGrid
                         cells={subject.nearby.cells ?? []}
                         previewFigureId={previewFigure?.figureId}
                         previewStateIndex={previewFigure?.stateIndex}
+                        moveDirection={nearbyMoveDirection}
                         onChange={handleNearbyCellsChange}
                     />
                 </div>

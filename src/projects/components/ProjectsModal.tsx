@@ -135,6 +135,7 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
         exportProject,
         importProjectsFromFiles,
         listBackups,
+        clearBackups,
         restoreBackup,
     } = useProjectContext()
 
@@ -144,6 +145,7 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
     const [storageEstimate, setStorageEstimate] = useState<StorageEstimate | null>(null)
     const [backups, setBackups] = useState<ProjectsBackupRecord[]>([])
     const [isRestoringBackupId, setIsRestoringBackupId] = useState<string | null>(null)
+    const [isClearingBackups, setIsClearingBackups] = useState(false)
     const [isImporting, setIsImporting] = useState(false)
     const [isDragActive, setIsDragActive] = useState(false)
     const [statusMessage, setStatusMessage] = useState<string | null>(null)
@@ -167,8 +169,14 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
     }, [projects])
 
     const refreshBackups = useCallback(async () => {
-        const records = await listBackups()
-        setBackups(records)
+        try {
+            const records = await listBackups()
+            setBackups(records)
+        } catch (error) {
+            console.error('[ProjectsModal] list backups failed:', error)
+            setBackups([])
+            setStatusMessage(error instanceof Error ? error.message : 'Не удалось загрузить резервные копии')
+        }
     }, [listBackups])
 
     useEffect(() => {
@@ -206,6 +214,25 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
             setIsRestoringBackupId(null)
         }
     }, [restoreBackup, onClose])
+
+    const handleClearBackups = useCallback(async () => {
+        setIsClearingBackups(true)
+        setStatusMessage(null)
+
+        try {
+            const removed = await clearBackups()
+            setBackups([])
+            setStatusMessage(removed > 0
+                ? `Удалено резервных копий: ${removed}`
+                : 'Резервных копий не было')
+            await refreshStorageInfo()
+        } catch (error) {
+            console.error('[ProjectsModal] clear backups failed:', error)
+            setStatusMessage(error instanceof Error ? error.message : 'Не удалось очистить резервные копии')
+        } finally {
+            setIsClearingBackups(false)
+        }
+    }, [clearBackups, refreshStorageInfo])
 
     const handleOverlayClick = useCallback((e: React.MouseEvent) => {
         if (e.target === e.currentTarget) {
@@ -604,9 +631,19 @@ export const ProjectsModal: FC<ProjectsModalProps> = ({ open, onClose }) => {
 
                     {backups.length > 0 && (
                         <section className={styles.restoreSection}>
-                            <h2 className={styles.restoreTitle}>Восстановление</h2>
+                            <div className={styles.restoreTitleRow}>
+                                <h2 className={styles.restoreTitle}>Восстановление</h2>
+                                <button
+                                    type="button"
+                                    className={styles.restoreClearButton}
+                                    disabled={isClearingBackups || isRestoringBackupId !== null}
+                                    onClick={() => void handleClearBackups()}
+                                >
+                                    {isClearingBackups ? 'Очистка...' : 'Очистить бэкапы'}
+                                </button>
+                            </div>
                             <p className={styles.restoreHint}>
-                                Локальные резервные копии для origin {typeof location !== 'undefined' ? location.origin : 'unknown'}.
+                                Одна rolling-копия всех проектов для origin {typeof location !== 'undefined' ? location.origin : 'unknown'}.
                             </p>
                             <ul className={styles.restoreList}>
                                 {backups.map(backup => (

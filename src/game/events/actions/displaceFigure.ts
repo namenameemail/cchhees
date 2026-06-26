@@ -28,6 +28,11 @@ import {
     SteppedOnQueueItem,
 } from '../steppedOnQueue'
 import { MoveEventContext } from '../types'
+import {
+    isOrientToTeamDirection,
+    maybeOrientDelta,
+} from '../coordinateOrientation'
+import { FigureCatalog, FigureTeams } from '../../types/figures'
 import { gameMovesDebugLog } from '../../gameMovesDebugLog'
 import { logFigureActionApply, logFigureDisplaceDebug } from '../../figureActionsDebugLog'
 import {
@@ -36,6 +41,23 @@ import {
     buildSteppedOnActionSubjectContext,
     resolveActionSubjects,
 } from './resolveActionSubjects'
+
+function resolveEffectiveDisplaceDeltas(
+    params: DisplaceFigureActionParams,
+    figureId: FigureId,
+    ctx: MoveEventContext,
+    figureTeams?: FigureTeams,
+): { dx: number; dy: number } {
+    return maybeOrientDelta(
+        params.dx,
+        params.dy,
+        isOrientToTeamDirection(params),
+        ctx.catalog,
+        figureId,
+        ctx.boardParameters,
+        figureTeams,
+    )
+}
 
 function placementMatchesOwner(placement: FigurePlacement, ownerFigureId: FigureId): boolean {
     return placement.figureId === ownerFigureId
@@ -167,17 +189,19 @@ export function applyDisplaceFromCoord(
     queue: SteppedOnQueueItem[],
 ): FiguresSlice {
     const displaced = resolvePlacementSnapshot(figures, fromCoord, placement)
+    const { dx, dy } = resolveEffectiveDisplaceDeltas(params, displaced.figureId, ctx)
+    const effectiveParams = { ...params, dx, dy }
     const displaceLogDetail = {
         ownerFigureId: ctx.ownerFigureId,
         eventType: ctx.eventType,
     }
 
-    if (isDisplaceLeavingBoard(fromCoord, params, ctx.boardParameters)) {
+    if (isDisplaceLeavingBoard(fromCoord, effectiveParams, ctx.boardParameters)) {
         gameMovesDebugLog.displace({
             placement: displaced,
             from: fromCoord,
             to: fromCoord,
-            params,
+            params: effectiveParams,
             offBoard: true,
             blocked: true,
             ownerFigureId: ctx.ownerFigureId,
@@ -187,7 +211,7 @@ export function applyDisplaceFromCoord(
             context: 'applyDisplaceFromCoord',
             subject: displaced.figureId,
             from: fromCoord,
-            params,
+            params: effectiveParams,
             result: 'off-board',
             reason: 'landing leaves board; queued leaveBoard',
             detail: displaceLogDetail,
@@ -203,8 +227,8 @@ export function applyDisplaceFromCoord(
 
     const landing = computeDisplaceLanding(
         fromCoord,
-        params.dx,
-        params.dy,
+        dx,
+        dy,
         ctx.boardParameters,
     )
     const landingOccupied = isStackOccupied(figures, landing)
@@ -215,7 +239,7 @@ export function applyDisplaceFromCoord(
             placement: displaced,
             from: fromCoord,
             to: landing,
-            params,
+            params: effectiveParams,
             blocked: true,
             ownerFigureId: ctx.ownerFigureId,
             eventType: ctx.eventType,
@@ -486,10 +510,15 @@ export function applyLeaveBoardDisplace(
 
     return instances.reduce((current, instance) => {
         const placement = resolvePlacementSnapshot(current, instance.coord, instance.placement)
+        const moveCtx = {
+            catalog: ctx.catalog,
+            boardParameters: ctx.boardParameters,
+        } as MoveEventContext
+        const { dx, dy } = resolveEffectiveDisplaceDeltas(wrapParams, placement.figureId, moveCtx)
         const landing = computeWrappedDisplaceLanding(
             instance.coord,
-            wrapParams.dx,
-            wrapParams.dy,
+            dx,
+            dy,
             ctx.boardParameters,
         )
         const topOccupant = getTopOfStack(current, landing)

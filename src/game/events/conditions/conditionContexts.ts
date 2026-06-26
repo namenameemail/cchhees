@@ -23,7 +23,7 @@ export const CONDITION_CONTEXTS: Record<FigureEventConditionType, ConditionConte
     [FigureEventConditionType.isNotFigure]: 'both',
     [FigureEventConditionType.exitedBoard]: 'both',
     [FigureEventConditionType.hoppedOverFigures]: 'both',
-    [FigureEventConditionType.hasFigureInArea]: 'move',
+    [FigureEventConditionType.hasFigureInArea]: 'both',
 }
 
 export function getConditionTypesForContext(context: ConditionContext): FigureEventConditionType[] {

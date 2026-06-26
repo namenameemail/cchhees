@@ -15,6 +15,10 @@ import {
 } from '../../figureStack'
 import { SteppedOnQueueItem } from '../steppedOnQueue'
 import { MoveEventContext } from '../types'
+import {
+    isOrientToTeamDirection,
+    resolveBoardCellFromParams,
+} from '../coordinateOrientation'
 import { gameMovesDebugLog } from '../../gameMovesDebugLog'
 import { logFigureActionApply, logFigureDisplaceDebug } from '../../figureActionsDebugLog'
 import { movePlacementToCoord } from './displaceFigure'
@@ -58,8 +62,16 @@ export function applyMoveToCellFromCoord(
     ctx: MoveEventContext,
     queue: SteppedOnQueueItem[],
 ): FiguresSlice {
-    const landing: CellCoord = { i: params.x - 1, j: params.y - 1 }
     const displaced = resolvePlacementSnapshot(figures, fromCoord, placement)
+    const landing = resolveBoardCellFromParams(
+        fromCoord,
+        params.x,
+        params.y,
+        isOrientToTeamDirection(params),
+        ctx.catalog,
+        displaced.figureId,
+        ctx.boardParameters,
+    )
 
     if (!isCoordInGrid(landing, ctx.boardParameters.n, ctx.boardParameters.m)) {
         logFigureActionApply({

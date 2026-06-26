@@ -2,6 +2,7 @@ import { CellCoord, coordKey, coordsEqual } from '../../types/coords'
 import {
     FigureEventAreaCell,
     FigureEventConditionSubject,
+    FigureEventSubjectNearby,
     FigureEventType,
     GameAction,
     GameActionTarget,
@@ -21,10 +22,16 @@ import {
     SubjectInstance,
     SubjectResolutionContext,
 } from '../conditions/resolveSubject'
+import {
+    isOrientToTeamDirection,
+    maybeOrientAreaCells,
+} from '../coordinateOrientation'
+import { FigureTeams } from '../../types/figures'
 
 export interface ActionSubjectContext extends SubjectResolutionContext {
     ownerFigureId?: FigureId
     eventType?: FigureEventType
+    figureTeams?: FigureTeams
 }
 
 export function isSubjectNearbyEnabled(
@@ -38,12 +45,26 @@ function resolveNearbyFromAnchors(
     anchors: SubjectInstance[],
     cells: FigureEventAreaCell[],
     figuresByCoord: SubjectResolutionContext['figuresByCoord'],
+    ctx: ActionSubjectContext,
+    nearby?: FigureEventSubjectNearby,
 ): SubjectInstance[] {
     const seen = new Set<string>()
     const instances: SubjectInstance[] = []
+    const orient = isOrientToTeamDirection(nearby)
+    const catalog = ctx.move?.catalog ?? []
+    const boardParameters = ctx.move?.boardParameters
 
     for (const anchor of anchors) {
-        for (const cell of cells) {
+        const orientedCells = maybeOrientAreaCells(
+            cells,
+            orient,
+            catalog,
+            anchor.placement.figureId,
+            boardParameters,
+            ctx.figureTeams,
+        )
+
+        for (const cell of orientedCells) {
             const targetCoord: CellCoord = {
                 i: anchor.coord.i + cell.x,
                 j: anchor.coord.j + cell.y,
@@ -253,6 +274,8 @@ export function resolveActionSubjects(
             resolveSubjectInstances(subject, ctx),
             cells,
             ctx.figuresByCoord,
+            ctx,
+            subject.nearby,
         )
     }
 

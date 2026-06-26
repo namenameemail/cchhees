@@ -1,4 +1,4 @@
-import { isCoordInGrid } from '../types/coords'
+import { CellCoord, isCoordInGrid } from '../types/coords'
 import {
     GameAction,
     GameActionType,
@@ -36,14 +36,28 @@ import {
     buildSteppedOnActionSubjectContext,
     resolveActionSubjects,
 } from './actions/resolveActionSubjects'
+import {
+    isOrientToTeamDirection,
+    resolveBoardCellFromParams,
+} from './coordinateOrientation'
 
 function applySpawnFigure(
     figures: FiguresSlice,
     params: SpawnFigureActionParams,
     boardN: number,
     boardM: number,
+    anchor: CellCoord,
+    ctx: MoveEventContext,
 ): FiguresSlice {
-    const coord = { i: params.x - 1, j: params.y - 1 }
+    const coord = resolveBoardCellFromParams(
+        anchor,
+        params.x,
+        params.y,
+        isOrientToTeamDirection(params),
+        ctx.catalog,
+        params.figureId,
+        ctx.boardParameters,
+    )
 
     if (!isCoordInGrid(coord, boardN, boardM)) {
         return figures
@@ -192,6 +206,10 @@ export function applyGameAction(
                 action.params as SpawnFigureActionParams,
                 ctx.boardParameters.n,
                 ctx.boardParameters.m,
+                ctx.actorPlacement
+                    ? { i: ctx.from.i, j: ctx.from.j }
+                    : { i: 0, j: 0 },
+                ctx,
             )
         case GameActionType.setSelfState:
         case GameActionType.setOtherState: {

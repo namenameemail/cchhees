@@ -112,20 +112,24 @@ export const projectsBootstrapLog = {
         log(`backup saved: ${count} project(s) id=${backupId.slice(0, 8)}`)
     },
 
-    dbReadFailed(error: unknown): void {
+    dbReadFailed(error: unknown, store?: string): void {
         const { detail, stack } = formatError(error)
-        console.error(`${PREFIX} DB read/open FAILED — ${detail}`, error)
+        const storePart = store ? ` store=${store}` : ''
+        console.error(`${PREFIX} DB read/open FAILED${storePart} — ${detail}`, error)
 
         if (stack) {
             console.error(`${PREFIX} stack:`, stack)
         }
     },
 
+    schemaIncomplete(missing: string[]): void {
+        console.error(`${PREFIX} DB schema incomplete — missing stores: ${missing.join(', ')}`)
+    },
+
     bootstrapFailed(error: unknown): void {
         const { detail, stack } = formatError(error)
 
         console.error(`${PREFIX} bootstrap FAILED — ${detail}`, error)
-        console.error(`${PREFIX} данные в IndexedDB НЕ удалены — повторите загрузку или восстановите из резервной копии`)
 
         if (stack) {
             console.error(`${PREFIX} stack:`, stack)

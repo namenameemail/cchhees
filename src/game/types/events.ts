@@ -64,7 +64,12 @@ export interface LegacyFigureEventConditionSubject {
     filter?: FigureEventFigureFilter
 }
 
-export interface FigureEventSubjectNearby {
+export interface OrientableCoordinates {
+    /** false/undefined = абсолютные координаты доски; true = канонические смещения + orient по команде */
+    orientToTeamDirection?: boolean
+}
+
+export interface FigureEventSubjectNearby extends OrientableCoordinates {
     enabled?: boolean
     cells?: FigureEventAreaCell[]
 }
@@ -93,14 +98,14 @@ export interface FigureEventAreaCell {
     y: number
 }
 
-export interface FigureEventConditionParamsInBoardArea extends FigureEventBoardRect { }
+export interface FigureEventConditionParamsInBoardArea extends FigureEventBoardRect, OrientableCoordinates { }
 
-export interface FigureEventConditionParamsInFigureArea {
+export interface FigureEventConditionParamsInFigureArea extends OrientableCoordinates {
     anchorFigures?: FigureEventFigureFilter[]
     cells?: FigureEventAreaCell[]
 }
 
-export interface FigureEventConditionParamsOnCells {
+export interface FigureEventConditionParamsOnCells extends OrientableCoordinates {
     cells: FigureEventCoord[]
     matchMode?: FigureEventConditionMatchMode
 }
@@ -110,22 +115,22 @@ export interface FigureEventConditionParamsFigureList {
     matchMode?: FigureEventConditionMatchMode
 }
 
-export interface FigureEventConditionParamsLeftCell extends FigureEventCoord { }
+export interface FigureEventConditionParamsLeftCell extends FigureEventCoord, OrientableCoordinates { }
 
-export interface FigureEventConditionParamsMovedBy {
+export interface FigureEventConditionParamsMovedBy extends OrientableCoordinates {
     dx: number
     dy: number
 }
 
-export interface FigureEventConditionParamsLandedInBoardArea extends FigureEventBoardRect { }
+export interface FigureEventConditionParamsLandedInBoardArea extends FigureEventBoardRect, OrientableCoordinates { }
 
-export interface FigureEventConditionParamsLandedInFigureArea {
+export interface FigureEventConditionParamsLandedInFigureArea extends OrientableCoordinates {
     anchorFigures?: FigureEventFigureFilter[]
     cells?: FigureEventAreaCell[]
     includePassive?: boolean
 }
 
-export interface FigureEventConditionParamsLandedOnCell extends FigureEventCoord { }
+export interface FigureEventConditionParamsLandedOnCell extends FigureEventCoord, OrientableCoordinates { }
 
 export interface FigureEventConditionParamsLandedOnFigure {
     figures?: FigureEventFigureFilter[]
@@ -134,7 +139,7 @@ export interface FigureEventConditionParamsLandedOnFigure {
     stackIndex?: number
 }
 
-export interface FigureEventConditionParamsFigureEnteredArea {
+export interface FigureEventConditionParamsFigureEnteredArea extends OrientableCoordinates {
     cells?: FigureEventAreaCell[]
     includePassive?: boolean
 }
@@ -144,7 +149,7 @@ export interface FigureEventConditionParamsSteppedOnByFigure {
     matchMode?: FigureEventConditionMatchMode
 }
 
-export interface FigureEventConditionParamsHasFigureInArea {
+export interface FigureEventConditionParamsHasFigureInArea extends OrientableCoordinates {
     figures?: FigureEventFigureFilter[]
     cells?: FigureEventAreaCell[]
     matchMode?: FigureEventConditionMatchMode
@@ -254,7 +259,7 @@ export interface LegacyFigureEventParamsAreaEnteredBy {
     includePassive?: boolean
 }
 
-export interface SpawnFigureActionParams {
+export interface SpawnFigureActionParams extends OrientableCoordinates {
     figureId: FigureId
     x: number
     y: number
@@ -273,12 +278,12 @@ export interface SetOtherStateActionParams {
 
 export type MoveToTrayActionParams = Record<string, never>
 
-export interface DisplaceFigureActionParams {
+export interface DisplaceFigureActionParams extends OrientableCoordinates {
     dx: number
     dy: number
 }
 
-export interface MoveToCellActionParams {
+export interface MoveToCellActionParams extends OrientableCoordinates {
     x: number
     y: number
 }

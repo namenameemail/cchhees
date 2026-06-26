@@ -4,7 +4,10 @@ import { FormArray } from '../../../components/FormArray'
 import { FigureId, FigureMoveRule, FigureMoveVariant, FigureMoveVariantKind } from '../../types/figures'
 import { FigureEventCondition } from '../../types/events'
 import { cloneMoveRule } from '../../migrateFigureMoveRules'
-import { createMoveConditionsArrayProps } from '../eventConditionsForm'
+import {
+    coalesceConditionsOnTypeChange,
+    createMoveConditionsArrayProps,
+} from '../eventConditionsForm'
 import { clampMoveRuleLength } from '../FigureMoveRulesGrid/moveRulesGrid'
 import styles from './MoveRuleVariantsPanel.module.css'
 import formStyles from '../FigureParametersForm/styles.module.css'
@@ -62,7 +65,8 @@ const VariantRow: FC<VariantRowProps> = ({
     }, [kind, onVariantChange, variant])
 
     const handleConditionsChange = useCallback((conditions: FigureEventCondition[]) => {
-        onVariantChange(kind, { ...variant, conditions })
+        const coalesced = coalesceConditionsOnTypeChange(variant.conditions, conditions)
+        onVariantChange(kind, { ...variant, conditions: coalesced })
     }, [kind, onVariantChange, variant])
 
     const ownTeamLabel = VARIANT_OWN_TEAM_LABELS[kind]

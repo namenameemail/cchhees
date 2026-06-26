@@ -207,6 +207,47 @@ describe('resolveActionSubjects', () => {
         expect(instances[0]?.coord).toEqual({ i: 1, j: 2 })
     })
 
+    it('orients nearby cells when orientToTeamDirection is true', () => {
+        const actor = createFigurePlacement('king')
+        const pawn = createFigurePlacement('pawn')
+        const catalog = [{ id: 'king', team: 0, states: [{ viewParams: {} }] }]
+        const ctx = buildActionSubjectResolutionContext({
+            from: { i: 2, j: 2 },
+            to: { i: 3, j: 2 },
+            actorPlacement: actor,
+            boardParameters: {
+                n: 8,
+                m: 8,
+                teamMoveDirections: { 0: 'right' as const },
+            } as never,
+            catalog,
+            eventRules: [],
+            stepCause: 'manual',
+            eventType: FigureEventType.onMove,
+        }, {
+            [coordKey({ i: 2, j: 2 })]: [actor],
+            [coordKey({ i: 1, j: 2 })]: [pawn],
+        })
+
+        const instances = resolveActionSubjects({
+            type: GameActionType.moveToTray,
+            subject: {
+                entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
+                matchMode: 'any',
+                nearby: {
+                    enabled: true,
+                    cells: [{ x: 0, y: 1 }],
+                    orientToTeamDirection: true,
+                },
+            },
+            params: {},
+        }, ctx)
+
+        expect(instances).toHaveLength(1)
+        expect(instances[0]?.placement.instanceId).toBe(pawn.instanceId)
+        expect(instances[0]?.coord).toEqual({ i: 1, j: 2 })
+    })
+
     it('does not include anchor in its own nearby scan', () => {
         const actor = createFigurePlacement('pawn')
         const ctx = buildActionSubjectResolutionContext({

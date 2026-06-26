@@ -8,9 +8,12 @@ import React, {
     useState,
 } from 'react'
 import {
+    assertDbSchema,
     createInitialProjectIfEmpty,
     deleteAssetsByProjectId,
     deleteProject as deleteProjectFromDb,
+    formatDbOperationError,
+    formatDbSchemaError,
     getAllProjects,
     getAllVisitedRooms,
     getCurrentProjectId,
@@ -18,17 +21,18 @@ import {
     getLastKnownProjectCount,
     putProject,
     putVisitedRoom,
+    resetDbConnection,
     setCurrentProjectSession,
     setLastKnownProjectCount,
 } from './db'
 import { createEmptyProject, getDefaultProjectName } from './createProject'
 import { migrateRawProjects } from './projectBootstrap'
 import {
+    clearProjectBackups,
     listProjectBackups,
     restoreProjectBackup,
     scheduleProjectsBackup,
     tryRestoreFromLatestBackup,
-    writeProjectsBackupNow,
 } from './projectBackups'
 import { exportProjectToFile, importProjectFromFile } from './projectFile'
 import {
@@ -86,6 +90,7 @@ export interface ProjectContextValue {
     registerPreviewCapture: (capture: ProjectPreviewCapture | null) => void
     retryBootstrap: () => void
     listBackups: () => Promise<ProjectsBackupRecord[]>
+    clearBackups: () => Promise<number>
     restoreBackup: (backupId: string) => Promise<void>
     createProject: (name?: string) => Promise<void>
     renameProject: (id: string, name: string) => Promise<void>
@@ -132,6 +137,7 @@ const defaultContextValue: ProjectContextValue = {
     registerPreviewCapture: () => {},
     retryBootstrap: () => {},
     listBackups: async () => [],
+    clearBackups: async () => 0,
     restoreBackup: async () => {},
     createProject: async () => {},
     renameProject: async () => {},
@@ -459,6 +465,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     const bootstrapGenerationRef = useRef(0)
 
     const retryBootstrap = useCallback(() => {
+        resetDbConnection()
         setBootstrapError(null)
         setBootstrapRecoveryNotice(null)
         setIsReady(false)
@@ -467,6 +474,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
     const listBackups = useCallback(async () => {
         return listProjectBackups()
+    }, [])
+
+    const clearBackups = useCallback(async () => {
+        return clearProjectBackups()
     }, [])
 
     const restoreBackup = useCallback(async (backupId: string) => {
@@ -539,6 +550,13 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             setBootstrapError(null)
 
             try {
+                const schema = await assertDbSchema()
+
+                if (!schema.ok) {
+                    projectsBootstrapLog.schemaIncomplete(schema.missing)
+                    throw new Error(formatDbSchemaError(schema.missing))
+                }
+
                 const [rawProjects, loadedVisitedRooms] = await Promise.all([
                     getAllProjects(),
                     getAllVisitedRooms(),
@@ -598,12 +616,6 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                 await applyCurrentSession(savedId ?? loaded[0].id, savedKind)
                 await setLastKnownProjectCount(loaded.length)
 
-                const backup = await writeProjectsBackupNow(loaded)
-
-                if (backup) {
-                    projectsBootstrapLog.backupWritten(backup.count, backup.id)
-                }
-
                 projectsBootstrapLog.ready(savedId ?? loaded[0].id, loaded.length, loadedVisitedRooms.length)
                 setIsReady(true)
             } catch (error) {
@@ -615,7 +627,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
                     return
                 }
 
-                setBootstrapError(error instanceof Error ? error.message : String(error))
+                setBootstrapError(formatDbOperationError(error))
                 setProjects([])
                 setVisitedRooms([])
                 setIsReady(true)
@@ -1145,6 +1157,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             registerPreviewCapture,
             retryBootstrap,
             listBackups,
+            clearBackups,
             restoreBackup,
             createProject,
             renameProject,
@@ -1186,6 +1199,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
             registerPreviewCapture,
             retryBootstrap,
             listBackups,
+            clearBackups,
             restoreBackup,
             createProject,
             renameProject,

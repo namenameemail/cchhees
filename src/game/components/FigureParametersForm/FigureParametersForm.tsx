@@ -29,11 +29,15 @@ import {
 } from '../FigureStateSelect/FigureStateSelectField'
 import { ActionSubjectField } from '../FigureStateSelect/ActionSubjectField'
 import { createFigureAreaGridFieldConfig } from '../FigureAreaGrid/FigureAreaGridField'
+import { createTeamOrientFieldConfig } from '../TeamOrientCheckbox'
 import { FIGURE_FILTER_ANY, FIGURE_SUBJECT_MOVED, FIGURE_SUBJECT_STEPPED_ON } from '../../figureFilter'
 import { FigureMoveRulesGrid } from '../FigureMoveRulesGrid/FigureMoveRulesGrid'
 import { removeRule, getRuleAt } from '../FigureMoveRulesGrid/moveRulesGrid'
 import { MoveRuleVariantsPanel, updateMoveRuleAt } from '../MoveRuleVariantsPanel/MoveRuleVariantsPanel'
-import { createEventConditionsArrayProps } from '../eventConditionsForm'
+import {
+    coalesceConditionsOnTypeChange,
+    createEventConditionsArrayProps,
+} from '../eventConditionsForm'
 import { resolveTeamSelectOptions } from '../../figureTeams'
 import { FormArray } from '../../../components/FormArray'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
@@ -380,11 +384,13 @@ function getActionParamsConfig(type: GameActionType) {
             return []
         case GameActionType.moveToCell:
             return [
+                createTeamOrientFieldConfig(),
                 { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne, ...eventNumberInputProps } },
                 { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne, ...eventNumberInputProps } },
             ]
         case GameActionType.displaceFigure:
             return [
+                createTeamOrientFieldConfig(),
                 { name: 'dx', type: ParameterTypes.NumberInput, props: { placeholder: 'dx', ...integerStep, ...eventNumberInputProps } },
                 { name: 'dy', type: ParameterTypes.NumberInput, props: { placeholder: 'dy', ...integerStep, ...eventNumberInputProps } },
             ]
@@ -394,6 +400,7 @@ function getActionParamsConfig(type: GameActionType) {
                     stateField: 'stateIndex',
                     showStatePicker: true,
                 }),
+                createTeamOrientFieldConfig(),
                 { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne, ...eventNumberInputProps } },
                 { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne, ...eventNumberInputProps } },
             ]
@@ -646,15 +653,17 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
     }, [figureId, figureOptions, rule, index, onChange])
 
     const handleConditionsChange = useCallback((conditions: FigureEventCondition[]) => {
+        const coalesced = coalesceConditionsOnTypeChange(rule.conditions, conditions)
+
         logFigureEventRulesDebug('conditions-change', {
             figureId,
             ruleId: rule.id,
             ruleIndex: index,
             before: rule.conditions,
-            after: conditions,
+            after: coalesced,
         })
 
-        onChange({ ...rule, conditions }, index)
+        onChange({ ...rule, conditions: coalesced }, index)
     }, [figureId, index, onChange, rule])
 
     const handleRemove = useCallback(() => {

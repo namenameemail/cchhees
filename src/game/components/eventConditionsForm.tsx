@@ -14,6 +14,7 @@ import {
     createFigureFilterArrayFieldConfig,
 } from './FigureStateSelect/FigureStateSelectField'
 import { createFigureAreaGridFieldConfig } from './FigureAreaGrid/FigureAreaGridField'
+import { createTeamOrientFieldConfig } from './TeamOrientCheckbox'
 import { FIGURE_FILTER_ANY, FIGURE_SUBJECT_MOVED } from '../figureFilter'
 import formStyles from './FigureParametersForm/styles.module.css'
 
@@ -94,17 +95,44 @@ function getDefaultConditionParams(type: FigureEventConditionType) {
     }
 }
 
-function getDefaultConditionParamsForType(type: FigureEventConditionType) {
+export function getDefaultConditionParamsForType(type: FigureEventConditionType) {
     const defaults = getDefaultConditionParams(type)
 
     if (type === FigureEventConditionType.hasFigureInArea) {
         return {
             ...defaults,
             cells: [{ x: 0, y: 1 }],
+            orientToTeamDirection: true,
         }
     }
 
     return defaults
+}
+
+/** Reset params when condition type changes so normalize does not drop the row. */
+export function coalesceConditionsOnTypeChange(
+    previous: FigureEventCondition[] | undefined,
+    next: FigureEventCondition[],
+): FigureEventCondition[] {
+    return next.map((condition, index) => {
+        const prev = previous?.[index]
+
+        if (prev?.type === condition.type) {
+            return condition
+        }
+
+        return {
+            ...condition,
+            params: getDefaultConditionParamsForType(condition.type),
+        }
+    })
+}
+
+function withTeamOrient(
+    fields: Form1FieldConfig<Record<string, unknown>>[],
+    title?: string,
+): Form1FieldConfig<Record<string, unknown>>[] {
+    return [createTeamOrientFieldConfig({ title }), ...fields]
 }
 
 function getConditionParamsConfig(
@@ -115,15 +143,15 @@ function getConditionParamsConfig(
     switch (type) {
         case FigureEventConditionType.inBoardArea:
         case FigureEventConditionType.landedInBoardArea:
-            return [
+            return withTeamOrient([
                 { name: 'x1', type: ParameterTypes.NumberInput, props: { placeholder: 'x1', ...atLeastOne, ...eventNumberInputProps } },
                 { name: 'y1', type: ParameterTypes.NumberInput, props: { placeholder: 'y1', ...atLeastOne, ...eventNumberInputProps } },
                 { name: 'x2', type: ParameterTypes.NumberInput, props: { placeholder: 'x2', ...atLeastOne, ...eventNumberInputProps } },
                 { name: 'y2', type: ParameterTypes.NumberInput, props: { placeholder: 'y2', ...atLeastOne, ...eventNumberInputProps } },
-            ]
+            ])
         case FigureEventConditionType.inFigureArea:
         case FigureEventConditionType.landedInFigureArea:
-            return [
+            return withTeamOrient([
                 createFigureFilterArrayFieldConfig('anchorFigures', {
                     allowAny: true,
                     className: formStyles.figureFilterArray,
@@ -140,9 +168,9 @@ function getConditionParamsConfig(
                         props: { text: 'пассивный вход' },
                     }]
                     : []),
-            ]
+            ])
         case FigureEventConditionType.figureEnteredArea:
-            return [
+            return withTeamOrient([
                 createFigureAreaGridFieldConfig('cells', {
                     className: formStyles.figureAreaGridField,
                     previewFigureId: ownerFigureId,
@@ -152,9 +180,9 @@ function getConditionParamsConfig(
                     Component: ManualCheckbox,
                     props: { text: 'пассивный вход' },
                 },
-            ]
+            ])
         case FigureEventConditionType.hasFigureInArea:
-            return [
+            return withTeamOrient([
                 createFigureFilterArrayFieldConfig('figures', {
                     allowAny: true,
                     className: formStyles.figureFilterArray,
@@ -163,7 +191,6 @@ function getConditionParamsConfig(
                 createFigureAreaGridFieldConfig('cells', {
                     className: formStyles.figureAreaGridField,
                     previewFigureId: ownerFigureId,
-                    orientToMoveDirection: context === 'move',
                 }),
                 {
                     name: 'matchMode',
@@ -173,9 +200,9 @@ function getConditionParamsConfig(
                         options: conditionMatchModeOptions,
                     },
                 },
-            ]
+            ])
         case FigureEventConditionType.onCells:
-            return [
+            return withTeamOrient([
                 {
                     name: 'cells',
                     type: ParameterTypes.Array,
@@ -197,7 +224,7 @@ function getConditionParamsConfig(
                         options: conditionMatchModeOptions,
                     },
                 },
-            ]
+            ])
         case FigureEventConditionType.aboveFigures:
         case FigureEventConditionType.belowFigures:
         case FigureEventConditionType.hoppedOverFigures:
@@ -218,15 +245,15 @@ function getConditionParamsConfig(
             ]
         case FigureEventConditionType.leftCell:
         case FigureEventConditionType.landedOnCell:
-            return [
+            return withTeamOrient([
                 { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne, ...eventNumberInputProps } },
                 { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne, ...eventNumberInputProps } },
-            ]
+            ], 'В режиме учёта направления x/y — смещение от якоря (как в области), не номер клетки доски')
         case FigureEventConditionType.movedBy:
-            return [
+            return withTeamOrient([
                 { name: 'dx', type: ParameterTypes.NumberInput, props: { placeholder: 'dx', ...integerStep, ...eventNumberInputProps } },
                 { name: 'dy', type: ParameterTypes.NumberInput, props: { placeholder: 'dy', ...integerStep, ...eventNumberInputProps } },
-            ]
+            ])
         case FigureEventConditionType.landedOnFigure:
             return [
                 createFigureFilterArrayFieldConfig('figures', {

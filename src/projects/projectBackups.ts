@@ -1,4 +1,6 @@
 import {
+    assertDbSchema,
+    clearAllBackupRecords,
     getAllProjects,
     listBackupRecords,
     MAX_PROJECT_BACKUPS,
@@ -19,6 +21,13 @@ export async function writeProjectsBackupNow(projects: Project[]): Promise<Proje
         return null
     }
 
+    const schema = await assertDbSchema()
+
+    if (!schema.ok) {
+        console.warn('[projects] skip backup: incomplete DB schema', schema.missing)
+        return null
+    }
+
     const record: ProjectsBackupRecord = {
         id: crypto.randomUUID(),
         createdAt: Date.now(),
@@ -27,9 +36,14 @@ export async function writeProjectsBackupNow(projects: Project[]): Promise<Proje
         projects: structuredClone(projects),
     }
 
-    await putBackupRecord(record)
-    await pruneProjectBackups(MAX_PROJECT_BACKUPS)
-    return record
+    try {
+        await putBackupRecord(record)
+        await pruneProjectBackups(MAX_PROJECT_BACKUPS)
+        return record
+    } catch (error) {
+        console.warn('[projects] backup write failed:', error)
+        return null
+    }
 }
 
 export function scheduleProjectsBackup(projects: Project[]): void {
@@ -53,7 +67,16 @@ export function scheduleProjectsBackup(projects: Project[]): void {
 }
 
 export async function listProjectBackups(): Promise<ProjectsBackupRecord[]> {
-    return listBackupRecords()
+    try {
+        return await listBackupRecords()
+    } catch (error) {
+        console.warn('[projects] list backups failed:', error)
+        return []
+    }
+}
+
+export async function clearProjectBackups(): Promise<number> {
+    return clearAllBackupRecords()
 }
 
 export async function restoreProjectBackup(backupId: string): Promise<Project[]> {

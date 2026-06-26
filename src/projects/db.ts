@@ -43,12 +43,29 @@ interface CchheesDB extends DBSchema {
     }
 }
 
-export const DB_NAME = 'cchhees'
-export const DB_VERSION = 6
-export const MAX_PROJECT_BACKUPS = 5
+import {
+    checkDbSchema,
+    DB_NAME,
+    DB_VERSION,
+    DbSchemaCheckResult,
+} from './dbSchema'
+
+export {
+    checkDbSchema,
+    DB_NAME,
+    DB_VERSION,
+    formatDbOperationError,
+    formatDbSchemaError,
+    REQUIRED_OBJECT_STORES,
+    type DbSchemaCheckResult,
+    type RequiredObjectStore,
+} from './dbSchema'
 
 const DB_NAME_INTERNAL = DB_NAME
 const DB_VERSION_INTERNAL = DB_VERSION
+
+/** Keep a single rolling backup to limit IndexedDB size. */
+export const MAX_PROJECT_BACKUPS = 1
 
 let dbPromise: Promise<IDBPDatabase<CchheesDB>> | undefined
 
@@ -77,32 +94,110 @@ async function migrateVisitedRoomsToHostProjectId(
     }
 }
 
+function ensureProjectsStore(db: IDBPDatabase<CchheesDB>): void {
+    if (!db.objectStoreNames.contains('projects')) {
+        db.createObjectStore('projects', { keyPath: 'id' })
+    }
+}
+
+function ensureMetaStore(db: IDBPDatabase<CchheesDB>): void {
+    if (!db.objectStoreNames.contains('meta')) {
+        db.createObjectStore('meta', { keyPath: 'key' })
+    }
+}
+
+function ensureAssetsStore(db: IDBPDatabase<CchheesDB>): void {
+    if (db.objectStoreNames.contains('assets')) {
+        return
+    }
+
+    const store = db.createObjectStore('assets', { keyPath: 'id', autoIncrement: true })
+    store.createIndex('by-project', 'projectId', { unique: false })
+}
+
+function ensureVisitedRoomsStore(db: IDBPDatabase<CchheesDB>): void {
+    if (!db.objectStoreNames.contains('visitedRooms')) {
+        db.createObjectStore('visitedRooms', { keyPath: 'hostProjectId' })
+    }
+}
+
+function ensureBackupsStore(db: IDBPDatabase<CchheesDB>): void {
+    if (!db.objectStoreNames.contains('backups')) {
+        db.createObjectStore('backups', { keyPath: 'id' })
+    }
+}
+
+async function runDbUpgrade(
+    db: IDBPDatabase<CchheesDB>,
+    oldVersion: number,
+    transaction: VisitedRoomsMigrationTx,
+): Promise<void> {
+    ensureProjectsStore(db)
+    ensureMetaStore(db)
+    ensureAssetsStore(db)
+
+    if (oldVersion < 4) {
+        if (oldVersion < 3 && !db.objectStoreNames.contains('visitedRooms')) {
+            db.createObjectStore('visitedRooms', { keyPath: 'roomId' })
+        }
+
+        if (db.objectStoreNames.contains('visitedRooms')) {
+            await migrateVisitedRoomsToHostProjectId(db, transaction)
+        } else {
+            ensureVisitedRoomsStore(db)
+        }
+    } else {
+        ensureVisitedRoomsStore(db)
+    }
+
+    ensureBackupsStore(db)
+}
+
+export function resetDbConnection(): void {
+    dbPromise = undefined
+}
+
+export function hasObjectStore(name: RequiredObjectStore): Promise<boolean> {
+    return getDb().then(db => db.objectStoreNames.contains(name))
+}
+
+export async function assertDbSchema(): Promise<DbSchemaCheckResult> {
+    const db = await getDb()
+    return checkDbSchema(db)
+}
+
 function getDb() {
     if (!dbPromise) {
         dbPromise = openDB<CchheesDB>(DB_NAME_INTERNAL, DB_VERSION_INTERNAL, {
             upgrade(db, oldVersion, _newVersion, transaction) {
-                if (!db.objectStoreNames.contains('projects')) {
-                    db.createObjectStore('projects', { keyPath: 'id' })
-                }
-                if (!db.objectStoreNames.contains('meta')) {
-                    db.createObjectStore('meta', { keyPath: 'key' })
-                }
-                if (oldVersion < 2 && !db.objectStoreNames.contains('assets')) {
-                    const store = db.createObjectStore('assets', { keyPath: 'id', autoIncrement: true })
-                    store.createIndex('by-project', 'projectId', { unique: false })
-                }
-                if (oldVersion < 3 && !db.objectStoreNames.contains('visitedRooms')) {
-                    db.createObjectStore('visitedRooms', { keyPath: 'roomId' })
-                }
-                if (oldVersion < 4) {
-                    return migrateVisitedRoomsToHostProjectId(db, transaction as unknown as VisitedRoomsMigrationTx)
-                }
-                if (oldVersion < 6 && !db.objectStoreNames.contains('backups')) {
-                    db.createObjectStore('backups', { keyPath: 'id' })
-                }
+                return runDbUpgrade(
+                    db,
+                    oldVersion,
+                    transaction as unknown as VisitedRoomsMigrationTx,
+                )
             },
+            blocked() {
+                resetDbConnection()
+            },
+            terminated: () => {
+                resetDbConnection()
+            },
+        }).then(db => {
+            db.onversionchange = () => {
+                db.close()
+                resetDbConnection()
+            }
+
+            const schema = checkDbSchema(db)
+
+            if (!schema.ok) {
+                console.error('[projects] DB schema incomplete after open:', schema.missing)
+            }
+
+            return db
         })
     }
+
     return dbPromise
 }
 
@@ -170,17 +265,54 @@ export async function setLastKnownProjectCount(count: number): Promise<void> {
 
 export async function listBackupRecords(): Promise<ProjectsBackupRecord[]> {
     const db = await getDb()
+
+    if (!db.objectStoreNames.contains('backups')) {
+        return []
+    }
+
     const backups = await db.getAll('backups')
     return backups.sort((left, right) => right.createdAt - left.createdAt)
 }
 
 export async function putBackupRecord(record: ProjectsBackupRecord): Promise<void> {
     const db = await getDb()
+
+    if (!db.objectStoreNames.contains('backups')) {
+        throw new Error('IndexedDB backups store is missing')
+    }
+
     await db.put('backups', record)
+}
+
+export async function clearAllBackupRecords(): Promise<number> {
+    const db = await getDb()
+
+    if (!db.objectStoreNames.contains('backups')) {
+        return 0
+    }
+
+    const backups = await listBackupRecords()
+
+    if (backups.length === 0) {
+        return 0
+    }
+
+    const tx = db.transaction('backups', 'readwrite')
+    await Promise.all([
+        ...backups.map(item => tx.store.delete(item.id)),
+        tx.done,
+    ])
+
+    return backups.length
 }
 
 export async function pruneProjectBackups(maxCount: number): Promise<void> {
     const db = await getDb()
+
+    if (!db.objectStoreNames.contains('backups')) {
+        return
+    }
+
     const backups = await listBackupRecords()
 
     if (backups.length <= maxCount) {

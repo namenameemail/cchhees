@@ -19,6 +19,7 @@ import { copyCellParamsService } from '../copyParamsServices'
 import { ConnectionParametersFormBase } from '../ConnectionParametersForm/ConnectionParametersForm'
 import { CellParametersFormBase } from '../CellParametersForm/CellParametersForm'
 import { BoardStyleRule, isCellStyleRule } from '../../types/styleRules'
+import { isShiftKeyEvent } from '../../keyboard'
 
 export interface BoardStyleRulesProps {
 
@@ -351,13 +352,13 @@ export const BoardStyleRules: React.FC<BoardStyleRulesProps> = () => {
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Shift') {
+            if (isShiftKeyEvent(event)) {
                 updatePreview(hoveredRuleIndex, true)
             }
         }
 
         const handleKeyUp = (event: KeyboardEvent) => {
-            if (event.key === 'Shift') {
+            if (isShiftKeyEvent(event)) {
                 setPreviewCellStyleRuleIndex(undefined)
             }
         }

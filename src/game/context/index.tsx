@@ -70,7 +70,7 @@ import { useGameAnimation } from './useGameAnimation'
 import { useGameCollabSync } from './useGameCollabSync'
 import { useSliceMutations } from './useSliceMutations'
 import { useFigureMove } from './useFigureMove'
-import { isKeyboardTargetEditable } from '../keyboard'
+import { isKeyboardTargetEditable, matchesPhysicalLetterKey } from '../keyboard'
 import {
     getMoveRecMoveCount,
     isMoveRecActive,
@@ -196,15 +196,13 @@ export function GameProvider({
                 return
             }
 
-            const key = event.key.toLowerCase()
-
-            if (key === 'e') {
+            if (matchesPhysicalLetterKey(event, 'e')) {
                 event.preventDefault()
                 toggleFreeMove()
                 return
             }
 
-            if (key === 'r') {
+            if (matchesPhysicalLetterKey(event, 'r')) {
                 event.preventDefault()
                 toggleFigureArrange(activeFigure ?? '')
             }

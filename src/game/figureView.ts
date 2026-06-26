@@ -49,6 +49,7 @@ import {
     GameActionType,
     GameActionTarget,
     MoveToCellActionParams,
+    OrientableCoordinates,
     PersistedFigureEventRule,
     SetOtherStateActionParams,
     SetSelfStateActionParams,
@@ -364,6 +365,26 @@ function migrateSetOtherStateTargetToEntries(
     }
 }
 
+function withOrientFlag<T extends Record<string, unknown>>(
+    result: T,
+    params?: OrientableCoordinates,
+    defaultWhenMissing = false,
+): T {
+    if (params?.orientToTeamDirection === true) {
+        return { ...result, orientToTeamDirection: true }
+    }
+
+    if (params?.orientToTeamDirection === false) {
+        return { ...result, orientToTeamDirection: false }
+    }
+
+    if (defaultWhenMissing && params?.orientToTeamDirection === undefined) {
+        return { ...result, orientToTeamDirection: true }
+    }
+
+    return result
+}
+
 function normalizeActionSubjectNearby(
     nearby?: FigureEventSubjectNearby,
 ): FigureEventSubjectNearby | undefined {
@@ -377,7 +398,7 @@ function normalizeActionSubjectNearby(
         return undefined
     }
 
-    return { enabled: true, cells }
+    return withOrientFlag({ enabled: true, cells }, nearby)
 }
 
 function buildNormalizedActionSubject(
@@ -457,12 +478,12 @@ export function normalizeGameAction(
 
             return {
                 type: GameActionType.spawnFigure,
-                params: {
+                params: withOrientFlag({
                     figureId: params.figureId.trim(),
                     x,
                     y,
                     stateIndex: Math.max(0, Math.trunc(params.stateIndex ?? 0)),
-                },
+                }, params),
             }
         }
         case GameActionType.setSelfState:
@@ -499,7 +520,7 @@ export function normalizeGameAction(
             return {
                 type: GameActionType.moveToCell,
                 subject,
-                params: { x, y },
+                params: withOrientFlag({ x, y }, params as OrientableCoordinates | undefined),
             }
         }
         case GameActionType.displaceFigure: {
@@ -515,7 +536,7 @@ export function normalizeGameAction(
             return {
                 type: GameActionType.displaceFigure,
                 subject,
-                params: { dx, dy },
+                params: withOrientFlag({ dx, dy }, params as OrientableCoordinates | undefined),
             }
         }
         default:
@@ -679,24 +700,27 @@ function normalizeFigureEventConditionParams(
                 return undefined
             }
 
-            return {
+            return withOrientFlag({
                 x1: Math.max(1, Math.trunc(rect.x1 ?? 1)),
                 y1: Math.max(1, Math.trunc(rect.y1 ?? 1)),
                 x2: Math.max(1, Math.trunc(rect.x2 ?? 1)),
                 y2: Math.max(1, Math.trunc(rect.y2 ?? 1)),
-            }
+            }, rect)
         }
         case FigureEventConditionType.inFigureArea:
         case FigureEventConditionType.landedInFigureArea:
-            return normalizeFigureEventParamsEnterFigureArea(
-                params as FigureEventParamsEnterFigureArea | undefined,
+            return withOrientFlag(
+                normalizeFigureEventParamsEnterFigureArea(
+                    params as FigureEventParamsEnterFigureArea | undefined,
+                ),
+                params as OrientableCoordinates | undefined,
             )
         case FigureEventConditionType.figureEnteredArea: {
-            const areaParams = params as { cells?: FigureEventAreaCell[]; includePassive?: boolean } | undefined
-            return {
+            const areaParams = params as { cells?: FigureEventAreaCell[]; includePassive?: boolean } & OrientableCoordinates | undefined
+            return withOrientFlag({
                 cells: normalizeFigureAreaCells(areaParams?.cells),
                 includePassive: areaParams?.includePassive !== false,
-            }
+            }, areaParams)
         }
         case FigureEventConditionType.onCells: {
             const cellParams = params as { cells?: FigureEventCoord[]; matchMode?: 'any' | 'all' } | undefined
@@ -711,10 +735,10 @@ function normalizeFigureEventConditionParams(
                 return undefined
             }
 
-            return {
+            return withOrientFlag({
                 cells,
                 matchMode: cellParams?.matchMode === 'all' ? 'all' : 'any',
-            }
+            }, cellParams)
         }
         case FigureEventConditionType.aboveFigures:
         case FigureEventConditionType.belowFigures:
@@ -739,17 +763,17 @@ function normalizeFigureEventConditionParams(
                 return undefined
             }
 
-            return {
+            return withOrientFlag({
                 x: Math.max(1, Math.trunc(coord.x ?? 1)),
                 y: Math.max(1, Math.trunc(coord.y ?? 1)),
-            }
+            }, coord)
         }
         case FigureEventConditionType.movedBy: {
-            const moveParams = params as { dx?: number; dy?: number } | undefined
-            return {
+            const moveParams = params as { dx?: number; dy?: number } & OrientableCoordinates | undefined
+            return withOrientFlag({
                 dx: Math.trunc(moveParams?.dx ?? 0),
                 dy: Math.trunc(moveParams?.dy ?? 0),
-            }
+            }, moveParams)
         }
         case FigureEventConditionType.landedOnFigure: {
             const landedParams = normalizeFigureEventParamsStepOnFigure({
@@ -787,17 +811,21 @@ function normalizeFigureEventConditionParams(
                 cells?: FigureEventAreaCell[]
                 matchMode?: 'any' | 'all'
             } | undefined
-            const cells = normalizeFigureAreaCells(areaParams?.cells)
+            let cells = normalizeFigureAreaCells(areaParams?.cells)
+
+            if (!cells.length) {
+                cells = normalizeFigureAreaCells([{ x: 0, y: 1 }])
+            }
 
             if (!cells.length) {
                 return undefined
             }
 
-            return {
+            return withOrientFlag({
                 figures: canonicalizeFigureFilterArray(areaParams?.figures),
                 cells,
                 matchMode: areaParams?.matchMode === 'all' ? 'all' : 'any',
-            }
+            }, areaParams, true)
         }
         default:
             return undefined

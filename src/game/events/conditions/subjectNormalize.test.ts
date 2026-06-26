@@ -45,6 +45,54 @@ describe('normalizeFigureEventRule subject migration', () => {
         })
     })
 
+    it('keeps hasFigureInArea when params lack cells (defaults area)', () => {
+        const normalized = normalizeFigureEventRule({
+            id: 'r-has-area',
+            type: FigureEventType.onMove,
+            params: { cause: 'any' },
+            conditions: [{
+                subject: { entries: [{ figureId: FIGURE_SUBJECT_MOVED }] },
+                type: FigureEventConditionType.hasFigureInArea,
+                params: {
+                    figures: [{ figureId: '*' }],
+                    matchMode: 'any',
+                },
+            }],
+            actions: [],
+        })
+
+        expect(normalized?.conditions).toHaveLength(1)
+        expect(normalized?.conditions[0]?.type).toBe(FigureEventConditionType.hasFigureInArea)
+        expect(normalized?.conditions[0]?.params).toMatchObject({
+            cells: [{ x: 0, y: 1 }],
+            matchMode: 'any',
+            orientToTeamDirection: true,
+        })
+    })
+
+    it('preserves orientToTeamDirection false for hasFigureInArea', () => {
+        const normalized = normalizeFigureEventRule({
+            id: 'r-has-area-off',
+            type: FigureEventType.onMove,
+            params: { cause: 'any' },
+            conditions: [{
+                subject: { entries: [{ figureId: FIGURE_SUBJECT_MOVED }] },
+                type: FigureEventConditionType.hasFigureInArea,
+                params: {
+                    figures: [{ figureId: '*' }],
+                    cells: [{ x: 0, y: 1 }],
+                    matchMode: 'any',
+                    orientToTeamDirection: false,
+                },
+            }],
+            actions: [],
+        })
+
+        expect(normalized?.conditions[0]?.params).toMatchObject({
+            orientToTeamDirection: false,
+        })
+    })
+
     it('keeps rule with empty actions and conditions', () => {
         const normalized = normalizeFigureEventRule({
             id: 'r-empty',
