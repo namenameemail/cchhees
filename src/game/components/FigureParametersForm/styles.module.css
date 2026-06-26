@@ -310,6 +310,7 @@
     border-radius: 4px;
     background: #fafafa;
     overflow: visible;
+    position: relative;
 }
 
 .eventRuleCardHeader {
@@ -389,6 +390,46 @@
     min-width: 18px;
     font-size: 11px;
     line-height: 1.3;
+}
+
+.eventRuleCardHoldDeleting {
+    border-color: #c44;
+    background: #fff5f5;
+}
+
+.eventRuleCardHoldDeleting .eventRuleCardHeader {
+    animation: eventRuleShake 0.12s ease-in-out infinite alternate;
+}
+
+.eventRuleCardHoldDeleting::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: #c44;
+    animation: deleteProgress 1s linear forwards;
+    border-radius: 4px 0 0 4px;
+}
+
+@keyframes eventRuleShake {
+    from {
+        transform: translateX(-1px);
+    }
+
+    to {
+        transform: translateX(1px);
+    }
+}
+
+@keyframes deleteProgress {
+    from {
+        width: 0;
+    }
+
+    to {
+        width: 100%;
+    }
 }
 
 .eventEventFieldsForm {

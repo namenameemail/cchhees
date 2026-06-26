@@ -248,3 +248,11 @@ div.boardParametersForm {
     opacity: 0.45;
     cursor: default;
 }
+
+.thumbnailContainer {
+    padding: 8px 0;
+    display: flex;
+    justify-content: center;
+    border-top: 1px solid #ddd;
+    border-bottom: 1px solid #ddd;
+}

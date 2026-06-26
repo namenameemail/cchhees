@@ -1,4 +1,4 @@
-import React, { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import React, { FC, useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import cn from 'classnames'
 import { useGameContext } from '../../context'
 import { NumberDragPointerLockInput } from 'bbuutoonnss'
@@ -601,6 +601,8 @@ interface EventRuleRowProps {
     onRemove: (index: number) => void
 }
 
+const DELETE_HOLD_MS = 1000
+
 const EventRuleRow: FC<EventRuleRowProps> = ({
     rule,
     index,
@@ -609,6 +611,9 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
     onChange,
     onRemove,
 }) => {
+    const [isHolding, setIsHolding] = useState(false)
+    const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
     const eventFields = useMemo(
         () => getEventRuleEventFields(rule),
         [rule],
@@ -666,12 +671,38 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
         onChange({ ...rule, conditions: coalesced }, index)
     }, [figureId, index, onChange, rule])
 
+    const clearHold = useCallback(() => {
+        if (holdTimerRef.current) {
+            clearTimeout(holdTimerRef.current)
+            holdTimerRef.current = null
+        }
+        setIsHolding(false)
+    }, [])
+
+    const handleDeletePointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+        event.preventDefault()
+        event.stopPropagation()
+        event.currentTarget.setPointerCapture(event.pointerId)
+        setIsHolding(true)
+        holdTimerRef.current = setTimeout(() => {
+            holdTimerRef.current = null
+            setIsHolding(false)
+            onRemove(index)
+        }, DELETE_HOLD_MS)
+    }, [index, onRemove])
+
+    const handleDeletePointerEnd = useCallback(() => {
+        clearHold()
+    }, [clearHold])
+
+    useEffect(() => () => clearHold(), [clearHold])
+
     const handleRemove = useCallback(() => {
         onRemove(index)
     }, [index, onRemove])
 
     return (
-        <div className={styles.eventRuleCard}>
+        <div className={cn(styles.eventRuleCard, isHolding && styles.eventRuleCardHoldDeleting)}>
             <div className={styles.eventRuleCardHeader}>
                 <Form1
                     className={styles.eventEventFieldsForm}
@@ -682,7 +713,10 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
                 <button
                     type="button"
                     className={styles.eventRuleRemove}
-                    onClick={handleRemove}
+                    onPointerDown={handleDeletePointerDown}
+                    onPointerUp={handleDeletePointerEnd}
+                    onPointerCancel={handleDeletePointerEnd}
+                    onLostPointerCapture={handleDeletePointerEnd}
                     aria-label="Удалить событие"
                 >
                     x

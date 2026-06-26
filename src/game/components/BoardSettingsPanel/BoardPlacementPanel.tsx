@@ -7,6 +7,7 @@ import {
     countFiguresOnBoard,
     getBoardDefaultFigures,
 } from '../../../projects/boardDefaultFigures'
+import { PlacementThumbnail } from '../PlacementThumbnail'
 import styles from './styles.module.css'
 
 export const BoardPlacementPanel: FC = () => {
@@ -69,6 +70,11 @@ export const BoardPlacementPanel: FC = () => {
     return (
         <div className={styles.placementPanel}>
             <p className={styles.placementHint}>{defaultStatusLabel}</p>
+            {defaultFigures && (
+                <div className={styles.thumbnailContainer}>
+                    <PlacementThumbnail figuresSlice={defaultFigures} />
+                </div>
+            )}
             <div className={styles.placementActions}>
                 <button
                     type="button"
