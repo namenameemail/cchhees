@@ -13,21 +13,31 @@
     font-size: 12px;
 }
 
-.gridNLabel {
-    white-space: nowrap;
+.boundLabels {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-.gridNInput {
-    width: 3rem;
+.boundLabel {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.boundInput {
+    width: 2.5rem;
 }
 
 .dragInput {
     cursor: ns-resize;
 }
 
-.gridNInput :global(.blur-text-input) {
-    width: 3rem;
-    padding: 2px 5px;
+.boundInput :global(.blur-text-input) {
+    width: 2.5rem;
+    padding: 2px 4px;
     font-size: 12px;
     border: 1px solid #999;
     box-sizing: border-box;
@@ -36,66 +46,96 @@
 
 .gridFrame {
     position: relative;
-    width: 100%;
+    width: fit-content;
+    max-width: 100%;
+    align-self: start;
+    --max-grid-height: 200px;
 }
 
 .gridResizeHandleTop,
 .gridResizeHandleBottom {
     position: absolute;
-    left: 0;
-    right: 0;
+    left: -5px;
+    right: -5px;
     height: 10px;
     z-index: 2;
 }
 
 .gridResizeHandleTop {
-    top: 0;
+    top: -5px;
     cursor: ns-resize;
 }
 
 .gridResizeHandleBottom {
-    bottom: 0;
+    bottom: -5px;
     cursor: ns-resize;
 }
 
 .gridResizeHandleLeft,
 .gridResizeHandleRight {
     position: absolute;
-    top: 0;
-    bottom: 0;
+    top: -5px;
+    bottom: -5px;
     width: 10px;
     z-index: 2;
 }
 
 .gridResizeHandleLeft {
-    left: 0;
+    left: -5px;
     cursor: ew-resize;
 }
 
 .gridResizeHandleRight {
-    right: 0;
+    right: -5px;
     cursor: ew-resize;
 }
 
-.gridFrame:hover .gridResizeHandleTop,
-.gridFrame:hover .gridResizeHandleBottom,
-.gridFrame:hover .gridResizeHandleLeft,
-.gridFrame:hover .gridResizeHandleRight,
-.gridResizeHandleTop:global(.drag-handler-is-active),
-.gridResizeHandleBottom:global(.drag-handler-is-active),
-.gridResizeHandleLeft:global(.drag-handler-is-active),
-.gridResizeHandleRight:global(.drag-handler-is-active) {
-    background: rgba(70, 120, 200, 0.18);
+.gridResizeHandleTopLeft,
+.gridResizeHandleTopRight,
+.gridResizeHandleBottomLeft,
+.gridResizeHandleBottomRight {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    z-index: 3;
 }
 
+.gridResizeHandleTopLeft {
+    top: -5px;
+    left: -5px;
+    cursor: nwse-resize;
+}
+
+.gridResizeHandleTopRight {
+    top: -5px;
+    right: -5px;
+    cursor: nesw-resize;
+}
+
+.gridResizeHandleBottomLeft {
+    bottom: -5px;
+    left: -5px;
+    cursor: nesw-resize;
+}
+
+.gridResizeHandleBottomRight {
+    bottom: -5px;
+    right: -5px;
+    cursor: nwse-resize;
+}
+
+
 .gridArea {
-    --grid-size: 3;
+    --grid-cols: 3;
+    --grid-rows: 3;
     display: grid;
-    grid-template-columns: repeat(var(--grid-size), 1fr);
-    grid-template-rows: repeat(var(--grid-size), 1fr);
+    grid-template-columns: repeat(var(--grid-cols), 1fr);
+    grid-template-rows: repeat(var(--grid-rows), 1fr);
     gap: 1px;
-    width: 100%;
-    aspect-ratio: 1;
+    --max-cell-size: 60px;
+    width: min(calc(var(--max-grid-height) * var(--grid-cols) / var(--grid-rows)), calc(var(--max-cell-size) * var(--grid-cols) + (var(--grid-cols) - 1) * 1px));
+    max-width: 100%;
+    aspect-ratio: var(--grid-cols) / var(--grid-rows);
     padding: 0;
     box-sizing: border-box;
     border: 1px solid #ccc;
@@ -134,7 +174,7 @@
     border: none;
     outline: none;
     box-shadow: none;
-    overflow: visible;
+    overflow: hidden;
     z-index: 1;
 }
 
@@ -142,12 +182,33 @@
     background: #fafafa;
 }
 
-.cellCenter::before {
-    content: '';
+.cellCenterInteractive {
+    cursor: pointer;
+}
+
+.cellCenterInteractive:hover .orientIndicator {
+    transform: translate(1.5px, 1.5px);
+}
+
+.orientIndicator {
     position: absolute;
-    inset: -1px;
-    background: #fafafa;
-    z-index: 0;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 2;
+}
+
+
+.figurePreviewWrapper {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
 }
 
 .figurePreview {
@@ -159,6 +220,7 @@
     pointer-events: none;
 }
 
+
 .anchorPlaceholder {
     position: relative;
     z-index: 1;
@@ -167,7 +229,17 @@
     justify-content: center;
     width: 100%;
     height: 100%;
-    font-size: 11px;
     color: #888;
+    pointer-events: none;
+}
+
+.anchorGradient {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    background:
+        radial-gradient(circle closest-side at 50% 50%, #ff00ff55 5%, #ff00ff00 100%),
+        #fff;
     pointer-events: none;
 }

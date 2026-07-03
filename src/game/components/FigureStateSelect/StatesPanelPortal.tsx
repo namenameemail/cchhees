@@ -80,7 +80,7 @@ export function StatesPanelPortal({
 
     return createPortal(
         <div
-            ref={panelRef}
+            ref={panelRef as React.RefObject<HTMLDivElement>}
             className={cn(selectStyles.statesPanel, selectStyles.statesPanelPortal, className)}
             style={style}
             tabIndex={-1}

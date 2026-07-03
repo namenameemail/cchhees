@@ -42,6 +42,8 @@ export interface FigureFilterArrayFieldProps {
     className?: string
     itemClassName?: string
     title?: string
+    matchMode?: 'any' | 'all'
+    onMatchModeChange?: (mode: 'any' | 'all') => void
 }
 
 function isRelatedTargetInside(
@@ -77,6 +79,8 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
         className,
         itemClassName,
         title,
+        matchMode,
+        onMatchModeChange,
     } = props as FigureFilterArrayFieldProps
 
     const { state } = useGameContext()
@@ -421,31 +425,44 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
                         <span className={selectStyles.filterPlaceholder}>?</span>
                     </div>
                 ) : (
-                    entries.map((entry, index) => {
-                        const catalogEntry = figureCatalog.find(item => item.id === entry.figureId)
+                    <>
+                        {entries.map((entry, index) => {
+                            const catalogEntry = figureCatalog.find(item => item.id === entry.figureId)
 
-                        if (!catalogEntry) {
-                            return null
-                        }
+                            if (!catalogEntry) {
+                                return null
+                            }
 
-                        const stateIndex = resolveEntryStateIndex(entry, catalogEntry.states.length)
+                            const stateIndex = resolveEntryStateIndex(entry, catalogEntry.states.length)
 
-                        return (
+                            return (
+                                <div
+                                    key={`${getFigureFilterEntryKey(entry)}-${index}`}
+                                    className={cn(selectStyles.previewTile, styles.triggerTile, itemClassName)}
+                                    style={{ width: previewSize, height: previewSize }}
+                                    title={`${catalogEntry.id}${catalogEntry.states.length > 1 ? ` #${stateIndex}` : ''}`}
+                                >
+                                    <FigureSVG
+                                        figureId={catalogEntry.id}
+                                        stateIndex={stateIndex}
+                                        width={previewSize}
+                                        height={previewSize}
+                                    />
+                                </div>
+                            )
+                        })}
+                        {onMatchModeChange && entries.length > 1 && (
                             <div
-                                key={`${getFigureFilterEntryKey(entry)}-${index}`}
                                 className={cn(selectStyles.previewTile, styles.triggerTile, itemClassName)}
                                 style={{ width: previewSize, height: previewSize }}
-                                title={`${catalogEntry.id}${catalogEntry.states.length > 1 ? ` #${stateIndex}` : ''}`}
+                                title={matchMode === 'all' ? 'все совпадают' : 'любой совпадает'}
                             >
-                                <FigureSVG
-                                    figureId={catalogEntry.id}
-                                    stateIndex={stateIndex}
-                                    width={previewSize}
-                                    height={previewSize}
-                                />
+                                <span className={selectStyles.filterPlaceholder}>
+                                    {matchMode === 'all' ? '&' : 'or'}
+                                </span>
                             </div>
-                        )
-                    })
+                        )}
+                    </>
                 )}
             </div>
 
@@ -492,6 +509,27 @@ export const FigureFilterArrayField: FC<ParameterInputComponentProps> = ({
                                     <span className={selectStyles.filterPlaceholder}>?</span>
                                 </div>
                             </>
+                        )}
+
+                        {onMatchModeChange && entries.length > 1 && (
+                            <div
+                                className={cn(
+                                    selectStyles.previewTile,
+                                    selectStyles.figureTile,
+                                    matchMode === 'all' && selectStyles.previewTileActive,
+                                )}
+                                style={{ width: previewSize, height: previewSize }}
+                                title={matchMode === 'all' ? 'все совпадают (нажми для ИЛИ)' : 'любой совпадает (нажми для И)'}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    e.preventDefault()
+                                    onMatchModeChange(matchMode === 'all' ? 'any' : 'all')
+                                }}
+                            >
+                                <span className={selectStyles.filterPlaceholder}>
+                                    {matchMode === 'all' ? '&' : 'or'}
+                                </span>
+                            </div>
                         )}
 
                         {figureCatalog.map(entry => {

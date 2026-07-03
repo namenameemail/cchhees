@@ -15,10 +15,7 @@ import {
 } from '../../figureStack'
 import { SteppedOnQueueItem } from '../steppedOnQueue'
 import { MoveEventContext } from '../types'
-import {
-    isOrientToTeamDirection,
-    resolveBoardCellFromParams,
-} from '../coordinateOrientation'
+import { resolveBoardCellFromParams } from '../coordinateOrientation'
 import { gameMovesDebugLog } from '../../gameMovesDebugLog'
 import { logFigureActionApply, logFigureDisplaceDebug } from '../../figureActionsDebugLog'
 import { movePlacementToCoord } from './displaceFigure'
@@ -67,7 +64,7 @@ export function applyMoveToCellFromCoord(
         fromCoord,
         params.x,
         params.y,
-        isOrientToTeamDirection(params),
+        false,
         ctx.catalog,
         displaced.figureId,
         ctx.boardParameters,

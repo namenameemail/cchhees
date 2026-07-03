@@ -35,7 +35,6 @@ import {
     LegacyFigureEventConditionSubject,
     FigureEventConditionType,
     FigureEventFigureFilter,
-    FigureEventCoord,
     FigureEventParamsAreaEnteredBy,
     FigureEventParamsEnterFigureArea,
     FigureEventParamsOnMove,
@@ -49,16 +48,18 @@ import {
     GameActionType,
     GameActionTarget,
     MoveToCellActionParams,
+    MovePhase,
     OrientableCoordinates,
     PersistedFigureEventRule,
     SetOtherStateActionParams,
     SetSelfStateActionParams,
     SpawnFigureActionParams,
+    SpawnFigureNearbyActionParams,
     StackPositionMode,
     StackTargetMode,
     StepCause,
 } from './types/events'
-import { migrateFigureEventRule } from './events/migrateEventRules'
+import { migrateConditionsArray, migrateFigureEventRule } from './events/migrateEventRules'
 import {
     migrateLegacyFigureAreaCells,
     normalizeFigureAreaCells,
@@ -124,7 +125,13 @@ function normalizeMoveVariant(variant: FigureMoveVariant | undefined, kind: 'emp
         ...(kind === 'capture' || kind === 'jumpOver'
             ? { allowOwnTeam: source.allowOwnTeam === true }
             : {}),
-        conditions: source.conditions ?? [],
+        ...(kind === 'jumpOver' && source.approach !== undefined
+            ? { approach: Math.max(0, Math.trunc(source.approach)) }
+            : {}),
+        ...(kind === 'jumpOver' && source.landing !== undefined
+            ? { landing: Math.max(0, Math.trunc(source.landing)) }
+            : {}),
+        conditions: normalizeFigureEventConditions(migrateConditionsArray(source.conditions)),
     }
 }
 
@@ -365,24 +372,36 @@ function migrateSetOtherStateTargetToEntries(
     }
 }
 
-function withOrientFlag<T extends Record<string, unknown>>(
+function withOrientFlag<T extends object>(
     result: T,
-    params?: OrientableCoordinates,
+    params?: unknown,
     defaultWhenMissing = false,
 ): T {
-    if (params?.orientToTeamDirection === true) {
-        return { ...result, orientToTeamDirection: true }
+    const p = params as OrientableCoordinates | undefined
+    if (p?.orientToTeamDirection === true) {
+        return { ...result, orientToTeamDirection: true } as T
     }
 
-    if (params?.orientToTeamDirection === false) {
-        return { ...result, orientToTeamDirection: false }
+    if (p?.orientToTeamDirection === false) {
+        return { ...result, orientToTeamDirection: false } as T
     }
 
-    if (defaultWhenMissing && params?.orientToTeamDirection === undefined) {
-        return { ...result, orientToTeamDirection: true }
+    if (defaultWhenMissing && p?.orientToTeamDirection === undefined) {
+        return { ...result, orientToTeamDirection: true } as T
     }
 
     return result
+}
+
+const VALID_MOVE_PHASES = new Set<MovePhase>(['before', 'after', 'entered', 'left'])
+
+function withMovePhase<T extends object>(result: T, params?: unknown): T {
+    const phase = (params as { movePhase?: MovePhase } | undefined)?.movePhase
+
+    return {
+        ...result,
+        movePhase: phase && VALID_MOVE_PHASES.has(phase) ? phase : 'after',
+    }
 }
 
 function normalizeActionSubjectNearby(
@@ -393,10 +412,6 @@ function normalizeActionSubjectNearby(
     }
 
     const cells = normalizeFigureAreaCells(nearby.cells)
-
-    if (!cells.length) {
-        return undefined
-    }
 
     return withOrientFlag({ enabled: true, cells }, nearby)
 }
@@ -420,7 +435,7 @@ function normalizeGameActionSubject(
     eventType?: FigureEventType,
     ownerFigureId?: FigureId,
 ): FigureEventConditionSubject | undefined {
-    if (action.type === GameActionType.spawnFigure) {
+    if (action.type === GameActionType.spawnFigure || action.type === GameActionType.spawnFigureNearby) {
         return undefined
     }
 
@@ -478,10 +493,34 @@ export function normalizeGameAction(
 
             return {
                 type: GameActionType.spawnFigure,
-                params: withOrientFlag({
+                params: {
                     figureId: params.figureId.trim(),
                     x,
                     y,
+                    stateIndex: Math.max(0, Math.trunc(params.stateIndex ?? 0)),
+                },
+            }
+        }
+        case GameActionType.spawnFigureNearby: {
+            const params = action.params as SpawnFigureNearbyActionParams
+            if (typeof params.figureId !== 'string' || !params.figureId.trim()) {
+                return null
+            }
+
+            const hasDisplaceParams = params != null && ('dx' in params || 'dy' in params)
+            let dx = hasDisplaceParams && Number.isFinite(params?.dx) ? Math.trunc(params.dx) : 1
+            let dy = hasDisplaceParams && Number.isFinite(params?.dy) ? Math.trunc(params.dy) : 0
+
+            if (dx === 0 && dy === 0) {
+                dx = 1
+            }
+
+            return {
+                type: GameActionType.spawnFigureNearby,
+                params: withOrientFlag({
+                    figureId: params.figureId.trim(),
+                    dx,
+                    dy,
                     stateIndex: Math.max(0, Math.trunc(params.stateIndex ?? 0)),
                 }, params),
             }
@@ -520,7 +559,7 @@ export function normalizeGameAction(
             return {
                 type: GameActionType.moveToCell,
                 subject,
-                params: withOrientFlag({ x, y }, params as OrientableCoordinates | undefined),
+                params: { x, y },
             }
         }
         case GameActionType.displaceFigure: {
@@ -693,55 +732,31 @@ function normalizeFigureEventConditionParams(
     params?: FigureEventCondition['params'],
 ): FigureEventCondition['params'] | undefined {
     switch (type) {
-        case FigureEventConditionType.inBoardArea:
-        case FigureEventConditionType.landedInBoardArea: {
+        case FigureEventConditionType.inBoardArea: {
             const rect = params as { x1?: number; y1?: number; x2?: number; y2?: number } | undefined
             if (!rect) {
                 return undefined
             }
 
-            return withOrientFlag({
+            return withMovePhase(withOrientFlag({
                 x1: Math.max(1, Math.trunc(rect.x1 ?? 1)),
                 y1: Math.max(1, Math.trunc(rect.y1 ?? 1)),
                 x2: Math.max(1, Math.trunc(rect.x2 ?? 1)),
                 y2: Math.max(1, Math.trunc(rect.y2 ?? 1)),
-            }, rect)
+            }, rect), params)
         }
-        case FigureEventConditionType.inFigureArea:
-        case FigureEventConditionType.landedInFigureArea:
-            return withOrientFlag(
-                normalizeFigureEventParamsEnterFigureArea(
-                    params as FigureEventParamsEnterFigureArea | undefined,
-                ),
-                params as OrientableCoordinates | undefined,
-            )
-        case FigureEventConditionType.figureEnteredArea: {
+        case FigureEventConditionType.inFigureArea: {
             const areaParams = params as { cells?: FigureEventAreaCell[]; includePassive?: boolean } & OrientableCoordinates | undefined
-            return withOrientFlag({
-                cells: normalizeFigureAreaCells(areaParams?.cells),
-                includePassive: areaParams?.includePassive !== false,
-            }, areaParams)
+            return withMovePhase(withOrientFlag(
+                {
+                    ...normalizeFigureEventParamsEnterFigureArea(
+                        params as FigureEventParamsEnterFigureArea | undefined,
+                    ),
+                    includePassive: areaParams?.includePassive !== false,
+                },
+                params as OrientableCoordinates | undefined,
+            ), params)
         }
-        case FigureEventConditionType.onCells: {
-            const cellParams = params as { cells?: FigureEventCoord[]; matchMode?: 'any' | 'all' } | undefined
-            const cells = (cellParams?.cells ?? [])
-                .map(cell => ({
-                    x: Math.max(1, Math.trunc(cell.x)),
-                    y: Math.max(1, Math.trunc(cell.y)),
-                }))
-                .filter(cell => Number.isFinite(cell.x) && Number.isFinite(cell.y))
-
-            if (!cells.length) {
-                return undefined
-            }
-
-            return withOrientFlag({
-                cells,
-                matchMode: cellParams?.matchMode === 'all' ? 'all' : 'any',
-            }, cellParams)
-        }
-        case FigureEventConditionType.aboveFigures:
-        case FigureEventConditionType.belowFigures:
         case FigureEventConditionType.hoppedOverFigures: {
             const listParams = params as { figures?: FigureEventFigureFilter[]; matchMode?: 'any' | 'all' } | undefined
             return {
@@ -756,52 +771,12 @@ function normalizeFigureEventConditionParams(
                 figures: canonicalizeFigureFilterArray(listParams?.figures),
             }
         }
-        case FigureEventConditionType.leftCell:
-        case FigureEventConditionType.landedOnCell: {
-            const coord = params as { x?: number; y?: number } | undefined
-            if (!coord) {
-                return undefined
-            }
-
-            return withOrientFlag({
-                x: Math.max(1, Math.trunc(coord.x ?? 1)),
-                y: Math.max(1, Math.trunc(coord.y ?? 1)),
-            }, coord)
-        }
         case FigureEventConditionType.movedBy: {
             const moveParams = params as { dx?: number; dy?: number } & OrientableCoordinates | undefined
             return withOrientFlag({
                 dx: Math.trunc(moveParams?.dx ?? 0),
                 dy: Math.trunc(moveParams?.dy ?? 0),
             }, moveParams)
-        }
-        case FigureEventConditionType.landedOnFigure: {
-            const landedParams = normalizeFigureEventParamsStepOnFigure({
-                targetFigures: (params as { figures?: FigureEventFigureFilter[] } | undefined)?.figures,
-                stackTarget: (params as { stackTarget?: StackTargetMode } | undefined)?.stackTarget,
-                stackIndex: (params as { stackIndex?: number } | undefined)?.stackIndex,
-            })
-
-            return {
-                figures: landedParams.targetFigures,
-                matchMode: (params as { matchMode?: 'any' | 'all' } | undefined)?.matchMode === 'all'
-                    ? 'all'
-                    : 'any',
-                stackTarget: landedParams.stackTarget,
-                ...(landedParams.stackIndex !== undefined ? { stackIndex: landedParams.stackIndex } : {}),
-            }
-        }
-        case FigureEventConditionType.steppedOnByFigure: {
-            const steppedParams = normalizeFigureEventParamsSteppedOnBy({
-                stepperFigures: (params as { stepperFigures?: FigureEventFigureFilter[] } | undefined)?.stepperFigures,
-            })
-
-            return {
-                stepperFigures: steppedParams.stepperFigures,
-                matchMode: (params as { matchMode?: 'any' | 'all' } | undefined)?.matchMode === 'all'
-                    ? 'all'
-                    : 'any',
-            }
         }
         case FigureEventConditionType.exitedBoard:
             return {}
@@ -821,11 +796,11 @@ function normalizeFigureEventConditionParams(
                 return undefined
             }
 
-            return withOrientFlag({
+            return withMovePhase(withOrientFlag({
                 figures: canonicalizeFigureFilterArray(areaParams?.figures),
                 cells,
                 matchMode: areaParams?.matchMode === 'all' ? 'all' : 'any',
-            }, areaParams, true)
+            }, areaParams, true), params)
         }
         default:
             return undefined

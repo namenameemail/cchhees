@@ -8,6 +8,7 @@ import {
 } from '../figureAnimation/playFigureStepSequence'
 import {
     createEmptyFigureBoardAnimationState,
+    ExitHints,
     FigureBoardAnimationState,
     playStepAnimation,
 } from '../figureAnimation/playStepAnimation'
@@ -41,6 +42,7 @@ export function useGameAnimation(
     const playFigureStepSequenceLocal = useCallback(async (
         steps: FiguresSlice[],
         parameters: BoardParameters,
+        exitHints?: ExitHints,
     ) => {
         setIsFigureAnimating(true)
         setDisplayFiguresSlice(steps[0])
@@ -50,7 +52,7 @@ export function useGameAnimation(
                 onStepDisplay: setDisplayFiguresSlice,
                 onAnimationsChange: setFigureBoardAnimations,
                 waitForAnimationCompletion,
-            })
+            }, exitHints)
         } finally {
             setDisplayFiguresSlice(undefined)
             setIsFigureAnimating(false)

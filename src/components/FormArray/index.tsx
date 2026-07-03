@@ -21,6 +21,7 @@ export interface FormArrayProps<ItemState> {
     fieldLayout?: 'default' | 'labeled'
     instantRemove?: boolean
     minItems?: number
+    addAtStart?: boolean
 }
 
 export function FormArray<ItemState>(props: FormArrayProps<ItemState>) {
@@ -41,6 +42,7 @@ export function FormArray<ItemState>(props: FormArrayProps<ItemState>) {
         addText = 'add',
         addButtonPrefix,
         addButtonClassName,
+        addAtStart = false,
     } = props
 
     const handleItemChange = useCallback((newItemValue: ItemState, index: number) => {
@@ -76,14 +78,22 @@ export function FormArray<ItemState>(props: FormArrayProps<ItemState>) {
     }, [name, value, onChange])
 
     const handleItemAdd = useCallback(() => {
-        const newValue = [...value, getItemInitialValue()]
-
+        const newValue = addAtStart
+            ? [getItemInitialValue(), ...value]
+            : [...value, getItemInitialValue()]
         onChange(newValue, name)
-    }, [name, value, onChange, getItemInitialValue])
+    }, [name, value, onChange, getItemInitialValue, addAtStart])
 
+    const addButton = (addButtonPrefix || addText) ? (
+        <div className={addButtonClassName}>
+            {addButtonPrefix}
+            {addText && <button type="button" onClick={handleItemAdd}>{addText}</button>}
+        </div>
+    ) : null
 
     return (
         <div className={className}>
+            {addAtStart && addButton}
             {value.map((item: ItemState, index) => {
                 return (
                     <FormItem<ItemState>
@@ -105,12 +115,7 @@ export function FormArray<ItemState>(props: FormArrayProps<ItemState>) {
                     />
                 )
             })}
-            {(addButtonPrefix || addText) && (
-                <div className={addButtonClassName}>
-                    {addButtonPrefix}
-                    {addText && <button type="button" onClick={handleItemAdd}>{addText}</button>}
-                </div>
-            )}
+            {!addAtStart && addButton}
         </div>
     )
 }

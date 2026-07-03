@@ -8,6 +8,7 @@ import {
     FigureEventType,
     SetSelfStateActionParams,
     SpawnFigureActionParams,
+    SpawnFigureNearbyActionParams,
     MoveToCellActionParams,
 } from './types/events'
 import { FigurePlacement } from './types/figures'
@@ -53,6 +54,10 @@ function formatAction(action: GameAction): string {
         case GameActionType.spawnFigure: {
             const params = action.params as SpawnFigureActionParams
             return `spawnFigure ${params.figureId}@${params.x},${params.y}#${params.stateIndex ?? 0}`
+        }
+        case GameActionType.spawnFigureNearby: {
+            const params = action.params as SpawnFigureNearbyActionParams
+            return `spawnFigureNearby ${params.figureId}@${params.dx},${params.dy}#${params.stateIndex ?? 0}`
         }
         case GameActionType.setSelfState: {
             const params = action.params as SetSelfStateActionParams
@@ -196,6 +201,19 @@ export const gameMovesDebugLog = {
         append(
             `QUEUE place ${formatPlacement(input.placement)}@${formatDebugCoord(input.coord)}`,
             { kind: 'queue-place', ...input },
+            true,
+        )
+    },
+
+    displacedQueue(input: {
+        placement: FigurePlacement
+        fromCoord: CellCoord
+        toCoord: CellCoord
+        cause: 'manual' | 'displacement'
+    }): void {
+        append(
+            `QUEUE displaced ${formatPlacement(input.placement)} ${formatDebugCoord(input.fromCoord)}→${formatDebugCoord(input.toCoord)} cause=${input.cause}`,
+            { kind: 'queue-displaced', ...input },
             true,
         )
     },

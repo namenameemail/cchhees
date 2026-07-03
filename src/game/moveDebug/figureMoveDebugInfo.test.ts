@@ -10,7 +10,7 @@ describe('figureMoveDebugInfo', () => {
             id: 'rook',
             states: [{
                 viewParams: {},
-                moveRules: [{ x: 0, y: 1, n: 2, landing: 'empty' }],
+                moveRules: [{ x: 0, y: 1, n: 2, landing: 'empty' }] as never,
             }],
         }]
 

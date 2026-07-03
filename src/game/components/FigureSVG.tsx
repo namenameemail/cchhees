@@ -11,7 +11,10 @@ import {
 } from '../boardMarks'
 import { BoardMarkAppearance } from '../types/boardMarks'
 
-const FIGURE_PICKER_HIGHLIGHT_SELECTION = DEFAULT_BOARD_MARKS.selection
+const FIGURE_PICKER_HIGHLIGHT_SELECTION: BoardMarkAppearance = {
+    ...DEFAULT_BOARD_MARKS.selection,
+    overlay: undefined,
+}
 const FIGURE_PICKER_HIGHLIGHT_CURSOR = DEFAULT_BOARD_MARKS.cursor
 
 export interface FigureSVGProps {

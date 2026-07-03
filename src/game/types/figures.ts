@@ -43,6 +43,10 @@ export interface FigureMoveVariant {
     allowOwnTeam?: boolean
     /** empty variant: path checked along min unit steps (gcd-normalized direction) */
     emptyPath?: boolean
+    /** jumpOver: max empty cells before first jumped piece; 1 = adjacent, 0 = unlimited */
+    approach?: number
+    /** jumpOver: max empty cells after last jumped piece to land; 1 = immediately after, 0 = unlimited */
+    landing?: number
     conditions?: FigureEventCondition[]
 }
 

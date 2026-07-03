@@ -5,6 +5,7 @@ import {
     GameAction,
     GameActionType,
     SpawnFigureActionParams,
+    SpawnFigureNearbyActionParams,
 } from '../types/events'
 import { FigureCatalog, FigureId, FigurePlacement } from '../types/figures'
 import { canonicalizeConditionSubjectEntries, canonicalizeFigureFilterArray, isConcreteFigureFilter } from '../figureFilter'
@@ -101,6 +102,16 @@ function scrubConditionReferences(
 function scrubActionReferences(action: GameAction, removedFigureId: FigureId): GameAction | null {
     if (action.type === GameActionType.spawnFigure) {
         const params = action.params as SpawnFigureActionParams
+
+        if (params.figureId === removedFigureId) {
+            return null
+        }
+
+        return action
+    }
+
+    if (action.type === GameActionType.spawnFigureNearby) {
+        const params = action.params as SpawnFigureNearbyActionParams
 
         if (params.figureId === removedFigureId) {
             return null

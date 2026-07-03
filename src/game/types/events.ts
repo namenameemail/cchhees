@@ -5,6 +5,8 @@ export type EventOwnerKind = 'board' | 'cell' | 'figure'
 
 export type StepCause = 'any' | 'manual' | 'displacement'
 
+export type MovePhase = 'before' | 'after' | 'entered' | 'left'
+
 export type StackPositionMode = 'any' | 'top' | 'bottom' | 'fromTop' | 'fromBottom'
 
 export type StackTargetMode = StackPositionMode | 'all'
@@ -37,22 +39,26 @@ export enum LegacyFigureEventType {
 export enum FigureEventConditionType {
     inBoardArea = 'inBoardArea',
     inFigureArea = 'inFigureArea',
+    movedBy = 'movedBy',
+    isFigure = 'isFigure',
+    isNotFigure = 'isNotFigure',
+    exitedBoard = 'exitedBoard',
+    hoppedOverFigures = 'hoppedOverFigures',
+    hasFigureInArea = 'hasFigureInArea',
+}
+
+/** @deprecated legacy persisted condition types — migrated on load, see migrateConditionType */
+export enum LegacyFigureEventConditionType {
     onCells = 'onCells',
     aboveFigures = 'aboveFigures',
     belowFigures = 'belowFigures',
     leftCell = 'leftCell',
-    movedBy = 'movedBy',
     landedInBoardArea = 'landedInBoardArea',
     landedInFigureArea = 'landedInFigureArea',
     landedOnCell = 'landedOnCell',
     landedOnFigure = 'landedOnFigure',
     figureEnteredArea = 'figureEnteredArea',
     steppedOnByFigure = 'steppedOnByFigure',
-    isFigure = 'isFigure',
-    isNotFigure = 'isNotFigure',
-    exitedBoard = 'exitedBoard',
-    hoppedOverFigures = 'hoppedOverFigures',
-    hasFigureInArea = 'hasFigureInArea',
 }
 
 /** @deprecated legacy persisted subject — migrated on load */
@@ -98,16 +104,16 @@ export interface FigureEventAreaCell {
     y: number
 }
 
-export interface FigureEventConditionParamsInBoardArea extends FigureEventBoardRect, OrientableCoordinates { }
+export interface FigureEventConditionParamsInBoardArea extends FigureEventBoardRect, OrientableCoordinates {
+    movePhase?: MovePhase
+}
 
 export interface FigureEventConditionParamsInFigureArea extends OrientableCoordinates {
     anchorFigures?: FigureEventFigureFilter[]
     cells?: FigureEventAreaCell[]
-}
-
-export interface FigureEventConditionParamsOnCells extends OrientableCoordinates {
-    cells: FigureEventCoord[]
-    matchMode?: FigureEventConditionMatchMode
+    movePhase?: MovePhase
+    /** значимо только при movePhase 'entered'|'left' */
+    includePassive?: boolean
 }
 
 export interface FigureEventConditionParamsFigureList {
@@ -115,61 +121,67 @@ export interface FigureEventConditionParamsFigureList {
     matchMode?: FigureEventConditionMatchMode
 }
 
-export interface FigureEventConditionParamsLeftCell extends FigureEventCoord, OrientableCoordinates { }
-
 export interface FigureEventConditionParamsMovedBy extends OrientableCoordinates {
     dx: number
     dy: number
-}
-
-export interface FigureEventConditionParamsLandedInBoardArea extends FigureEventBoardRect, OrientableCoordinates { }
-
-export interface FigureEventConditionParamsLandedInFigureArea extends OrientableCoordinates {
-    anchorFigures?: FigureEventFigureFilter[]
-    cells?: FigureEventAreaCell[]
-    includePassive?: boolean
-}
-
-export interface FigureEventConditionParamsLandedOnCell extends FigureEventCoord, OrientableCoordinates { }
-
-export interface FigureEventConditionParamsLandedOnFigure {
-    figures?: FigureEventFigureFilter[]
-    matchMode?: FigureEventConditionMatchMode
-    stackTarget?: StackTargetMode
-    stackIndex?: number
-}
-
-export interface FigureEventConditionParamsFigureEnteredArea extends OrientableCoordinates {
-    cells?: FigureEventAreaCell[]
-    includePassive?: boolean
-}
-
-export interface FigureEventConditionParamsSteppedOnByFigure {
-    stepperFigures?: FigureEventFigureFilter[]
-    matchMode?: FigureEventConditionMatchMode
 }
 
 export interface FigureEventConditionParamsHasFigureInArea extends OrientableCoordinates {
     figures?: FigureEventFigureFilter[]
     cells?: FigureEventAreaCell[]
     matchMode?: FigureEventConditionMatchMode
+    movePhase?: MovePhase
 }
 
 export type FigureEventConditionParams =
     | FigureEventConditionParamsInBoardArea
     | FigureEventConditionParamsInFigureArea
-    | FigureEventConditionParamsOnCells
     | FigureEventConditionParamsFigureList
-    | FigureEventConditionParamsLeftCell
     | FigureEventConditionParamsMovedBy
-    | FigureEventConditionParamsLandedInBoardArea
-    | FigureEventConditionParamsLandedInFigureArea
-    | FigureEventConditionParamsLandedOnCell
-    | FigureEventConditionParamsLandedOnFigure
-    | FigureEventConditionParamsFigureEnteredArea
-    | FigureEventConditionParamsSteppedOnByFigure
     | FigureEventConditionParamsHasFigureInArea
     | Record<string, never>
+
+/** @deprecated legacy persisted params — migrated to inBoardArea{movePhase} on load */
+export interface LegacyFigureEventConditionParamsOnCells extends OrientableCoordinates {
+    cells: FigureEventCoord[]
+    matchMode?: FigureEventConditionMatchMode
+}
+
+/** @deprecated legacy persisted params — migrated to inBoardArea{movePhase:'after'|'left'} on load */
+export interface LegacyFigureEventConditionParamsLeftCell extends FigureEventCoord, OrientableCoordinates { }
+
+/** @deprecated legacy persisted params — migrated to inBoardArea{movePhase:'after'} on load */
+export interface LegacyFigureEventConditionParamsLandedInBoardArea extends FigureEventBoardRect, OrientableCoordinates { }
+
+/** @deprecated legacy persisted params — migrated to inFigureArea{movePhase:'entered'} on load */
+export interface LegacyFigureEventConditionParamsLandedInFigureArea extends OrientableCoordinates {
+    anchorFigures?: FigureEventFigureFilter[]
+    cells?: FigureEventAreaCell[]
+    includePassive?: boolean
+}
+
+/** @deprecated legacy persisted params — migrated to inBoardArea{movePhase:'after'} on load */
+export interface LegacyFigureEventConditionParamsLandedOnCell extends FigureEventCoord, OrientableCoordinates { }
+
+/** @deprecated legacy persisted params — migrated to hasFigureInArea{cells:[{0,0}],movePhase:'after'} on load */
+export interface LegacyFigureEventConditionParamsLandedOnFigure {
+    figures?: FigureEventFigureFilter[]
+    matchMode?: FigureEventConditionMatchMode
+    stackTarget?: StackTargetMode
+    stackIndex?: number
+}
+
+/** @deprecated legacy persisted params — migrated to inFigureArea{movePhase:'entered'} on load */
+export interface LegacyFigureEventConditionParamsFigureEnteredArea extends OrientableCoordinates {
+    cells?: FigureEventAreaCell[]
+    includePassive?: boolean
+}
+
+/** @deprecated legacy persisted params — migrated to hasFigureInArea{cells:[{0,0}],movePhase:'after'} on load */
+export interface LegacyFigureEventConditionParamsSteppedOnByFigure {
+    stepperFigures?: FigureEventFigureFilter[]
+    matchMode?: FigureEventConditionMatchMode
+}
 
 export interface FigureEventCondition {
     subject: FigureEventConditionSubject
@@ -179,6 +191,7 @@ export interface FigureEventCondition {
 
 export enum GameActionType {
     spawnFigure = 'spawnFigure',
+    spawnFigureNearby = 'spawnFigureNearby',
     setSelfState = 'setSelfState',
     setOtherState = 'setOtherState',
     moveToTray = 'moveToTray',
@@ -259,10 +272,17 @@ export interface LegacyFigureEventParamsAreaEnteredBy {
     includePassive?: boolean
 }
 
-export interface SpawnFigureActionParams extends OrientableCoordinates {
+export interface SpawnFigureActionParams {
     figureId: FigureId
     x: number
     y: number
+    stateIndex?: number
+}
+
+export interface SpawnFigureNearbyActionParams extends OrientableCoordinates {
+    figureId: FigureId
+    dx: number
+    dy: number
     stateIndex?: number
 }
 
@@ -290,6 +310,7 @@ export interface MoveToCellActionParams extends OrientableCoordinates {
 
 export type GameActionParams =
     | SpawnFigureActionParams
+    | SpawnFigureNearbyActionParams
     | SetSelfStateActionParams
     | SetOtherStateActionParams
     | MoveToTrayActionParams

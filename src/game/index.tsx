@@ -18,7 +18,9 @@ import { Board } from './components/Board'
 import { Tray } from './components/Tray'
 import { CellParametersForm } from './components/CellParametersForm/CellParametersForm'
 import { MoveDebugWorkbench } from './components/MoveDebugWorkbench/MoveDebugWorkbench'
-import { DicePanel } from './components/Dice/DicePanel'
+import { DiceProvider } from './components/Dice/DiceContext'
+import { DiceSettingsPanel } from './components/Dice/DiceSettingsPanel'
+import { DiceSceneOverlay } from './components/Dice/DiceSceneOverlay'
 import { CollabPanel } from '../collab/components/CollabPanel'
 // import { AutomaticConnectionsParametersForm } from './components/AutomaticConnectionsParametersForm'
 import { AssetsPanel } from '../projects/components/AssetsPanel'
@@ -54,6 +56,7 @@ export const Game: React.FC<GameProps> = () => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false)
     const [leftTab, setLeftTab] = useState(0)
     const [isToolsOpen, setIsToolsOpen] = useState(false)
+    const [isDiceOpen, setIsDiceOpen] = useState(false)
     const boardRef = useRef<SVGSVGElement>(null)
 
     useEffect(() => {
@@ -111,6 +114,15 @@ export const Game: React.FC<GameProps> = () => {
         }
     }
 
+    const handleDiceSettingsTab = () => {
+        if (isSettingsOpen && tab === 5) {
+            setIsSettingsOpen(false)
+        } else {
+            setTab(5)
+            setIsSettingsOpen(true)
+        }
+    }
+
     const handleTrayTab = () => {
         if (isToolsOpen && leftTab === 0) {
             setIsToolsOpen(false)
@@ -129,20 +141,11 @@ export const Game: React.FC<GameProps> = () => {
         }
     }
 
-    const handleDiceTab = () => {
+    const handleDebugTab = () => {
         if (isToolsOpen && leftTab === 2) {
             setIsToolsOpen(false)
         } else {
             setLeftTab(2)
-            setIsToolsOpen(true)
-        }
-    }
-
-    const handleDebugTab = () => {
-        if (isToolsOpen && leftTab === 3) {
-            setIsToolsOpen(false)
-        } else {
-            setLeftTab(3)
             setIsToolsOpen(true)
         }
     }
@@ -156,6 +159,7 @@ export const Game: React.FC<GameProps> = () => {
 
     return (
         <div className={styles.gameLayout}>
+            <DiceProvider>
             <GameProvider
                 key={gameSessionKey}
                 activeBoardId={activeBoard.id}
@@ -196,23 +200,12 @@ export const Game: React.FC<GameProps> = () => {
                         >
                             <span className={styles.settingTabText}>room</span>
                         </button>
-                        <button
-                            type="button"
-                            className={cn(
-                                styles.settingTab,
-                                isToolsOpen && leftTab === 2 && styles.settingTabActive,
-                            )}
-                            data-label="dice"
-                            onClick={handleDiceTab}
-                        >
-                            <span className={styles.settingTabText}>dice</span>
-                        </button>
                         {import.meta.env.DEV && (
                             <button
                                 type="button"
                                 className={cn(
                                     styles.settingTab,
-                                    isToolsOpen && leftTab === 3 && styles.settingTabActive,
+                                    isToolsOpen && leftTab === 2 && styles.settingTabActive,
                                 )}
                                 data-label="debug"
                                 onClick={handleDebugTab}
@@ -226,7 +219,6 @@ export const Game: React.FC<GameProps> = () => {
                         className={cn(
                             styles.toolsPanel,
                             isToolsOpen && styles.toolsPanelOpen,
-                            isToolsOpen && leftTab === 3 && styles.toolsPanelDiceOpen,
                         )}
                     >
                         {leftTab === 0 && (
@@ -239,12 +231,7 @@ export const Game: React.FC<GameProps> = () => {
                                 <CollabPanel layout="panel" />
                             </div>
                         )}
-                        {leftTab === 2 && (
-                            <div className={styles.toolsBodyDice}>
-                                <DicePanel />
-                            </div>
-                        )}
-                        {import.meta.env.DEV && leftTab === 3 && (
+                        {import.meta.env.DEV && leftTab === 2 && (
                             <div className={styles.toolsBody}>
                                 <MoveDebugWorkbench />
                             </div>
@@ -253,6 +240,19 @@ export const Game: React.FC<GameProps> = () => {
                 </aside>
 
                 <div className={styles.boardColumn}>
+                    <button
+                        type="button"
+                        className={cn(styles.diceToggle, isDiceOpen && styles.diceToggleActive)}
+                        onClick={() => setIsDiceOpen(v => !v)}
+                        title="Кубик"
+                    >
+                        ⚂
+                    </button>
+                    {isDiceOpen && (
+                        <div className={styles.diceOverlay}>
+                            <DiceSceneOverlay />
+                        </div>
+                    )}
                     <div className={styles.board}>
                         <Board ref={boardRef} />
                     </div>
@@ -288,6 +288,11 @@ export const Game: React.FC<GameProps> = () => {
                         {tab === 4 && (
                             <div className={cn(styles.settingsBody, styles.assetsSettingsBody)}>
                                 <AssetsPanel />
+                            </div>
+                        )}
+                        {tab === 5 && (
+                            <div className={styles.settingsBody}>
+                                <DiceSettingsPanel />
                             </div>
                         )}
                     </div>
@@ -348,10 +353,22 @@ export const Game: React.FC<GameProps> = () => {
                         >
                             <span className={styles.settingTabText}>assets</span>
                         </button>
+                        <button
+                            type="button"
+                            className={cn(
+                                styles.settingTab,
+                                isSettingsOpen && tab === 5 && styles.settingTabActive,
+                            )}
+                            data-label="dice"
+                            onClick={handleDiceSettingsTab}
+                        >
+                            <span className={styles.settingTabText}>dice</span>
+                        </button>
                     </div>
                 </aside>
 
             </GameProvider>
+            </DiceProvider>
         </div>
     )
 }

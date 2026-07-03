@@ -67,6 +67,14 @@ function remapOp(op: CollabOp, map: ReturnType<typeof toAssetIdMap>): CollabOp {
                 ...op,
                 board: remapAssetIdsInBoardSliceWithFallback(op.board, map),
             }
+        case 'dice-model':
+            if (op.modelAssetId == null) {
+                return op
+            }
+            return {
+                ...op,
+                modelAssetId: remapAssetIdWithFallback(map, op.modelAssetId) as number,
+            }
         default:
             return op
     }

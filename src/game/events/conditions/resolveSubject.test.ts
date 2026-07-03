@@ -62,7 +62,7 @@ describe('resolveSubjectInstances', () => {
 
         expect(instances).toHaveLength(1)
         expect(instances[0]?.placement.instanceId).toBe(actor.instanceId)
-        expect(instances[0]?.coord).toEqual({ i: 1, j: 2 })
+        expect(instances[0]?.coord).toEqual({ i: 2, j: 3 })
         expect(instances[0]?.beforeCoord).toEqual({ i: 1, j: 2 })
     })
 

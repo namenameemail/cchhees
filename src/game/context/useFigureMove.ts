@@ -8,6 +8,7 @@ import { BoardParameters } from '../types/boardParameters'
 import { FiguresSlice } from '../state/slices'
 import { applyFigureMove } from '../events/applyFigureMove'
 import { computeFigureMoveSteps } from '../figureAnimation/figureStepRecorder'
+import { ExitHints } from '../figureAnimation/playStepAnimation'
 import {
     isInstantFigureAnimation,
     resolveFigureAnimationSettings,
@@ -76,7 +77,11 @@ export function useFigureMove(options: {
     prevFiguresSliceRef: MutableRefObject<FiguresSlice>
     setActiveCell: (value: CellCoord | undefined, reason?: string) => void
     pushFiguresChange: (nextFigures: FiguresSlice) => void
-    playFigureStepSequenceLocal: (steps: FiguresSlice[], boardParameters: BoardParameters) => Promise<void>
+    playFigureStepSequenceLocal: (
+        steps: FiguresSlice[],
+        boardParameters: BoardParameters,
+        exitHints?: ExitHints,
+    ) => Promise<void>
     freeMove?: boolean
     onMoveRecRecorded?: () => void
 }) {
@@ -180,12 +185,12 @@ export function useFigureMove(options: {
             return
         }
 
-        const steps = computeFigureMoveSteps(figuresSlice, moveInput)
+        const { steps, exitHints } = computeFigureMoveSteps(figuresSlice, moveInput)
         isMoveAnimatingRef.current = true
 
         void (async () => {
             try {
-                await playFigureStepSequenceLocal(steps, boardParameters)
+                await playFigureStepSequenceLocal(steps, boardParameters, exitHints)
                 const after = steps[steps.length - 1]
                 pushFiguresChange(after)
 

@@ -32,6 +32,11 @@ export interface SubjectResolutionContext {
     beforeBoard?: BoardStacks
 }
 
+/**
+ * coord = позиция ПОСЛЕ хода (move.to) — actions (displaceFigure и т.п.) применяются к текущему
+ * положению фигуры на доске. Conditions игнорируют это поле для актора и берут before/after явно
+ * через resolveMovedActorAfterCoord/BeforeCoord в evaluate.ts, так что это не влияет на условия.
+ */
 function resolveMovedSubject(ctx: SubjectResolutionContext): SubjectInstance[] {
     const { move, steppedOn } = ctx
     const actor = move?.actorPlacement ?? steppedOn?.stepperPlacement
@@ -40,7 +45,7 @@ function resolveMovedSubject(ctx: SubjectResolutionContext): SubjectInstance[] {
         return []
     }
 
-    const coord = move?.from ?? steppedOn?.stepperCoord
+    const coord = move?.to ?? steppedOn?.stepperCoord
 
     if (!coord) {
         return []

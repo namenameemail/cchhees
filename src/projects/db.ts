@@ -48,6 +48,7 @@ import {
     DB_NAME,
     DB_VERSION,
     DbSchemaCheckResult,
+    type RequiredObjectStore,
 } from './dbSchema'
 
 export {

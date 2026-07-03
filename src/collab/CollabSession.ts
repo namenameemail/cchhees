@@ -659,7 +659,7 @@ export class CollabSession {
                 assetTotal: snapshot.assets.length,
             }))
 
-            const sent = sendAsset({
+            const sent = await sendAsset({
                 channel,
                 peerId: this.peerId,
                 revision,

@@ -49,7 +49,7 @@ describe('migrateFigureMoveRules', () => {
             y: -1,
             empty: { enabled: true, length: 1, conditions: [] },
             capture: { enabled: true, length: 1, allowOwnTeam: false, conditions: [] },
-            jumpOver: { enabled: false, length: 1, allowOwnTeam: false, conditions: [] },
+            jumpOver: { enabled: false, length: 1, allowOwnTeam: false, approach: 1, landing: 1, conditions: [] },
         })
     })
 
@@ -57,7 +57,7 @@ describe('migrateFigureMoveRules', () => {
         const rules = normalizeFigureMoveRules([
             { x: 1, y: 0 },
             { x: 0, y: 1 },
-        ] as LegacyFigureMoveRule[])
+        ] as unknown as Parameters<typeof normalizeFigureMoveRules>[0])
 
         expect(rules).toHaveLength(2)
         expect(rules[0]?.empty.enabled).toBe(true)

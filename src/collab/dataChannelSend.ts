@@ -12,6 +12,29 @@ export const MAX_MESSAGE_BYTES = 56_000
 /** Raw JSON fragment size (envelope adds overhead). */
 const CHUNK_PAYLOAD_BYTES = 48_000
 
+/**
+ * RTCDataChannel send buffer threshold: pause sending when bufferedAmount
+ * exceeds this, resume when it drops below BUFFERED_AMOUNT_LOW_THRESHOLD.
+ * Prevents the browser from throwing "send queue is full" on large transfers.
+ */
+const MAX_BUFFERED_AMOUNT = 512_000        // 512 KB — pause above this
+const BUFFERED_AMOUNT_LOW_THRESHOLD = 64_000 // 64 KB — resume below this
+
+function waitForBufferDrain(channel: RTCDataChannel): Promise<void> {
+    if (channel.bufferedAmount <= MAX_BUFFERED_AMOUNT) {
+        return Promise.resolve()
+    }
+
+    return new Promise((resolve) => {
+        channel.bufferedAmountLowThreshold = BUFFERED_AMOUNT_LOW_THRESHOLD
+        const onLow = () => {
+            channel.removeEventListener('bufferedamountlow', onLow)
+            resolve()
+        }
+        channel.addEventListener('bufferedamountlow', onLow)
+    })
+}
+
 export function measureJsonBytes(value: unknown): number {
     return new TextEncoder().encode(JSON.stringify(value)).length
 }
@@ -176,7 +199,7 @@ export interface SendAssetOptions {
     onDataChunkProgress?: (sent: number, total: number) => void
 }
 
-export function sendAsset(options: SendAssetOptions): boolean {
+export async function sendAsset(options: SendAssetOptions): Promise<boolean> {
     const {
         channel,
         peerId,
@@ -197,6 +220,7 @@ export function sendAsset(options: SendAssetOptions): boolean {
     }
 
     if (measureJsonBytes(inlineMessage) <= MAX_MESSAGE_BYTES) {
+        await waitForBufferDrain(channel)
         return sendJsonMessage(channel, inlineMessage)
     }
 
@@ -224,12 +248,15 @@ export function sendAsset(options: SendAssetOptions): boolean {
         dataChunkCount: dataChunks.length,
     }
 
+    await waitForBufferDrain(channel)
     if (!sendJsonMessage(channel, metaMessage)) {
         return false
     }
 
     for (let index = 0; index < dataChunks.length; index += 1) {
         onDataChunkProgress?.(index, dataChunks.length)
+
+        await waitForBufferDrain(channel)
 
         const sent = sendJsonMessage(channel, {
             type: 'asset-data-chunk' as const,

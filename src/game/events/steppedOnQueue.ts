@@ -29,6 +29,8 @@ import { FigureStepRecorder, recordFigureStep } from '../figureAnimation/figureS
 export interface SteppedOnEvent {
     stepperPlacement: FigurePlacement
     stepperCoord: CellCoord
+    /** реальная клетка, откуда пришёл степпер (до перестановки на targetCoord) — нужна для movedBy/geometry-before у $moved при cause:'displacement' */
+    stepperOrigin?: CellCoord
     targetPlacement: FigurePlacement
     targetCoord: CellCoord
     cause: Exclude<StepCause, 'any'>
@@ -60,7 +62,15 @@ export type PlaceQueueItem = {
     fromCoord?: CellCoord
 }
 
-export type SteppedOnQueueItem = SteppedOnEvent | LeaveBoardQueueEvent | PlaceQueueItem
+export interface DisplacedQueueEvent {
+    kind: 'displaced'
+    placement: FigurePlacement
+    fromCoord: CellCoord
+    toCoord: CellCoord
+    cause: Exclude<StepCause, 'any'>
+}
+
+export type SteppedOnQueueItem = SteppedOnEvent | LeaveBoardQueueEvent | PlaceQueueItem | DisplacedQueueEvent
 
 export interface LeaveBoardQueueEvent {
     kind: 'leaveBoard'
@@ -76,6 +86,8 @@ export type ActionQueueResolveDeps = {
     eventRules: FigureEventRule[]
     boardParameters: BoardParameters
     onStep?: FigureStepRecorder
+    /** instanceId -> направление ухода с доски; подхватывается новой точкой записи шага в applyActionsWithSpawnedEventDrain */
+    exitHints?: Record<string, { dx: number; dy: number }>
 }
 
 export function computeDisplaceLanding(
@@ -209,7 +221,7 @@ function applyStepOnFigureEventsForStepper(
     }
 
     return runFigureEvents(figures, {
-        from: event.stepperCoord,
+        from: event.stepperOrigin ?? event.stepperCoord,
         to: event.targetCoord,
         actorPlacement: event.stepperPlacement,
         targetAtTo: event.targetPlacement,
@@ -219,6 +231,27 @@ function applyStepOnFigureEventsForStepper(
         stepCause: event.cause,
         stepperPlacement: event.stepperPlacement,
         stepperCoord: event.targetCoord,
+        figuresBeforeMove: cloneFiguresBeforeMove(figures),
+        onStep,
+    })
+}
+
+function processDisplacedEvent(
+    figures: FiguresSlice,
+    event: DisplacedQueueEvent,
+    catalog: FigureCatalog,
+    eventRules: FigureEventRule[],
+    boardParameters: BoardParameters,
+    onStep?: FigureStepRecorder,
+): FiguresSlice {
+    return runFigureEvents(figures, {
+        from: event.fromCoord,
+        to: event.toCoord,
+        actorPlacement: event.placement,
+        boardParameters,
+        catalog,
+        eventRules,
+        stepCause: event.cause,
         figuresBeforeMove: cloneFiguresBeforeMove(figures),
         onStep,
     })
@@ -273,8 +306,6 @@ function processSteppedOnEvent(
         nextFigures = applySteppedOnActions(nextFigures, matched[0].actions, ctx, queue, onStep)
     }
 
-    recordFigureStep(onStep, nextFigures)
-
     return applyStepOnFigureEventsForStepper(nextFigures, {
         ...event,
         stepperCoord: event.targetCoord,
@@ -307,6 +338,10 @@ function processLeaveBoardEvent(
         displaceParams: event.displaceParams,
     }
 
+    const exitHints = event.displaceParams
+        ? { [event.placement.instanceId]: { dx: event.displaceParams.dx, dy: event.displaceParams.dy } }
+        : undefined
+
     if (matched.length === 0) {
         const actions = [getFallbackMoveToTrayAction()]
         gameMovesDebugLog.eventMatched({
@@ -316,16 +351,14 @@ function processLeaveBoardEvent(
             actions,
             fallback: true,
         })
-        const result = applyActionsWithSpawnedEventDrain(
+        return applyActionsWithSpawnedEventDrain(
             figures,
             actions,
             ctx,
             queue,
             applyLeaveBoardAction,
-            { catalog, eventRules, boardParameters, onStep },
+            { catalog, eventRules, boardParameters, onStep, exitHints },
         )
-        recordFigureStep(onStep, result)
-        return result
     }
 
     gameMovesDebugLog.eventMatched({
@@ -335,16 +368,14 @@ function processLeaveBoardEvent(
         actions: matched[0].actions,
     })
 
-    const result = applyActionsWithSpawnedEventDrain(
+    return applyActionsWithSpawnedEventDrain(
         figures,
         matched[0].actions,
         ctx,
         queue,
         applyLeaveBoardAction,
-        { catalog, eventRules, boardParameters, onStep },
+        { catalog, eventRules, boardParameters, onStep, exitHints },
     )
-    recordFigureStep(onStep, result)
-    return result
 }
 
 function processPlaceItem(
@@ -360,6 +391,7 @@ function processPlaceItem(
         queue.unshift({
             stepperPlacement: cloneFigurePlacement(placement),
             stepperCoord: coord,
+            stepperOrigin: fromCoord,
             targetPlacement: cloneFigurePlacement(topOccupant),
             targetCoord: coord,
             cause: 'displacement',
@@ -425,6 +457,24 @@ export function drainActionQueue(
                 eventRules,
                 boardParameters,
                 queue,
+                onStep,
+            )
+            continue
+        }
+
+        if ('kind' in item && item.kind === 'displaced') {
+            gameMovesDebugLog.displacedQueue({
+                placement: item.placement,
+                fromCoord: item.fromCoord,
+                toCoord: item.toCoord,
+                cause: item.cause,
+            })
+            nextFigures = processDisplacedEvent(
+                nextFigures,
+                item,
+                catalog,
+                eventRules,
+                boardParameters,
                 onStep,
             )
             continue

@@ -1,10 +1,9 @@
 .root {
     position: relative;
     display: flex;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     min-width: 0;
     max-width: 100%;
-    width: 100%;
     overflow: visible;
 }
 
@@ -16,7 +15,6 @@
     gap: 4px;
     min-width: 0;
     max-width: 100%;
-    width: 100%;
     padding: 0;
     border: none;
     border-radius: 2px;
@@ -36,15 +34,13 @@
 }
 
 .figureTileSelected.figureTileSelected {
-    background: #c5dff7;
-    box-shadow: inset 0 0 0 2px #2f6fbe;
+    background:
+        radial-gradient(circle closest-side at 50% 50%, #ff00ff55 5%, #ff00ff00 100%),
+        #e8e8e8;
+    box-shadow: none;
     cursor: pointer;
 }
 
-.figureTileSelected.figureTileSelected:hover {
-    background: #a8cff0;
-    box-shadow: inset 0 0 0 2px #245a9c;
-}
 
 .statesPanelRight {
     position: absolute;
@@ -63,11 +59,10 @@
 }
 
 .stateOptionSelected.stateOptionSelected {
-    background: #c5dff7;
-    box-shadow: inset 0 0 0 2px #2f6fbe;
+    background:
+        radial-gradient(circle closest-side at 50% 50%, #ff00ff55 5%, #ff00ff00 100%),
+        #e8e8e8;
+    box-shadow: none;
 }
 
-.stateOptionSelected.stateOptionSelected:hover {
-    background: #a8cff0;
-    box-shadow: inset 0 0 0 2px #245a9c;
-}
+

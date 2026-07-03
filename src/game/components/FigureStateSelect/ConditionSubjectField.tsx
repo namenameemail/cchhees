@@ -49,6 +49,8 @@ export interface ConditionSubjectFieldProps {
     showNearbyToggle?: boolean
     nearbyEnabled?: boolean
     onNearbyToggle?: () => void
+    matchMode?: 'any' | 'all'
+    onMatchModeChange?: (mode: 'any' | 'all') => void
 }
 
 function isRelatedTargetInside(
@@ -86,6 +88,8 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
         showNearbyToggle,
         nearbyEnabled,
         onNearbyToggle,
+        matchMode,
+        onMatchModeChange,
     } = props as ConditionSubjectFieldProps
 
     const showMovedRole = !allowedRoles || allowedRoles.includes('moved')
@@ -474,6 +478,26 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
                 title={triggerTitle}
             >
                 {entries.map((entry, index) => renderTriggerTile(entry, index))}
+                {nearbyEnabled && (
+                    <div
+                        className={cn(selectStyles.previewTile, styles.triggerTile, itemClassName)}
+                        style={{ width: previewSize, height: previewSize }}
+                        title="фигуры рядом"
+                    >
+                        <NearbySubjectIcon size={previewSize * 0.75} />
+                    </div>
+                )}
+                {onMatchModeChange && entries.length > 1 && (
+                    <div
+                        className={cn(selectStyles.previewTile, styles.triggerTile, itemClassName)}
+                        style={{ width: previewSize, height: previewSize }}
+                        title={matchMode === 'all' ? 'все совпадают' : 'любой совпадает'}
+                    >
+                        <span className={selectStyles.filterPlaceholder}>
+                            {matchMode === 'all' ? '&' : 'or'}
+                        </span>
+                    </div>
+                )}
             </div>
 
             {isFiguresOpen && (
@@ -575,6 +599,27 @@ export const ConditionSubjectField: FC<ParameterInputComponentProps> = ({
                         >
                             <span className={selectStyles.filterPlaceholder}>?</span>
                         </div>
+
+                        {onMatchModeChange && entries.length > 1 && (
+                            <div
+                                className={cn(
+                                    selectStyles.previewTile,
+                                    selectStyles.figureTile,
+                                    matchMode === 'all' && selectStyles.previewTileActive,
+                                )}
+                                style={{ width: previewSize, height: previewSize }}
+                                title={matchMode === 'all' ? 'все совпадают (нажми для ИЛИ)' : 'любой совпадает (нажми для И)'}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    e.preventDefault()
+                                    onMatchModeChange(matchMode === 'all' ? 'any' : 'all')
+                                }}
+                            >
+                                <span className={selectStyles.filterPlaceholder}>
+                                    {matchMode === 'all' ? '&' : 'or'}
+                                </span>
+                            </div>
+                        )}
 
                         {figureCatalog.map(entry => {
                             const stateCount = entry.states.length

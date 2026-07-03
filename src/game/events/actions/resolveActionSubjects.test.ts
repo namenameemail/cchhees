@@ -185,8 +185,8 @@ describe('resolveActionSubjects', () => {
             stepCause: 'manual',
             eventType: FigureEventType.onMove,
         }, {
-            [coordKey({ i: 0, j: 2 })]: [actor],
-            [coordKey({ i: 1, j: 2 })]: [rook],
+            [coordKey({ i: 2, j: 2 })]: [actor],
+            [coordKey({ i: 3, j: 2 })]: [rook],
         })
 
         const instances = resolveActionSubjects({
@@ -204,7 +204,7 @@ describe('resolveActionSubjects', () => {
 
         expect(instances).toHaveLength(1)
         expect(instances[0]?.placement.instanceId).toBe(rook.instanceId)
-        expect(instances[0]?.coord).toEqual({ i: 1, j: 2 })
+        expect(instances[0]?.coord).toEqual({ i: 3, j: 2 })
     })
 
     it('orients nearby cells when orientToTeamDirection is true', () => {
@@ -225,8 +225,8 @@ describe('resolveActionSubjects', () => {
             stepCause: 'manual',
             eventType: FigureEventType.onMove,
         }, {
-            [coordKey({ i: 2, j: 2 })]: [actor],
-            [coordKey({ i: 1, j: 2 })]: [pawn],
+            [coordKey({ i: 3, j: 2 })]: [actor],
+            [coordKey({ i: 2, j: 2 })]: [pawn],
         })
 
         const instances = resolveActionSubjects({
@@ -245,7 +245,7 @@ describe('resolveActionSubjects', () => {
 
         expect(instances).toHaveLength(1)
         expect(instances[0]?.placement.instanceId).toBe(pawn.instanceId)
-        expect(instances[0]?.coord).toEqual({ i: 1, j: 2 })
+        expect(instances[0]?.coord).toEqual({ i: 2, j: 2 })
     })
 
     it('does not include anchor in its own nearby scan', () => {
@@ -293,8 +293,8 @@ describe('resolveActionSubjects', () => {
             stepCause: 'manual',
             eventType: FigureEventType.onMove,
         }, {
-            [coordKey({ i: 0, j: 2 })]: [king],
-            [coordKey({ i: 1, j: 2 })]: [rook],
+            [coordKey({ i: 2, j: 2 })]: [king],
+            [coordKey({ i: 3, j: 2 })]: [rook],
         })
 
         const instances = resolveActionSubjects({

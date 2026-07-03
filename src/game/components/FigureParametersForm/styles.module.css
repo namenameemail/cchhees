@@ -190,7 +190,7 @@
     gap: 4px;
 }
 
-.figureParametersFormByType > * {
+.figureParametersFormByType>* {
     width: 100%;
     box-sizing: border-box;
 }
@@ -292,25 +292,30 @@
 }
 
 .eventRulesSection {
-    padding: 4px 6px;
+    padding: 0;
 }
 
 .eventRulesArray {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 0;
+    border-top: 1px solid gray;
 }
 
 .eventRuleCard {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 8px;
-    border: 1px solid #d8d8d8;
-    border-radius: 4px;
-    background: #fafafa;
+    gap: 0;
+    padding: 0;
+    border-top: 1px solid gray;
+    border-bottom: 1px solid gray;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    background: transparent;
     overflow: visible;
     position: relative;
+    --rule-item-actions-height: 20px;
 }
 
 .eventRuleCardHeader {
@@ -318,19 +323,46 @@
     align-items: center;
     gap: 6px;
     min-width: 0;
+    /* padding: 4px 66px 4px 6px; */
 }
 
-.eventRuleCardHeader > :first-child {
+.eventRuleCardHeader> :first-child {
     flex: 1;
     min-width: 0;
+}
+
+.eventRuleCardActions {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+}
+
+.eventRuleCardActions>button {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s;
+    height: var(--rule-item-actions-height);
+    padding: 0 4px;
+    font-size: 11px;
+    line-height: calc(var(--rule-item-actions-height) - 2px);
+    min-width: 18px;
+    box-sizing: border-box;
+}
+
+.eventRuleCard:hover .eventRuleCardActions>button {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .eventRuleCardBody {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 0;
     align-items: start;
     min-width: 0;
+    padding: 0 0 20px;
+
 }
 
 .eventRuleColLabel {
@@ -351,13 +383,41 @@
 .eventConditionsArray {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0;
 }
 
 .eventConditionItem {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    position: relative;
+    background: transparent;
+    border-top: 1px solid #e8e8e8;
+    border-left: 1px solid #e8e8e8;
+    border-bottom: 1px solid #aaa;
+    border-right: 1px solid #aaa;
+    padding: 4px 22px 4px 5px;
+
+    margin: 7px;
+    margin-bottom: 0;
+}
+
+.eventConditionItem>div:last-child {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+}
+
+.eventConditionItem>div:last-child>button {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s;
+}
+
+.eventConditionItem:hover>div:last-child>button {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .eventConditionItemForm {
@@ -384,58 +444,43 @@
     gap: 4px;
 }
 
-.eventRuleRemove {
+.eventRuleRemove,
+.eventRuleMoveBtn {
     flex: 0 0 auto;
-    padding: 0 4px;
-    min-width: 18px;
-    font-size: 11px;
-    line-height: 1.3;
+    cursor: pointer;
 }
 
 .eventRuleCardHoldDeleting {
     border-color: #c44;
-    background: #fff5f5;
-}
-
-.eventRuleCardHoldDeleting .eventRuleCardHeader {
-    animation: eventRuleShake 0.12s ease-in-out infinite alternate;
+    overflow: hidden;
 }
 
 .eventRuleCardHoldDeleting::after {
     content: '';
     position: absolute;
-    bottom: 0;
-    left: 0;
-    height: 2px;
-    background: #c44;
-    animation: deleteProgress 1s linear forwards;
-    border-radius: 4px 0 0 4px;
+    inset: 0;
+    top: auto;
+    width: 100%;
+    height: 0;
+    background: rgba(204, 68, 68, 0.28);
+    animation: eventRuleDeleteProgress 1s linear forwards;
+    pointer-events: none;
+    z-index: 10;
 }
 
-@keyframes eventRuleShake {
+@keyframes eventRuleDeleteProgress {
     from {
-        transform: translateX(-1px);
+        height: 0;
     }
 
     to {
-        transform: translateX(1px);
-    }
-}
-
-@keyframes deleteProgress {
-    from {
-        width: 0;
-    }
-
-    to {
-        width: 100%;
+        height: 100%;
     }
 }
 
 .eventEventFieldsForm {
     display: flex;
     flex-direction: row;
-    flex-wrap: wrap;
     gap: 6px;
     align-items: center;
     min-width: 0;
@@ -450,13 +495,14 @@
     overflow: visible;
 }
 
+
 .figureFilterArray {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
     gap: 4px;
     align-items: center;
-    flex: 1 1 100%;
+    flex: 0 0 auto;
     min-width: 0;
     max-width: 100%;
     overflow: visible;
@@ -510,7 +556,7 @@
 .eventActionsArray {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 0;
     padding-left: 0;
     border-left: none;
 }
@@ -518,13 +564,36 @@
 .eventActionItem {
     display: flex;
     align-items: flex-start;
-    gap: 4px;
+    position: relative;
+    background: transparent;
+    border-top: 1px solid #e8e8e8;
+    border-left: 1px solid #e8e8e8;
+    border-bottom: 1px solid #aaa;
+    border-right: 1px solid #aaa;
+    padding: 4px 22px 4px 5px;
 }
 
-.eventActionsAddRow {
-    margin-top: 2px;
+.eventActionItem>div:last-child {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
 }
 
+.eventActionItem>div:last-child>button {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s;
+}
+
+.eventActionItem:hover>div:last-child>button {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.eventActionsAddRow {}
+
+.eventConditionsAddRow button,
 .eventActionsAddRow button,
 .eventRulesAddRow button {
     padding: 2px 8px;
@@ -533,5 +602,35 @@
 }
 
 .eventRulesAddRow {
-    margin-top: 8px;
+    margin-top: 4px;
+    padding: 0 6px;
+}
+
+.stepCausePill {
+    display: inline-flex;
+    border: 1px solid #999;
+    border-radius: 3px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.stepCausePillBtn {
+    padding: 2px 4px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    line-height: 0;
+}
+
+.stepCausePillBtn+.stepCausePillBtn {
+    border-left: 1px solid #999;
+}
+
+.stepCausePillBtnActive {
+    background: #ddd;
+    color: #333;
 }

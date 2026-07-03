@@ -39,7 +39,7 @@ export function createDefaultMoveVariant(kind: FigureMoveVariantKind): FigureMov
         case 'capture':
             return { enabled: true, length: 1, allowOwnTeam: false, conditions: [] }
         case 'jumpOver':
-            return { enabled: false, length: 1, allowOwnTeam: false, conditions: [] }
+            return { enabled: false, length: 1, allowOwnTeam: false, approach: 1, landing: 1, conditions: [] }
     }
 }
 
@@ -58,11 +58,15 @@ function mergeVariant(
     patch: Partial<FigureMoveVariant>,
 ): FigureMoveVariant {
     const length = patch.length !== undefined ? patch.length : current.length
+    const approach = patch.approach !== undefined ? patch.approach : current.approach
+    const landing = patch.landing !== undefined ? patch.landing : current.landing
 
     return {
         enabled: patch.enabled ?? current.enabled,
         length: Math.max(0, Math.trunc(length)),
         allowOwnTeam: patch.allowOwnTeam ?? current.allowOwnTeam,
+        ...(approach !== undefined ? { approach: Math.max(0, Math.trunc(approach)) } : {}),
+        ...(landing !== undefined ? { landing: Math.max(0, Math.trunc(landing)) } : {}),
         conditions: patch.conditions ?? current.conditions,
     }
 }

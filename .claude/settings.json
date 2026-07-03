@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(timeout 30 bash -c 'until curl -sf http://localhost:5173 >/dev/null; do sleep 1; done')",
+      "Bash(chromium-cli --help)",
+      "Bash(npm ls *)",
+      "Bash(bash -n /home/name/Desktop/web/cchhees/run)",
+      "Bash(chmod +x /tmp/claude-1000/-home-name-Desktop-web-cchhees/78f7a355-05a4-4100-817a-988a3e32d216/scratchpad/run_funcs.sh)"
+    ]
+  }
+}

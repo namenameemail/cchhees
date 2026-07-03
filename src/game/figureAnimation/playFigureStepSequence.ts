@@ -3,6 +3,7 @@ import { FiguresSlice } from '../state/slices'
 import { resolveFigureAnimationSettings } from './resolveFigureAnimationSettings'
 import {
     createEmptyFigureBoardAnimationState,
+    ExitHints,
     FigureBoardAnimationState,
     playStepAnimation,
 } from './playStepAnimation'
@@ -17,6 +18,7 @@ export async function playFigureStepSequence(
     steps: FiguresSlice[],
     boardParameters: BoardParameters,
     controller: FigureStepSequenceController,
+    exitHints?: ExitHints,
 ): Promise<void> {
     if (steps.length === 0) {
         return
@@ -35,6 +37,7 @@ export async function playFigureStepSequence(
                 settings,
                 controller.onAnimationsChange,
                 controller.waitForAnimationCompletion,
+                exitHints,
             )
             controller.onStepDisplay(steps[i])
         }

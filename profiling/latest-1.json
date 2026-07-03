@@ -1,0 +1,53 @@
+{
+  "label": "latest",
+  "startedAt": "2026-06-28T14:22:46.915Z",
+  "stoppedAt": "2026-06-28T14:22:53.446Z",
+  "entries": [
+    {
+      "type": "log",
+      "message": "dice simState → running",
+      "data": {},
+      "ts": 398980.6000000015
+    },
+    {
+      "type": "log",
+      "message": "dice speed=2.4086  ctr=0",
+      "ts": 400484.69999999925
+    },
+    {
+      "type": "log",
+      "message": "dice ▼ below thr  speed=0.0279  ctr=0",
+      "data": {},
+      "ts": 401571.19999999925
+    },
+    {
+      "type": "log",
+      "message": "dice speed=0.0004  ctr=27",
+      "ts": 402035.69999999925
+    },
+    {
+      "type": "log",
+      "message": "dice SETTLED ✓",
+      "data": {},
+      "ts": 402253.19999999925
+    },
+    {
+      "type": "log",
+      "message": "dice SETTLED ✓",
+      "data": {},
+      "ts": 402273.69999999925
+    },
+    {
+      "type": "log",
+      "message": "dice simState → settled",
+      "data": {},
+      "ts": 402284.30000000075
+    }
+  ],
+  "summary": {
+    "spans": {},
+    "values": {},
+    "logCount": 7,
+    "entryCount": 7
+  }
+}

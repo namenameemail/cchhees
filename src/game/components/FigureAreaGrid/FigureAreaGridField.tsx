@@ -67,6 +67,10 @@ export const FigureAreaGridField: FC<ParameterInputComponentProps> = ({
         onFieldsChange?.({ cells: nextCells })
     }, [onFieldsChange])
 
+    const handleOrientToggle = useCallback(() => {
+        onFieldsChange?.({ orientToTeamDirection: !orientToTeamDirection })
+    }, [onFieldsChange, orientToTeamDirection])
+
     return (
         <div className={className}>
             <FigureAreaGrid
@@ -74,6 +78,8 @@ export const FigureAreaGridField: FC<ParameterInputComponentProps> = ({
                 previewFigureId={preview?.figureId}
                 previewStateIndex={preview?.stateIndex}
                 moveDirection={moveDirection}
+                orientToTeamDirection={orientToTeamDirection}
+                onOrientToggle={handleOrientToggle}
                 onChange={handleChange}
             />
         </div>

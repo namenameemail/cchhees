@@ -19,15 +19,28 @@
     line-height: 0;
     overflow: visible;
     box-sizing: border-box;
+    position: relative;
 }
 
-.previewTile:hover {
-    background: #d2d2d2;
+.previewTile:hover::after {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    border-radius: 50%;
+    border: 1px dashed grey;
+    pointer-events: none;
+    box-sizing: border-box;
 }
 
 .previewTileActive {
-    background: #c4c4c4;
-    box-shadow: inset 0 0 0 2px #5f5f5f;
+    background:
+        radial-gradient(circle closest-side at 50% 50%, #ff00ff55 5%, #ff00ff00 100%),
+        #e8e8e8;
+    box-shadow: none;
+}
+
+.previewTileActive:has(.filterPlaceholder) {
+    background: #e8e8e8;
 }
 
 .trigger {

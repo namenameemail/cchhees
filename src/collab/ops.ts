@@ -39,6 +39,9 @@ export type CollabOp =
     | { kind: 'figure-remove'; figureId: FigureId }
     | { kind: 'board-sync'; boardId: string; board: BoardSlice }
     | { kind: 'catalog-sync'; catalog: FigureCatalog }
+    | { kind: 'dice-throw'; spin: [number, number, number] }
+    | { kind: 'dice-model'; modelAssetId: number | null; builtinModelPath: string | null }
+    | { kind: 'dice-settled'; position: [number, number, number]; rotation: [number, number, number, number] }
 
 export function isBoardScopedCollabOp(op: CollabOp): boolean {
     return op.kind !== 'figure-view-params'
@@ -52,6 +55,9 @@ export function isBoardScopedCollabOp(op: CollabOp): boolean {
         && op.kind !== 'figure-add'
         && op.kind !== 'figure-remove'
         && op.kind !== 'catalog-sync'
+        && op.kind !== 'dice-throw'
+        && op.kind !== 'dice-model'
+        && op.kind !== 'dice-settled'
 }
 
 export function resolveCollabOpBoardId(op: CollabOp, fallbackBoardId: string): string | null {

@@ -17,10 +17,13 @@ interface AnimatedFigureProps {
 
 const AnimatedFigure: FC<AnimatedFigureProps> = ({ item, cellXDistance, cellYDistance }) => {
     const [active, setActive] = useState(false)
-    const durationMs = item.kind === 'move' ? item.moveDurationMs : item.fadeDurationMs
+    const maxDurationMs = Math.max(
+        item.transformDurationMs,
+        item.opacityDelayMs + item.opacityDurationMs,
+    )
 
     useEffect(() => {
-        if (durationMs <= 0) {
+        if (maxDurationMs <= 0) {
             return
         }
 
@@ -29,7 +32,7 @@ const AnimatedFigure: FC<AnimatedFigureProps> = ({ item, cellXDistance, cellYDis
         })
 
         return () => cancelAnimationFrame(frame)
-    }, [durationMs, item.id])
+    }, [maxDurationMs, item.id])
 
     const transform = active
         ? `translate(${item.toX}px, ${item.toY}px)`
@@ -43,7 +46,8 @@ const AnimatedFigure: FC<AnimatedFigureProps> = ({ item, cellXDistance, cellYDis
             style={{
                 transform,
                 opacity,
-                transitionDuration: `${durationMs}ms`,
+                transitionDuration: `${item.transformDurationMs}ms, ${item.opacityDurationMs}ms`,
+                transitionDelay: `0ms, ${item.opacityDelayMs}ms`,
             }}
         >
             <FigureSVGGroup

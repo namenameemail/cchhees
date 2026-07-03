@@ -4,10 +4,7 @@ import { FormArray } from '../../../components/FormArray'
 import { FigureId, FigureMoveRule, FigureMoveVariant, FigureMoveVariantKind } from '../../types/figures'
 import { FigureEventCondition } from '../../types/events'
 import { cloneMoveRule } from '../../migrateFigureMoveRules'
-import {
-    coalesceConditionsOnTypeChange,
-    createMoveConditionsArrayProps,
-} from '../eventConditionsForm'
+import { createMoveConditionsArrayProps } from '../eventConditionsForm'
 import { clampMoveRuleLength } from '../FigureMoveRulesGrid/moveRulesGrid'
 import styles from './MoveRuleVariantsPanel.module.css'
 import formStyles from '../FigureParametersForm/styles.module.css'
@@ -60,13 +57,20 @@ const VariantRow: FC<VariantRowProps> = ({
         onVariantChange(kind, { ...variant, allowOwnTeam: event.target.checked })
     }, [kind, onVariantChange, variant])
 
+    const handleApproachChange = useCallback((value: number) => {
+        onVariantChange(kind, { ...variant, approach: clampMoveRuleLength(value) })
+    }, [kind, onVariantChange, variant])
+
+    const handleLandingChange = useCallback((value: number) => {
+        onVariantChange(kind, { ...variant, landing: clampMoveRuleLength(value) })
+    }, [kind, onVariantChange, variant])
+
     const handleEmptyPathChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         onVariantChange(kind, { ...variant, emptyPath: event.target.checked })
     }, [kind, onVariantChange, variant])
 
     const handleConditionsChange = useCallback((conditions: FigureEventCondition[]) => {
-        const coalesced = coalesceConditionsOnTypeChange(variant.conditions, conditions)
-        onVariantChange(kind, { ...variant, conditions: coalesced })
+        onVariantChange(kind, { ...variant, conditions })
     }, [kind, onVariantChange, variant])
 
     const ownTeamLabel = VARIANT_OWN_TEAM_LABELS[kind]
@@ -119,6 +123,40 @@ const VariantRow: FC<VariantRowProps> = ({
                         >
                             пустой путь
                         </span>
+                    </label>
+                ) : null}
+                {kind === 'jumpOver' ? (
+                    <label className={styles.variantLength}>
+                        approach
+                        <NumberDragPointerLockInput
+                            className={formStyles.gridNInput}
+                            value={variant.approach ?? 1}
+                            onChange={handleApproachChange}
+                            min={0}
+                            max={100}
+                            step={1}
+                            changeOnChange
+                            changeOnBlur
+                            resetOnBlur
+                            title="Разгон: макс. пустых клеток до первой перепрыгиваемой фигуры. 1 = вплотную, 0 = без ограничения."
+                        />
+                    </label>
+                ) : null}
+                {kind === 'jumpOver' ? (
+                    <label className={styles.variantLength}>
+                        landing
+                        <NumberDragPointerLockInput
+                            className={formStyles.gridNInput}
+                            value={variant.landing ?? 1}
+                            onChange={handleLandingChange}
+                            min={0}
+                            max={100}
+                            step={1}
+                            changeOnChange
+                            changeOnBlur
+                            resetOnBlur
+                            title="Приземление: макс. пустых клеток после последней перепрыгнутой фигуры. 1 = сразу, 0 = без ограничения."
+                        />
                     </label>
                 ) : null}
             </div>

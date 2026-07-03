@@ -18,8 +18,12 @@ export interface FigureOverlayAnimItem {
     fromY: number
     toX: number
     toY: number
-    moveDurationMs: number
-    fadeDurationMs: number
+    /** длительность фазы перемещения (transform) */
+    transformDurationMs: number
+    /** длительность фазы затухания (opacity) */
+    opacityDurationMs: number
+    /** задержка перед началом затухания — для двухфазного «улёт за край, затем fade» */
+    opacityDelayMs: number
 }
 
 export interface FigureBoardAnimationState {
@@ -32,11 +36,14 @@ const EMPTY_ANIMATION_STATE: FigureBoardAnimationState = {
     hiddenInstanceIds: new Set(),
 }
 
+export type ExitHints = Record<string, { dx: number; dy: number }>
+
 export function buildFigureBoardAnimationState(
     prev: FiguresSlice,
     next: FiguresSlice,
     boardParameters: BoardParameters,
     settings: ResolvedFigureAnimationSettings,
+    exitHints?: ExitHints,
 ): FigureBoardAnimationState {
     const diff = diffFigureBoard(prev, next)
 
@@ -66,8 +73,9 @@ export function buildFigureBoardAnimationState(
             fromY: from.y,
             toX: to.x,
             toY: to.y,
-            moveDurationMs: settings.moveDurationMs,
-            fadeDurationMs: settings.fadeDurationMs,
+            transformDurationMs: settings.moveDurationMs,
+            opacityDurationMs: 0,
+            opacityDelayMs: 0,
         })
     }
 
@@ -76,7 +84,33 @@ export function buildFigureBoardAnimationState(
             continue
         }
 
+        hiddenInstanceIds.add(remove.instanceId)
         const from = coordToPixelCenter(remove.fromCoord, boardParameters)
+        const hint = exitHints?.[remove.instanceId]
+
+        if (hint && settings.moveDurationMs > 0) {
+            const exitCoord = {
+                i: remove.fromCoord.i + Math.sign(hint.dx),
+                j: remove.fromCoord.j + Math.sign(hint.dy),
+            }
+            const to = coordToPixelCenter(exitCoord, boardParameters)
+
+            overlayItems.push({
+                id: `remove:${remove.instanceId}`,
+                kind: 'remove',
+                instanceId: remove.instanceId,
+                figureId: remove.placement.figureId,
+                stateIndex: remove.placement.stateIndex ?? 0,
+                fromX: from.x,
+                fromY: from.y,
+                toX: to.x,
+                toY: to.y,
+                transformDurationMs: settings.moveDurationMs,
+                opacityDurationMs: settings.fadeDurationMs,
+                opacityDelayMs: settings.moveDurationMs,
+            })
+            continue
+        }
 
         overlayItems.push({
             id: `remove:${remove.instanceId}`,
@@ -88,8 +122,9 @@ export function buildFigureBoardAnimationState(
             fromY: from.y,
             toX: from.x,
             toY: from.y,
-            moveDurationMs: settings.moveDurationMs,
-            fadeDurationMs: settings.fadeDurationMs,
+            transformDurationMs: 0,
+            opacityDurationMs: settings.fadeDurationMs,
+            opacityDelayMs: 0,
         })
     }
 
@@ -108,8 +143,8 @@ export function getStepAnimationDurationMs(
 
     return animationState.overlayItems.reduce((max, item) => {
         const duration = item.kind === 'move'
-            ? item.moveDurationMs
-            : item.fadeDurationMs
+            ? item.transformDurationMs
+            : Math.max(item.transformDurationMs, item.opacityDelayMs + item.opacityDurationMs)
 
         return Math.max(max, duration)
     }, 0)
@@ -122,12 +157,14 @@ export async function playStepAnimation(
     settings: ResolvedFigureAnimationSettings,
     setAnimationState: (state: FigureBoardAnimationState) => void,
     waitForCompletion: (durationMs: number) => Promise<void>,
+    exitHints?: ExitHints,
 ): Promise<void> {
     const animationState = buildFigureBoardAnimationState(
         prev,
         next,
         boardParameters,
         settings,
+        exitHints,
     )
 
     const durationMs = getStepAnimationDurationMs(animationState)

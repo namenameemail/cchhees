@@ -3,6 +3,7 @@ import {
     FigureEventAreaCell,
     FigureEventBoardRect,
     FigureEventCoord,
+    MovePhase,
 } from '../types/events'
 import { FigurePlacement } from '../types/figures'
 import { hasFigureAreaCell } from '../figureAreaCells'
@@ -79,6 +80,28 @@ export function resolvePlacementCoordBefore(
     return undefined
 }
 
+/**
+ * Единая точка вычисления movePhase: 'before'/'after' берут значение предиката в
+ * соответствующей фазе напрямую, 'entered'/'left' сравнивают значения до и после.
+ */
+export function evaluateByMovePhase(
+    movePhase: MovePhase | undefined,
+    computeAt: (which: 'before' | 'after') => boolean,
+): boolean {
+    switch (movePhase ?? 'after') {
+        case 'before':
+            return computeAt('before')
+        case 'after':
+            return computeAt('after')
+        case 'entered':
+            return computeAt('after') && !computeAt('before')
+        case 'left':
+            return !computeAt('after') && computeAt('before')
+        default:
+            return computeAt('after')
+    }
+}
+
 export function isNewlyInArea(
     subjectAfter: CellCoord,
     subjectBefore: CellCoord | undefined,
@@ -86,14 +109,11 @@ export function isNewlyInArea(
     anchorBefore: CellCoord | undefined,
     cells: FigureEventAreaCell[],
 ): boolean {
-    if (!isInsideFigureArea(subjectAfter, anchorAfter, cells)) {
-        return false
-    }
-
-    const beforeCoord = subjectBefore ?? subjectAfter
-    const anchorForBefore = anchorBefore ?? anchorAfter
-
-    return !isInsideFigureArea(beforeCoord, anchorForBefore, cells)
+    return evaluateByMovePhase('entered', which => isInsideFigureArea(
+        which === 'after' ? subjectAfter : (subjectBefore ?? subjectAfter),
+        which === 'after' ? anchorAfter : (anchorBefore ?? anchorAfter),
+        cells,
+    ))
 }
 
 export function coordMatchesList(

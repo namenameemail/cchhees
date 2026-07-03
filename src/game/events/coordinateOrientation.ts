@@ -6,7 +6,7 @@ import {
     FigureEventCoord,
     OrientableCoordinates,
 } from '../types/events'
-import { FigureCatalog, FigureId, FigurePlacement, FigureTeams } from '../types/figures'
+import { FigureCatalog, FigureId, FigureMoveDirection, FigurePlacement, FigureTeams } from '../types/figures'
 import { resolveFigureMoveDirectionFromCatalog } from '../figureView'
 import { orientAreaCell, orientAreaCells } from '../moveRules'
 
@@ -137,9 +137,34 @@ export function resolveBoardCellFromParams(
     return offsetCoordFromAnchor(anchor, offset)
 }
 
+/**
+ * `inBoardArea`'s rect is an ABSOLUTE board area (unlike inFigureArea/hasFigureInArea's
+ * anchor-relative offsets), so orientToTeamDirection rotates the board's own coordinate
+ * frame (via n×m) instead of translating the rect relative to a figure's position.
+ * Corner mapping matches rotateMoveVector's forward/lateral convention (moveRules.ts),
+ * just expressed as absolute board coordinates instead of a vector rotated around zero.
+ */
+export function orientBoardAreaCorner(
+    x: number,
+    y: number,
+    direction: FigureMoveDirection,
+    boardParameters: BoardParameters,
+): { x: number; y: number } {
+    switch (direction) {
+        case 'down':
+            return { x: boardParameters.n + 1 - x, y: boardParameters.m + 1 - y }
+        case 'left':
+            return { x: y, y: boardParameters.m + 1 - x }
+        case 'right':
+            return { x: boardParameters.n + 1 - y, y: x }
+        case 'up':
+        default:
+            return { x, y }
+    }
+}
+
 export function isInsideOrientedRect(
     coord: CellCoord,
-    anchor: CellCoord,
     rect: FigureEventBoardRect,
     orient: boolean,
     catalog: FigureCatalog,
@@ -147,8 +172,9 @@ export function isInsideOrientedRect(
     boardParameters?: BoardParameters,
     legacyFigureTeams?: FigureTeams,
 ): boolean {
-    if (!orient) {
-        const { x, y } = { x: coord.i + 1, y: coord.j + 1 }
+    const { x, y } = { x: coord.i + 1, y: coord.j + 1 }
+
+    if (!orient || !boardParameters) {
         const xMin = Math.min(rect.x1, rect.x2)
         const xMax = Math.max(rect.x1, rect.x2)
         const yMin = Math.min(rect.y1, rect.y2)
@@ -157,35 +183,16 @@ export function isInsideOrientedRect(
         return x >= xMin && x <= xMax && y >= yMin && y <= yMax
     }
 
-    const corner1 = offsetCoordFromAnchor(
-        anchor,
-        maybeOrientAreaCell(
-            { x: rect.x1, y: rect.y1 },
-            true,
-            catalog,
-            figureId,
-            boardParameters,
-            legacyFigureTeams,
-        ),
-    )
-    const corner2 = offsetCoordFromAnchor(
-        anchor,
-        maybeOrientAreaCell(
-            { x: rect.x2, y: rect.y2 },
-            true,
-            catalog,
-            figureId,
-            boardParameters,
-            legacyFigureTeams,
-        ),
-    )
+    const direction = resolveMoveDirectionForFigure(catalog, figureId, boardParameters, legacyFigureTeams)
+    const corner1 = orientBoardAreaCorner(rect.x1, rect.y1, direction, boardParameters)
+    const corner2 = orientBoardAreaCorner(rect.x2, rect.y2, direction, boardParameters)
 
-    const iMin = Math.min(corner1.i, corner2.i)
-    const iMax = Math.max(corner1.i, corner2.i)
-    const jMin = Math.min(corner1.j, corner2.j)
-    const jMax = Math.max(corner1.j, corner2.j)
+    const xMin = Math.min(corner1.x, corner2.x)
+    const xMax = Math.max(corner1.x, corner2.x)
+    const yMin = Math.min(corner1.y, corner2.y)
+    const yMax = Math.max(corner1.y, corner2.y)
 
-    return coord.i >= iMin && coord.i <= iMax && coord.j >= jMin && coord.j <= jMax
+    return x >= xMin && x <= xMax && y >= yMin && y <= yMax
 }
 
 export function isSameBoardCell(

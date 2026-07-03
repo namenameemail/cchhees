@@ -3,6 +3,24 @@ import cn from 'classnames'
 import { BlurEnterTextInput } from 'bbuutoonnss'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { ProjectAssetView } from '../../projects/assets/types'
+import { getModelThumbnail } from '../../projects/assets/renderModelThumbnail'
+
+function ModelThumbnailImg({ objectUrl }: { objectUrl: string }) {
+    const [src, setSrc] = useState<string | null>(null)
+
+    useEffect(() => {
+        let cancelled = false
+        getModelThumbnail(objectUrl)
+            .then(dataUrl => { if (!cancelled) setSrc(dataUrl) })
+            .catch(() => {})
+        return () => { cancelled = true }
+    }, [objectUrl])
+
+    if (!src) {
+        return <div className={styles.modelThumbnail}>3D</div>
+    }
+    return <img src={src} className={styles.thumbnail} alt="" />
+}
 
 export interface ModelSelectProps {
     className?: string
@@ -132,7 +150,7 @@ export function ModelSelect(props: ModelSelectProps) {
                                 data-asset-id={asset.id}
                                 onMouseDown={(event) => handleModelMouseDown(event, asset.id)}
                             >
-                                <div className={styles.modelThumbnail}>3D</div>
+                                <ModelThumbnailImg objectUrl={asset.objectUrl} />
                             </div>
                         ))
                     )}

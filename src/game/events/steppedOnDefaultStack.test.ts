@@ -67,8 +67,8 @@ describe('steppedOn default stack', () => {
                     entries: [{ figureId: FIGURE_SUBJECT_STEPPED_ON }],
                     matchMode: 'any',
                 },
-                type: FigureEventConditionType.steppedOnByFigure,
-                params: { stepperFigures: [{ figureId: '*' }], matchMode: 'any' },
+                type: FigureEventConditionType.hasFigureInArea,
+                params: { figures: [{ figureId: '*' }], cells: [{ x: 0, y: 0 }], matchMode: 'any', movePhase: 'after' },
             }],
             actions: [{
                 type: GameActionType.moveToTray,

@@ -91,7 +91,15 @@ export const BoardExportButton: FC<BoardExportButtonProps> = ({ boardRef, iconMo
                 disabled={isExporting}
                 title={isExporting ? 'экспорт...' : 'export png'}
             >
-                {iconMode ? 'PNG' : (isExporting ? 'export...' : 'export png')}
+                {iconMode ? (
+                    <>
+                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 3 }}>
+                            <path d="M6.5 1v7M3.5 5.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            <line x1="1.5" y1="11.5" x2="11.5" y2="11.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                        PNG
+                    </>
+                ) : (isExporting ? 'export...' : 'export png')}
             </button>
 
             <ConfirmModal

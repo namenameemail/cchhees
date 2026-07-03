@@ -2,6 +2,7 @@ import React, { FC, useCallback, useEffect } from 'react'
 import { ParameterInputComponentProps } from '../../../components/Form1'
 import { Form1FieldConfig } from '../../../components/Form1/types'
 import { FigureId } from '../../types/figures'
+import { FigureEventConditionSubject } from '../../types/events'
 import { useGameContext } from '../../context'
 import {
     FIGURE_FILTER_NONE,
@@ -11,6 +12,50 @@ import { FigureStateSelect } from './FigureStateSelect'
 import { FigureFilterArrayField, FigureFilterArrayFieldProps } from './FigureFilterArrayField'
 import { ConditionSubjectField, ConditionSubjectFieldProps } from './ConditionSubjectField'
 import formStyles from '../FigureParametersForm/styles.module.css'
+
+export const FigureFilterArrayWithMatchModeField: FC<ParameterInputComponentProps> = ({
+    name,
+    value,
+    onChange,
+    props,
+    formState,
+    onFieldsChange,
+}) => {
+    const { matchModeField = 'matchMode', ...restProps } = props as FigureFilterArrayFieldProps & { matchModeField?: string }
+    const matchMode = (formState?.[matchModeField] as 'any' | 'all' | undefined) ?? 'any'
+
+    const handleChange = useCallback((_n: string, entries: unknown) => {
+        onChange(name, entries)
+    }, [name, onChange])
+
+    const handleMatchModeChange = useCallback((mode: 'any' | 'all') => {
+        onFieldsChange?.({ [matchModeField]: mode })
+    }, [matchModeField, onFieldsChange])
+
+    return (
+        <FigureFilterArrayField
+            name={name}
+            value={value}
+            onChange={handleChange}
+            props={{
+                ...restProps,
+                matchMode,
+                onMatchModeChange: handleMatchModeChange,
+            }}
+        />
+    )
+}
+
+export function createFigureFilterArrayWithMatchModeFieldConfig<StateType extends Record<string, unknown>>(
+    name: keyof StateType & string,
+    options: FigureFilterArrayFieldProps & { matchModeField?: string } = {},
+): Form1FieldConfig<StateType> {
+    return {
+        name,
+        Component: FigureFilterArrayWithMatchModeField,
+        props: options,
+    }
+}
 
 export interface FigureStateSelectFieldProps {
     figureField: string
@@ -129,6 +174,53 @@ export function createConditionSubjectFieldConfig<StateType extends Record<strin
     return {
         name: 'entries' as keyof StateType & string,
         Component: ConditionSubjectField,
+        props: {
+            className: className ?? formStyles.figureFilterArray,
+            itemClassName,
+            title,
+            allowedRoles,
+        },
+    }
+}
+
+export const ConditionSubjectAndMatchModeField: FC<ParameterInputComponentProps> = ({
+    name,
+    value,
+    onChange,
+    props,
+}) => {
+    const subject = (value ?? { entries: [] }) as FigureEventConditionSubject
+
+    const handleEntriesChange = useCallback((_n: string, entries: unknown) => {
+        onChange(name, { ...subject, entries })
+    }, [name, onChange, subject])
+
+    const handleMatchModeChange = useCallback((matchMode: 'any' | 'all') => {
+        onChange(name, { ...subject, matchMode })
+    }, [name, onChange, subject])
+
+    return (
+        <ConditionSubjectField
+            name="entries"
+            value={subject.entries}
+            onChange={handleEntriesChange}
+            props={{
+                ...(props as ConditionSubjectFieldProps),
+                matchMode: subject.matchMode ?? 'any',
+                onMatchModeChange: handleMatchModeChange,
+            }}
+        />
+    )
+}
+
+export function createConditionSubjectWithMatchModeFieldConfig<StateType extends Record<string, unknown>>(
+    options: ConditionSubjectFieldProps = {},
+): Form1FieldConfig<StateType> {
+    const { className, itemClassName, title, allowedRoles } = options
+
+    return {
+        name: 'subject' as keyof StateType & string,
+        Component: ConditionSubjectAndMatchModeField,
         props: {
             className: className ?? formStyles.figureFilterArray,
             itemClassName,

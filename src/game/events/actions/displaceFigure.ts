@@ -69,7 +69,7 @@ function resolveOwnerDisplaceTarget(
     ownerFigureId: FigureId,
 ): { fromCoord: CellCoord; placement: FigurePlacement } | null {
     switch (ctx.triggerConditionType) {
-        case FigureEventConditionType.landedOnFigure: {
+        case FigureEventConditionType.hasFigureInArea: {
             const ownerPlacement = ctx.stepperPlacement
                 && placementMatchesOwner(ctx.stepperPlacement, ownerFigureId)
                 ? ctx.stepperPlacement
@@ -84,40 +84,29 @@ function resolveOwnerDisplaceTarget(
                 placement: resolvePlacementSnapshot(figures, ctx.to, ownerPlacement),
             }
         }
-        case FigureEventConditionType.landedInFigureArea: {
-            if (!ctx.areaSubjectCoord || !ctx.areaSubjectPlacement) {
-                return null
+        case FigureEventConditionType.inFigureArea: {
+            if (ctx.areaSubjectCoord && ctx.areaSubjectPlacement
+                && placementMatchesOwner(ctx.areaSubjectPlacement, ownerFigureId)) {
+                return {
+                    fromCoord: ctx.areaSubjectCoord,
+                    placement: resolvePlacementSnapshot(
+                        figures,
+                        ctx.areaSubjectCoord,
+                        ctx.areaSubjectPlacement,
+                    ),
+                }
             }
 
-            if (!placementMatchesOwner(ctx.areaSubjectPlacement, ownerFigureId)) {
-                return null
+            if (ctx.areaAnchor) {
+                const stack = figures.figuresByCoord[coordKey(ctx.areaAnchor)] ?? []
+                const placement = stack.find(item => placementMatchesOwner(item, ownerFigureId))
+
+                if (placement) {
+                    return { fromCoord: ctx.areaAnchor, placement }
+                }
             }
 
-            return {
-                fromCoord: ctx.areaSubjectCoord,
-                placement: resolvePlacementSnapshot(
-                    figures,
-                    ctx.areaSubjectCoord,
-                    ctx.areaSubjectPlacement,
-                ),
-            }
-        }
-        case FigureEventConditionType.figureEnteredArea: {
-            if (!ctx.areaAnchor) {
-                return null
-            }
-
-            const stack = figures.figuresByCoord[coordKey(ctx.areaAnchor)] ?? []
-            const placement = stack.find(item => placementMatchesOwner(item, ownerFigureId))
-
-            if (!placement) {
-                return null
-            }
-
-            return {
-                fromCoord: ctx.areaAnchor,
-                placement,
-            }
+            return null
         }
         default: {
             if (ctx.eventType === FigureEventType.steppedOnBy) {
@@ -162,6 +151,7 @@ function enqueueSteppedOnForOccupiedLanding(
     queue.unshift({
         stepperPlacement: cloneFigurePlacement(displaced),
         stepperCoord: landing,
+        stepperOrigin: fromCoord,
         targetPlacement: cloneFigurePlacement(topOccupant),
         targetCoord: landing,
         cause: 'displacement',
@@ -280,6 +270,14 @@ export function applyDisplaceFromCoord(
         subject: displaced.figureId,
         result: 'applied',
         detail: { fromCoord, landing },
+    })
+
+    queue.unshift({
+        kind: 'displaced',
+        placement: displaced,
+        fromCoord,
+        toCoord: landing,
+        cause: 'displacement',
     })
 
     return movePlacementToCoord(figures, displaced, fromCoord, landing)
@@ -532,6 +530,14 @@ export function applyLeaveBoardDisplace(
                 queue,
             )
         }
+
+        queue.unshift({
+            kind: 'displaced',
+            placement,
+            fromCoord: instance.coord,
+            toCoord: landing,
+            cause: 'displacement',
+        })
 
         return movePlacementToCoord(current, placement, instance.coord, landing)
     }, figures)

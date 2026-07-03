@@ -1,18 +1,12 @@
 import { CellCoord, coordKey } from '../../types/coords'
 import {
-    FigureEventAreaCell,
     FigureEventCondition,
     FigureEventConditionMatchMode,
     FigureEventConditionParamsFigureList,
     FigureEventConditionParamsHasFigureInArea,
+    FigureEventConditionParamsInBoardArea,
     FigureEventConditionParamsInFigureArea,
-    FigureEventConditionParamsLandedInFigureArea,
-    FigureEventConditionParamsLandedOnCell,
-    FigureEventConditionParamsLandedOnFigure,
-    FigureEventConditionParamsLeftCell,
     FigureEventConditionParamsMovedBy,
-    FigureEventConditionParamsOnCells,
-    FigureEventConditionParamsSteppedOnByFigure,
     FigureEventConditionType,
     FigureEventParamsOnMove,
     FigureEventParamsSteppedOnBy,
@@ -26,25 +20,17 @@ import {
     resolvePlacementStateIndex,
 } from '../../figureView'
 import { canonicalizeFigureFilterArray, matchesFigureFilterList } from '../../figureFilter'
-import {
-    getStackPlacementsByFilter,
-    getTopOfStack,
-    iterBoardPlacements,
-    matchesStackPosition,
-} from '../../figureStack'
+import { iterBoardPlacements, matchesStackPosition } from '../../figureStack'
 import {
     BoardStacks,
+    evaluateByMovePhase,
     isInsideFigureArea,
-    isNewlyInArea,
     normalizeBoardStacks,
     resolvePlacementCoordBefore,
 } from '../geometry'
 import {
-    allCoordsMatchOrientedList,
-    coordMatchesOrientedList,
     isInsideOrientedRect,
     isOrientToTeamDirection,
-    isSameBoardCell,
     maybeOrientAreaCells,
     maybeOrientDelta,
     resolveOrientFigureId,
@@ -107,7 +93,7 @@ function mergeContext(
 }
 
 function collectFigureAreaAnchors(
-    params: FigureEventConditionParamsInFigureArea | FigureEventConditionParamsLandedInFigureArea,
+    params: FigureEventConditionParamsInFigureArea,
     figuresByCoord: BoardStacks,
 ) {
     const normalized = normalizeFigureEventParamsEnterFigureArea(params)
@@ -184,13 +170,7 @@ function evaluateSingleCondition(
 
     switch (condition.type) {
         case FigureEventConditionType.inBoardArea: {
-            const params = condition.params as {
-                x1: number
-                y1: number
-                x2: number
-                y2: number
-                orientToTeamDirection?: boolean
-            } | undefined
+            const params = condition.params as FigureEventConditionParamsInBoardArea | undefined
             if (!params) {
                 return []
             }
@@ -198,16 +178,21 @@ function evaluateSingleCondition(
             const orient = isOrientToTeamDirection(params)
             const catalog = resolveOrientCatalog(ctx)
             const boardParameters = resolveOrientBoardParameters(ctx)
-            const results = instances.map(item => isInsideOrientedRect(
-                item.coord,
-                item.coord,
-                params,
-                orient,
-                catalog,
-                resolveOrientFigureIdForInstance(ctx, item),
-                boardParameters,
-                ctx.figureTeams,
-            ))
+            const results = instances.map(item => {
+                const after = resolveMovedActorAfterCoord(item, ctx)
+                const before = resolveMovedActorBeforeCoord(item, ctx)
+                const figureId = resolveOrientFigureIdForInstance(ctx, item)
+
+                return evaluateByMovePhase(params.movePhase, which => isInsideOrientedRect(
+                    which === 'after' ? after : before,
+                    params,
+                    orient,
+                    catalog,
+                    figureId,
+                    boardParameters,
+                    ctx.figureTeams,
+                ))
+            })
             return evaluateQuantified(results, subjectMatchMode) ? [base] : []
         }
         case FigureEventConditionType.inFigureArea: {
@@ -220,119 +205,84 @@ function evaluateSingleCondition(
             const orient = isOrientToTeamDirection(params)
             const catalog = resolveOrientCatalog(ctx)
             const boardParameters = resolveOrientBoardParameters(ctx)
+            const phase = params?.movePhase ?? 'after'
             const { anchors } = collectFigureAreaAnchors(params ?? {}, ctx.figuresByCoord)
-            const results = instances.map(item => (
-                anchors.some(anchor => {
-                    const orientedCells = maybeOrientAreaCells(
-                        cells,
-                        orient,
-                        catalog,
-                        anchor.placement.figureId,
-                        boardParameters,
-                        ctx.figureTeams,
-                    )
-                    return isInsideFigureArea(item.coord, anchor.coord, orientedCells)
+
+            if (phase === 'before' || phase === 'after') {
+                const results = instances.map(item => {
+                    const coord = phase === 'after'
+                        ? resolveMovedActorAfterCoord(item, ctx)
+                        : resolveMovedActorBeforeCoord(item, ctx)
+
+                    return anchors.some(anchor => {
+                        const anchorCoord = phase === 'after'
+                            ? anchor.coord
+                            : (resolvePlacementCoordBefore(anchor.placement, ctx.beforeBoard) ?? anchor.coord)
+                        const orientedCells = maybeOrientAreaCells(
+                            cells,
+                            orient,
+                            catalog,
+                            anchor.placement.figureId,
+                            boardParameters,
+                            ctx.figureTeams,
+                        )
+                        return isInsideFigureArea(coord, anchorCoord, orientedCells)
+                    })
                 })
-            ))
-            return evaluateQuantified(results, subjectMatchMode) ? [base] : []
-        }
-        case FigureEventConditionType.onCells: {
-            const params = condition.params as FigureEventConditionParamsOnCells | undefined
-            const cells = params?.cells ?? []
-            if (!cells.length) {
+                return evaluateQuantified(results, subjectMatchMode) ? [base] : []
+            }
+
+            if (!ctx.move) {
                 return []
             }
 
-            const orient = isOrientToTeamDirection(params)
-            const catalog = resolveOrientCatalog(ctx)
-            const boardParameters = resolveOrientBoardParameters(ctx)
-            const cellMode = resolveMatchMode(params?.matchMode)
-            const results = instances.map(item => {
-                const figureId = resolveOrientFigureIdForInstance(ctx, item)
-                return cellMode === 'all'
-                    ? allCoordsMatchOrientedList(
-                        item.coord,
-                        item.coord,
-                        cells,
-                        orient,
-                        catalog,
-                        figureId,
-                        boardParameters,
-                        ctx.figureTeams,
-                    )
-                    : coordMatchesOrientedList(
-                        item.coord,
-                        item.coord,
-                        cells,
-                        orient,
-                        catalog,
-                        figureId,
-                        boardParameters,
-                        ctx.figureTeams,
-                    )
-            })
-            return evaluateQuantified(results, subjectMatchMode) ? [base] : []
-        }
-        case FigureEventConditionType.aboveFigures:
-        case FigureEventConditionType.belowFigures: {
-            const params = condition.params as FigureEventConditionParamsFigureList | undefined
-            const figures = params?.figures
-            const results = instances.map(item => {
-                const stack = ctx.figuresByCoord[coordKey(item.coord)] ?? []
-                const index = stack.findIndex(entry => entry.instanceId === item.placement.instanceId)
-                if (index < 0) {
-                    return false
-                }
+            const triggered: ConditionMatchContext[] = []
 
-                const compareIndex = condition.type === FigureEventConditionType.aboveFigures
-                    ? index + 1
-                    : index - 1
-
-                if (compareIndex < 0 || compareIndex >= stack.length) {
-                    return false
-                }
-
-                const other = stack[compareIndex]
-                return matchesFigureFilterList(
-                    figures,
-                    other.figureId,
-                    resolvePlacementStateIndex(other),
-                )
-            })
-            return evaluateQuantified(results, subjectMatchMode) ? [base] : []
-        }
-        case FigureEventConditionType.leftCell: {
-            const params = condition.params as FigureEventConditionParamsLeftCell | undefined
-            if (!params) {
-                return []
-            }
-
-            const orient = isOrientToTeamDirection(params)
-            const catalog = resolveOrientCatalog(ctx)
-            const boardParameters = resolveOrientBoardParameters(ctx)
-            const results = instances.map(item => {
-                if (item.beforeCoord == null) {
-                    return false
-                }
-
-                const anchor = resolveMovedActorBeforeCoord(item, ctx)
-                const figureId = resolveOrientFigureIdForInstance(ctx, item)
-
-                return isSameBoardCell(
-                    item.beforeCoord,
-                    params.x,
-                    params.y,
+            for (const { coord: anchorAfter, placement: anchorPlacement } of anchors) {
+                const anchorBefore = resolvePlacementCoordBefore(anchorPlacement, ctx.beforeBoard)
+                const orientedCells = maybeOrientAreaCells(
+                    cells,
                     orient,
-                    anchor,
                     catalog,
-                    figureId,
+                    anchorPlacement.figureId,
                     boardParameters,
                     ctx.figureTeams,
                 )
-            })
-            return evaluateQuantified(results, subjectMatchMode)
-                ? [mergeContext(base, { triggerConditionType: condition.type })]
-                : []
+
+                for (const item of instances) {
+                    const subjectAfter = resolveMovedActorAfterCoord(item, ctx)
+                    const subjectBefore = resolveMovedActorBeforeCoord(item, ctx)
+
+                    const matched = evaluateByMovePhase(phase, which => isInsideFigureArea(
+                        which === 'after' ? subjectAfter : subjectBefore,
+                        which === 'after' ? anchorAfter : (anchorBefore ?? anchorAfter),
+                        orientedCells,
+                    ))
+
+                    if (!matched) {
+                        continue
+                    }
+
+                    const triggerMode = item.placement.instanceId === ctx.move.actorPlacement.instanceId
+                        ? 'active'
+                        : 'passive'
+
+                    if (triggerMode === 'passive' && params?.includePassive === false) {
+                        continue
+                    }
+
+                    triggered.push(mergeContext(base, {
+                        areaAnchor: anchorAfter,
+                        subjectCoord: phase === 'entered' ? subjectAfter : subjectBefore,
+                        subjectPlacement: item.placement,
+                        triggerMode,
+                        includePassive: params?.includePassive,
+                        triggerConditionType: condition.type,
+                    }))
+                }
+            }
+
+            return triggered
         }
         case FigureEventConditionType.movedBy: {
             const params = condition.params as FigureEventConditionParamsMovedBy | undefined
@@ -359,279 +309,6 @@ function evaluateSingleCondition(
             )
             const matched = dx === expected.dx && dy === expected.dy
             return matched ? [mergeContext(base, { triggerConditionType: condition.type })] : []
-        }
-        case FigureEventConditionType.landedInBoardArea: {
-            const params = condition.params as {
-                x1: number
-                y1: number
-                x2: number
-                y2: number
-                orientToTeamDirection?: boolean
-            } | undefined
-            if (!params) {
-                return []
-            }
-
-            const orient = isOrientToTeamDirection(params)
-            const catalog = resolveOrientCatalog(ctx)
-            const boardParameters = resolveOrientBoardParameters(ctx)
-            const results = instances.map(item => {
-                const after = resolveMovedActorAfterCoord(item, ctx)
-                const anchor = resolveMovedActorBeforeCoord(item, ctx)
-                return isInsideOrientedRect(
-                    after,
-                    anchor,
-                    params,
-                    orient,
-                    catalog,
-                    resolveOrientFigureIdForInstance(ctx, item),
-                    boardParameters,
-                    ctx.figureTeams,
-                )
-            })
-            return evaluateQuantified(results, subjectMatchMode)
-                ? [mergeContext(base, { triggerConditionType: condition.type })]
-                : []
-        }
-        case FigureEventConditionType.landedOnCell: {
-            const params = condition.params as FigureEventConditionParamsLandedOnCell | undefined
-            if (!params) {
-                return []
-            }
-
-            const orient = isOrientToTeamDirection(params)
-            const catalog = resolveOrientCatalog(ctx)
-            const boardParameters = resolveOrientBoardParameters(ctx)
-            const results = instances.map(item => {
-                const after = resolveMovedActorAfterCoord(item, ctx)
-                const anchor = resolveMovedActorBeforeCoord(item, ctx)
-                const figureId = resolveOrientFigureIdForInstance(ctx, item)
-
-                return isSameBoardCell(
-                    after,
-                    params.x,
-                    params.y,
-                    orient,
-                    anchor,
-                    catalog,
-                    figureId,
-                    boardParameters,
-                    ctx.figureTeams,
-                )
-            })
-            return evaluateQuantified(results, subjectMatchMode)
-                ? [mergeContext(base, { triggerConditionType: condition.type })]
-                : []
-        }
-        case FigureEventConditionType.landedOnFigure: {
-            const params = condition.params as FigureEventConditionParamsLandedOnFigure | undefined
-            if (!ctx.move) {
-                return []
-            }
-
-            const moverMatchesSubject = instances.some(
-                item => item.placement.instanceId === ctx.move!.actorPlacement.instanceId,
-            )
-            if (!moverMatchesSubject) {
-                return []
-            }
-
-            if (ctx.move.targetAtTo) {
-                if (!matchesFigureFilterList(
-                    params?.figures,
-                    ctx.move.targetAtTo.figureId,
-                    resolvePlacementStateIndex(ctx.move.targetAtTo),
-                )) {
-                    return []
-                }
-
-                const stack = ctx.figuresByCoord[coordKey(ctx.move.to)] ?? []
-                const targetIndex = stack.findIndex(item => item.instanceId === ctx.move!.targetAtTo!.instanceId)
-
-                if (targetIndex >= 0 && params?.stackTarget && params.stackTarget !== 'all') {
-                    if (!matchesStackPosition(stack.length, targetIndex, params.stackTarget, params.stackIndex)) {
-                        return []
-                    }
-                }
-
-                return [mergeContext(base, {
-                    stepOnTarget: ctx.move.targetAtTo,
-                    triggerConditionType: condition.type,
-                })]
-            }
-
-            const stack = ctx.figuresByCoord[coordKey(ctx.move.to)] ?? []
-            const targets = getStackPlacementsByFilter(
-                stack,
-                params?.stackTarget ?? 'all',
-                params?.stackIndex ?? 0,
-                placement => matchesFigureFilterList(
-                    params?.figures,
-                    placement.figureId,
-                    resolvePlacementStateIndex(placement),
-                ),
-            ).filter(item => item.instanceId !== ctx.move!.actorPlacement.instanceId)
-
-            if (targets.length === 0) {
-                return []
-            }
-
-            const mode = resolveMatchMode(params?.matchMode)
-            if (mode === 'all') {
-                return [mergeContext(base, {
-                    stepOnTarget: targets[0],
-                    triggerConditionType: condition.type,
-                })]
-            }
-
-            return targets.map(stepOnTarget => mergeContext(base, {
-                stepOnTarget,
-                triggerConditionType: condition.type,
-            }))
-        }
-        case FigureEventConditionType.landedInFigureArea: {
-            const params = condition.params as FigureEventConditionParamsLandedInFigureArea | undefined
-            const cells = params?.cells ?? []
-            if (!cells.length || !ctx.move) {
-                return []
-            }
-
-            const orient = isOrientToTeamDirection(params)
-            const catalog = resolveOrientCatalog(ctx)
-            const boardParameters = resolveOrientBoardParameters(ctx)
-            const { anchors } = collectFigureAreaAnchors(params ?? {}, ctx.figuresByCoord)
-            const beforeBoard = ctx.beforeBoard
-            const triggered: ConditionMatchContext[] = []
-
-            for (const { coord: anchorAfter, placement: anchorPlacement } of anchors) {
-                const anchorBefore = resolvePlacementCoordBefore(anchorPlacement, beforeBoard)
-                const orientedCells = maybeOrientAreaCells(
-                    cells,
-                    orient,
-                    catalog,
-                    anchorPlacement.figureId,
-                    boardParameters,
-                    ctx.figureTeams,
-                )
-
-                for (const item of instances) {
-                    const subjectAfter = resolveMovedActorAfterCoord(item, ctx)
-                    const subjectBefore = resolveMovedActorBeforeCoord(item, ctx)
-
-                    if (!isNewlyInArea(
-                        subjectAfter,
-                        subjectBefore,
-                        anchorAfter,
-                        anchorBefore,
-                        orientedCells,
-                    )) {
-                        continue
-                    }
-
-                    const triggerMode = item.placement.instanceId === ctx.move.actorPlacement.instanceId
-                        ? 'active'
-                        : 'passive'
-
-                    if (triggerMode === 'passive' && params?.includePassive === false) {
-                        continue
-                    }
-
-                    triggered.push(mergeContext(base, {
-                        areaAnchor: anchorAfter,
-                        subjectCoord: subjectAfter,
-                        subjectPlacement: item.placement,
-                        triggerMode,
-                        includePassive: params?.includePassive,
-                        triggerConditionType: condition.type,
-                    }))
-                }
-            }
-
-            return triggered
-        }
-        case FigureEventConditionType.figureEnteredArea: {
-            const params = condition.params as FigureEventConditionParamsLandedInFigureArea | undefined
-            const cells = params?.cells ?? []
-            if (!cells.length || !ctx.move) {
-                return []
-            }
-
-            const orient = isOrientToTeamDirection(params)
-            const catalog = resolveOrientCatalog(ctx)
-            const boardParameters = resolveOrientBoardParameters(ctx)
-            const beforeBoard = ctx.beforeBoard
-            const triggered: ConditionMatchContext[] = []
-            const { anchors } = collectFigureAreaAnchors(params ?? {}, ctx.figuresByCoord)
-
-            for (const { coord: ownerAfter, placement: ownerPlacement } of anchors) {
-                const ownerBefore = resolvePlacementCoordBefore(ownerPlacement, beforeBoard)
-                const orientedCells = maybeOrientAreaCells(
-                    cells,
-                    orient,
-                    catalog,
-                    ownerPlacement.figureId,
-                    boardParameters,
-                    ctx.figureTeams,
-                )
-
-                for (const item of instances) {
-                    const subjectAfter = resolveMovedActorAfterCoord(item, ctx)
-                    const subjectBefore = resolveMovedActorBeforeCoord(item, ctx)
-
-                    if (!isNewlyInArea(
-                        subjectAfter,
-                        subjectBefore,
-                        ownerAfter,
-                        ownerBefore,
-                        orientedCells,
-                    )) {
-                        continue
-                    }
-
-                    const triggerMode = item.placement.instanceId === ctx.move.actorPlacement.instanceId
-                        ? 'active'
-                        : 'passive'
-
-                    if (triggerMode === 'passive' && params?.includePassive === false) {
-                        continue
-                    }
-
-                    triggered.push(mergeContext(base, {
-                        areaAnchor: ownerAfter,
-                        subjectCoord: subjectAfter,
-                        subjectPlacement: item.placement,
-                        triggerMode,
-                        includePassive: params?.includePassive,
-                        triggerConditionType: condition.type,
-                    }))
-                }
-            }
-
-            return triggered
-        }
-        case FigureEventConditionType.steppedOnByFigure: {
-            const params = condition.params as FigureEventConditionParamsSteppedOnByFigure | undefined
-            const target = ctx.move?.targetAtTo ?? ctx.steppedOn?.targetPlacement
-
-            if (!target || !subjectIncludesPlacement(instances, target)) {
-                return []
-            }
-
-            const stepper = ctx.move?.stepperPlacement ?? ctx.steppedOn?.stepperPlacement
-
-            if (!stepper) {
-                return []
-            }
-
-            const matched = matchesFigureFilterList(
-                params?.stepperFigures,
-                stepper.figureId,
-                resolvePlacementStateIndex(stepper),
-            )
-
-            return matched
-                ? [mergeContext(base, { triggerConditionType: condition.type })]
-                : []
         }
         case FigureEventConditionType.isFigure:
         case FigureEventConditionType.isNotFigure: {
@@ -683,7 +360,7 @@ function evaluateSingleCondition(
             const figureMode = resolveMatchMode(params?.matchMode)
             const filters = canonicalizeFigureFilterArray(params?.figures)
 
-            const results = instances.map(item => {
+            const computeHasFigure = (item: SubjectInstance, coord: CellCoord, board: BoardStacks): boolean => {
                 const figureId = resolveOrientFigureIdForInstance(ctx, item)
                 const cells = maybeOrientAreaCells(
                     rawCells,
@@ -697,10 +374,10 @@ function evaluateSingleCondition(
 
                 for (const cell of cells) {
                     const targetCoord: CellCoord = {
-                        i: item.coord.i + cell.x,
-                        j: item.coord.j + cell.y,
+                        i: coord.i + cell.x,
+                        j: coord.j + cell.y,
                     }
-                    const stack = ctx.figuresByCoord[coordKey(targetCoord)] ?? []
+                    const stack = board[coordKey(targetCoord)] ?? []
 
                     for (const placement of stack) {
                         if (placement.instanceId === item.placement.instanceId) {
@@ -729,6 +406,17 @@ function evaluateSingleCondition(
                     params?.figures,
                     placement.figureId,
                     resolvePlacementStateIndex(placement),
+                ))
+            }
+
+            const results = instances.map(item => {
+                const after = resolveMovedActorAfterCoord(item, ctx)
+                const before = resolveMovedActorBeforeCoord(item, ctx)
+
+                return evaluateByMovePhase(params?.movePhase, which => computeHasFigure(
+                    item,
+                    which === 'after' ? after : before,
+                    which === 'after' ? ctx.figuresByCoord : (ctx.beforeBoard ?? ctx.figuresByCoord),
                 ))
             })
 

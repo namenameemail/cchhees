@@ -5,6 +5,7 @@ import {
     MoveToCellActionParams,
     SetSelfStateActionParams,
     SpawnFigureActionParams,
+    SpawnFigureNearbyActionParams,
 } from '../types/events'
 import { FiguresSlice } from '../state/slices'
 import { cloneFiguresSlice } from '../state/reconcile'
@@ -18,6 +19,7 @@ import {
     SteppedOnQueueItem,
 } from './steppedOnQueue'
 import { MoveEventContext } from './types'
+import { recordFigureStep } from '../figureAnimation/figureStepRecorder'
 import { gameMovesDebugLog } from '../gameMovesDebugLog'
 import { logFigureActionApply } from '../figureActionsDebugLog'
 import {
@@ -38,6 +40,8 @@ import {
 } from './actions/resolveActionSubjects'
 import {
     isOrientToTeamDirection,
+    maybeOrientDelta,
+    offsetCoordFromAnchor,
     resolveBoardCellFromParams,
 } from './coordinateOrientation'
 
@@ -53,11 +57,40 @@ function applySpawnFigure(
         anchor,
         params.x,
         params.y,
+        false,
+        ctx.catalog,
+        params.figureId,
+        ctx.boardParameters,
+    )
+
+    if (!isCoordInGrid(coord, boardN, boardM)) {
+        return figures
+    }
+
+    return pushToStack(
+        figures,
+        coord,
+        createFigurePlacement(params.figureId, params.stateIndex),
+    )
+}
+
+function applySpawnFigureNearby(
+    figures: FiguresSlice,
+    params: SpawnFigureNearbyActionParams,
+    boardN: number,
+    boardM: number,
+    anchor: CellCoord,
+    ctx: MoveEventContext,
+): FiguresSlice {
+    const oriented = maybeOrientDelta(
+        params.dx,
+        params.dy,
         isOrientToTeamDirection(params),
         ctx.catalog,
         params.figureId,
         ctx.boardParameters,
     )
+    const coord = offsetCoordFromAnchor(anchor, { x: oriented.dx, y: oriented.dy })
 
     if (!isCoordInGrid(coord, boardN, boardM)) {
         return figures
@@ -170,6 +203,7 @@ export function applySteppedOnAction(
         case GameActionType.displaceFigure:
             return applyDisplaceFigure(figures, action, ctx, queue)
         case GameActionType.spawnFigure:
+        case GameActionType.spawnFigureNearby:
         case GameActionType.setSelfState:
         case GameActionType.setOtherState:
         case GameActionType.moveToCell:
@@ -282,6 +316,23 @@ export function applyGameAction(
                 figures,
             )
         }
+        case GameActionType.spawnFigureNearby:
+            logFigureActionApply({
+                context: 'applyGameAction',
+                gameAction: action,
+                subject: ctx.actorPlacement.figureId,
+                result: 'applied',
+            })
+            return applySpawnFigureNearby(
+                figures,
+                action.params as SpawnFigureNearbyActionParams,
+                ctx.boardParameters.n,
+                ctx.boardParameters.m,
+                ctx.actorPlacement
+                    ? { i: ctx.from.i, j: ctx.from.j }
+                    : { i: 0, j: 0 },
+                ctx,
+            )
         case GameActionType.displaceFigure:
             return applyMoveEventDisplaceFigure(figures, action, ctx, queue)
         default:
@@ -314,6 +365,7 @@ export function applyActionsWithSpawnedEventDrain<Ctx>(
     for (const action of actions) {
         const queueSizeBefore = queue.length
         current = applyOne(current, action, ctx, queue)
+        recordFigureStep(deps.onStep, current, deps.exitHints ? { exitHints: deps.exitHints } : undefined)
 
         if (queue.length > queueSizeBefore) {
             current = drainActionQueue(current, queue, deps)

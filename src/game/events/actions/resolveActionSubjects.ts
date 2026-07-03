@@ -253,7 +253,7 @@ export function resolveActionSubjects(
     action: GameAction,
     ctx: ActionSubjectContext,
 ): SubjectInstance[] {
-    if (action.type === GameActionType.spawnFigure) {
+    if (action.type === GameActionType.spawnFigure || action.type === GameActionType.spawnFigureNearby) {
         return []
     }
 

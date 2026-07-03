@@ -12,10 +12,12 @@ Usage: ./run [port]
        ./run --port <port>
        ./run -p <port>
        ./run --signaling-port <port>
+       ./run --prod
 
 Starts the signaling server (default: 8787) and the Vite dev server (default: 5173).
 If a port is busy, shows which process holds it and prompts for another port.
 Sets VITE_SIGNALING_URL for the frontend automatically.
+--prod: run in production mode (disables dev/debug features).
 EOF
 }
 
@@ -35,9 +37,9 @@ is_port_in_use() {
     (echo >/dev/tcp/127.0.0.1/"${port}") 2>/dev/null
 }
 
-describe_port_process() {
+get_port_pid() {
     local port=$1
-    local pid cmd
+    local pid
 
     if command -v lsof >/dev/null 2>&1; then
         pid=$(lsof -t -iTCP:"${port}" -sTCP:LISTEN 2>/dev/null | head -1 || true)
@@ -45,12 +47,50 @@ describe_port_process() {
         pid=$(fuser "${port}/tcp" 2>/dev/null | tr -d ' ' || true)
     fi
 
+    echo "${pid:-}"
+}
+
+describe_port_process() {
+    local port=$1
+    local pid cmd
+
+    pid=$(get_port_pid "$port")
+
     if [[ -n "${pid:-}" ]]; then
         cmd=$(ps -p "$pid" -o args= 2>/dev/null || echo "unknown process")
         echo "Port ${port} is in use by PID ${pid}: ${cmd}"
     else
         echo "Port ${port} is in use."
     fi
+}
+
+kill_port_process() {
+    local port=$1
+    local pid
+    pid=$(get_port_pid "$port")
+
+    if [[ -z "${pid:-}" ]]; then
+        echo "Could not determine which process holds port ${port}." >&2
+        return 1
+    fi
+
+    echo "Sending SIGTERM to PID ${pid}..." >&2
+    kill "$pid" 2>/dev/null || true
+
+    for _ in $(seq 1 10); do
+        is_port_in_use "$port" || return 0
+        sleep 0.3
+    done
+
+    echo "Process ${pid} still alive; sending SIGKILL..." >&2
+    kill -9 "$pid" 2>/dev/null || true
+
+    for _ in $(seq 1 10); do
+        is_port_in_use "$port" || return 0
+        sleep 0.3
+    done
+
+    return 1
 }
 
 find_next_free_port() {
@@ -69,17 +109,27 @@ find_next_free_port() {
 
 prompt_for_port() {
     local port=$1
-    local suggested next
+    local suggested next kill_choice
 
     while is_port_in_use "$port"; do
         describe_port_process "$port" >&2
-        suggested=$(find_next_free_port $((port + 1)))
 
         if [[ ! -t 0 ]]; then
             echo "Port ${port} is busy. Run interactively or pass a free port." >&2
             exit 1
         fi
 
+        read -r -p "Kill that process and use port ${port}? [y/N]: " kill_choice
+
+        if [[ "$kill_choice" =~ ^[Yy]$ ]]; then
+            if kill_port_process "$port"; then
+                break
+            fi
+
+            echo "Failed to free port ${port}." >&2
+        fi
+
+        suggested=$(find_next_free_port $((port + 1)))
         read -r -p "Enter another port [${suggested}]: " next
         next=${next:-$suggested}
 
@@ -97,12 +147,17 @@ prompt_for_port() {
 parse_args() {
     local vite_port=$DEFAULT_PORT
     local signaling_port=$DEFAULT_SIGNALING_PORT
+    local prod=0
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -h|--help)
                 usage
                 exit 0
+                ;;
+            --prod)
+                prod=1
+                shift
                 ;;
             -p|--port)
                 if [[ $# -lt 2 ]] || ! [[ "$2" =~ ^[0-9]+$ ]]; then
@@ -137,7 +192,7 @@ parse_args() {
         exit 1
     fi
 
-    echo "${vite_port} ${signaling_port}"
+    echo "${vite_port} ${signaling_port} ${prod}"
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -145,7 +200,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
-read -r vite_port signaling_port <<< "$(parse_args "$@")"
+read -r vite_port signaling_port prod <<< "$(parse_args "$@")"
 vite_port=$(prompt_for_port "$vite_port")
 
 if is_port_in_use "$signaling_port"; then
@@ -176,6 +231,12 @@ signaling_pid=$!
 
 export VITE_SIGNALING_URL="ws://127.0.0.1:${signaling_port}"
 
-echo "Starting dev server on port ${vite_port}..."
-echo "VITE_SIGNALING_URL=${VITE_SIGNALING_URL}"
-npm run dev -- --port "$vite_port" --strictPort
+if [[ "$prod" == "1" ]]; then
+    echo "Starting dev server (production mode) on port ${vite_port}..."
+    echo "VITE_SIGNALING_URL=${VITE_SIGNALING_URL}"
+    npm run dev:prod -- --port "$vite_port" --strictPort
+else
+    echo "Starting dev server on port ${vite_port}..."
+    echo "VITE_SIGNALING_URL=${VITE_SIGNALING_URL}"
+    npm run dev -- --port "$vite_port" --strictPort
+fi

@@ -57,6 +57,7 @@ export interface CollabGameBridge {
     getPersistData: () => ProjectPersistData | null
     applyRemotePersist: (data: ProjectPersistData) => void
     applyRemoteOps: (ops: CollabOp[]) => GameState
+    onRemoteOps?: (ops: CollabOp[]) => void
 }
 
 export interface CollabAssetsBridge {
@@ -171,12 +172,32 @@ export function CollabProvider({ children }: { children: React.ReactNode }) {
         const assembly = snapshotAssemblyRef.current
 
         if (!assembly || !assembly.stateComplete) {
+            collabXferLog.assemblyWaiting(
+                assembly?.stateComplete ?? false,
+                countReceivedAssets(assembly?.receivedAssets ?? []),
+                assembly?.expectedAssets ?? 0,
+                [],
+                [],
+            )
             return
         }
 
         const receivedCount = countReceivedAssets(assembly.receivedAssets)
 
         if (receivedCount < assembly.expectedAssets) {
+            const missingIndices = assembly.receivedAssets
+                .map((a, i) => (a === undefined ? i : -1))
+                .filter(i => i >= 0)
+            const pendingChunks = [...assembly.pendingAssetChunks.entries()].map(
+                ([idx, p]) => `slot${idx} «${p.name}» ${p.dataChunks.filter(c => c.length > 0).length}/${p.dataChunkCount}ch`,
+            )
+            collabXferLog.assemblyWaiting(
+                true,
+                receivedCount,
+                assembly.expectedAssets,
+                missingIndices,
+                pendingChunks,
+            )
             if (joinActiveRef.current) {
                 setJoinProgress(joinProgressForPhase(
                     'assets',
@@ -328,6 +349,8 @@ export function CollabProvider({ children }: { children: React.ReactNode }) {
                 isApplyingRemoteRef.current = false
                 return
             }
+
+            bridge.onRemoteOps?.(remappedOps)
 
             const data = bridge.getPersistData()
 
@@ -684,8 +707,20 @@ export function CollabProvider({ children }: { children: React.ReactNode }) {
 
             pending.dataChunks[message.index] = message.data
 
+            const receivedParts = pending.dataChunks.filter(chunk => chunk.length > 0).length
+
+            // Log first, last, and every 5th chunk so we can see if chunks arrive or stop mid-way
+            if (message.index === 0 || message.index === pending.dataChunkCount - 1 || message.index % 5 === 0) {
+                collabXferLog.assetChunkProgress(
+                    message.assetIndex,
+                    assembly.expectedAssets,
+                    pending.name,
+                    receivedParts,
+                    pending.dataChunkCount,
+                )
+            }
+
             if (joinActiveRef.current) {
-                const receivedParts = pending.dataChunks.filter(chunk => chunk.length > 0).length
                 setJoinProgress(joinProgressForPhase(
                     'assets',
                     `${pending.name}: ${receivedParts} / ${pending.dataChunkCount} частей`,
@@ -709,6 +744,13 @@ export function CollabProvider({ children }: { children: React.ReactNode }) {
             collabLog('asset complete:', message.assetIndex + 1, pending.name)
 
             const receivedAssets = countReceivedAssets(assembly.receivedAssets)
+            collabXferLog.assetAssembled(
+                message.assetIndex,
+                assembly.expectedAssets,
+                pending.name,
+                receivedAssets,
+                assembly.expectedAssets,
+            )
             collabProfiler.assetReceived(pending.name, receivedAssets, assembly.expectedAssets)
 
             if (joinActiveRef.current) {

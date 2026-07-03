@@ -118,6 +118,7 @@ export const defaultGameContextValue: GameContextValue = {
     setBoardEventRules: mockFn,
     addFigure: mockFn,
     removeFigure: mockFn,
+    restoreDefaultFigures: mockFn,
     clearAssetReferences: mockFn,
     applyRemotePersistData: mockFn,
     applyRemoteOps: () => initialGameState,

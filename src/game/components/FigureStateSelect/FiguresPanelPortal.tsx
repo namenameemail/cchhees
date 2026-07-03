@@ -104,7 +104,7 @@ export function FiguresPanelPortal({
 
     return createPortal(
         <div
-            ref={panelRef}
+            ref={panelRef as React.RefObject<HTMLDivElement>}
             className={cn(selectStyles.figuresPanel, selectStyles.figuresPanelPortal, className)}
             style={style}
             tabIndex={-1}

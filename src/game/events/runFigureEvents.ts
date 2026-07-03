@@ -110,7 +110,6 @@ export function runFigureEvents(
         })
 
         nextFigures = applyGameActions(nextFigures, rule.actions, actionCtx, deferredQueue)
-        recordFigureStep(ctx.onStep, nextFigures)
 
         logFigureEventRuntime({
             phase: 'apply-done',

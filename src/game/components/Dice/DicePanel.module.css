@@ -11,17 +11,80 @@
     width: 100%;
     height: 280px;
     border: 1px solid #333;
-    background: #2a2a2e;
+    background: #000;
+    cursor: pointer;
+}
+
+.viewportFill {
+    width: 100%;
+    height: 100%;
+    background: #000;
     cursor: pointer;
 }
 
 .controls {
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
+    padding: 8px;
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+.modelPicker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.modelRow {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.modelOption {
+    width: 64px;
+    height: 64px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-radius: 3px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #eef2f7;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+
+.modelOption:hover {
+    border-color: #aaa;
+}
+
+.modelOptionSelected {
+    border-color: #0066cc;
+    background: #e8f2ff;
+}
+
+.modelThumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.modelThumbnailPlaceholder {
+    font-size: 11px;
+    font-weight: 700;
+    color: #888;
+}
+
+.modelSectionLabel {
+    font-size: 11px;
+    color: #999;
+    padding-top: 4px;
+    border-top: 1px solid #e0e0e0;
 }
 
 .hint {

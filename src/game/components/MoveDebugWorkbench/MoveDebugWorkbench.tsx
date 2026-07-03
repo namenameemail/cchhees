@@ -11,6 +11,7 @@ import {
 } from '../../figureAnimation/playFigureStepSequence'
 import {
     createEmptyFigureBoardAnimationState,
+    ExitHints,
     FigureBoardAnimationState,
 } from '../../figureAnimation/playStepAnimation'
 import {
@@ -176,6 +177,7 @@ export const MoveDebugWorkbench: FC = () => {
 
     const playLocalFigureStepSequence = useCallback(async (
         steps: FiguresSlice[],
+        exitHints?: ExitHints,
     ) => {
         setIsAnimating(true)
         setDisplayFiguresSlice(steps[0])
@@ -185,7 +187,7 @@ export const MoveDebugWorkbench: FC = () => {
                 onStepDisplay: setDisplayFiguresSlice,
                 onAnimationsChange: setFigureBoardAnimations,
                 waitForAnimationCompletion,
-            })
+            }, exitHints)
         } finally {
             setDisplayFiguresSlice(undefined)
             setIsAnimating(false)
@@ -233,8 +235,8 @@ export const MoveDebugWorkbench: FC = () => {
                     result = applyFigureMove(beforeSlice, moveInput)
                     setBeforeSlice(result)
                 } else {
-                    const steps = computeFigureMoveSteps(beforeSlice, moveInput)
-                    await playLocalFigureStepSequence(steps)
+                    const { steps, exitHints } = computeFigureMoveSteps(beforeSlice, moveInput)
+                    await playLocalFigureStepSequence(steps, exitHints)
                     result = steps[steps.length - 1]
                     setBeforeSlice(result)
                 }

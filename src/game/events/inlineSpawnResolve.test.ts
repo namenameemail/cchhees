@@ -15,7 +15,9 @@ import {
     FIGURE_SUBJECT_STEPPED_ON,
 } from '../figureFilter'
 
-const board = { n: 5, m: 5, cellWidth: 20, cellHeight: 20, cellXDistance: 50, cellYDistance: 50, swapOnEat: false, background: 'white', backgroundAssetId: null, backgroundImageFit: 'tile' as const, borderRadius: 0, borderWidth: 0, borderColor: 'black', axisNumberings: [] }
+import { BoardBackgroundImageFit } from '../types/boardParameters'
+
+const board = { n: 5, m: 5, cellWidth: 20, cellHeight: 20, cellXDistance: 50, cellYDistance: 50, swapOnEat: false, background: 'white', backgroundAssetId: null, backgroundImageFit: BoardBackgroundImageFit.tile, borderRadius: 0, borderWidth: 0, borderColor: 'black', axisNumberings: [] }
 
 const catalog: FigureCatalog = [
     { id: 'pieceA', states: [{ viewParams: {} }] },
@@ -35,8 +37,8 @@ function buildInlineSpawnRules(): FigureEventRule[] {
                     entries: [{ figureId: FIGURE_SUBJECT_STEPPED_ON }],
                     matchMode: 'any',
                 },
-                type: FigureEventConditionType.steppedOnByFigure,
-                params: { stepperFigures: [{ figureId: '*' }], matchMode: 'any' },
+                type: FigureEventConditionType.hasFigureInArea,
+                params: { figures: [{ figureId: '*' }], cells: [{ x: 0, y: 0 }], matchMode: 'any', movePhase: 'after' },
             }],
             actions: [{
                 type: GameActionType.displaceFigure,
@@ -56,11 +58,12 @@ function buildInlineSpawnRules(): FigureEventRule[] {
                     entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
                     matchMode: 'any',
                 },
-                type: FigureEventConditionType.landedOnFigure,
+                type: FigureEventConditionType.hasFigureInArea,
                 params: {
                     figures: [{ figureId: 'pieceB' }],
+                    cells: [{ x: 0, y: 0 }],
                     matchMode: 'any',
-                    stackTarget: 'all',
+                    movePhase: 'after',
                 },
             }],
             actions: [

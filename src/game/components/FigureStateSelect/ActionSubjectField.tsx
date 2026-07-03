@@ -9,10 +9,7 @@ import { FigureAreaGrid } from '../FigureAreaGrid/FigureAreaGrid'
 import { useGameContext } from '../../context'
 import { resolveFigureMoveDirectionFromCatalog } from '../../figureView'
 import { ConditionSubjectField } from './ConditionSubjectField'
-import { TeamOrientCheckbox } from '../TeamOrientCheckbox'
 import formStyles from '../FigureParametersForm/styles.module.css'
-
-const conditionMatchModeOptions = ['any', 'all'] as const
 
 export interface ActionSubjectFieldProps {
     className?: string
@@ -88,70 +85,59 @@ export const ActionSubjectField: FC<ParameterInputComponentProps> = ({
     const handleNearbyCellsChange = useCallback((cells: FigureEventAreaCell[]) => {
         handleSubjectPatch({
             nearby: {
+                ...subject.nearby,
                 enabled: true,
                 cells,
             },
         })
-    }, [handleSubjectPatch])
+    }, [handleSubjectPatch, subject.nearby])
 
-    const handleMatchModeChange = useCallback((_fieldName: string, matchMode: unknown) => {
-        handleSubjectPatch({ matchMode: matchMode as FigureEventConditionSubject['matchMode'] })
-    }, [handleSubjectPatch])
+    const handleNearbyOrientToggle = useCallback(() => {
+        handleSubjectPatch({
+            nearby: {
+                ...subject.nearby,
+                enabled: true,
+                orientToTeamDirection: !(subject.nearby?.orientToTeamDirection === true),
+            },
+        })
+    }, [handleSubjectPatch, subject.nearby])
 
-    const showMatchMode = (subject.entries?.length ?? 0) > 1
+    const handleMatchModeChange = useCallback((matchMode: 'any' | 'all') => {
+        handleSubjectPatch({ matchMode })
+    }, [handleSubjectPatch])
 
     return (
-        <div className={cn(formStyles.eventParamsForm, className)}>
-            <ConditionSubjectField
-                name="entries"
-                value={subject.entries}
-                onChange={handleEntriesChange}
-                props={{
-                    className: formStyles.figureFilterArray,
-                    showNearbyToggle: true,
-                    nearbyEnabled: subject.nearby?.enabled === true,
-                    onNearbyToggle: handleNearbyToggle,
-                }}
-            />
-
-            {showMatchMode && (
-                <select
-                    className={formStyles.eventTypeSelect}
-                    value={subject.matchMode ?? 'any'}
-                    onChange={event => handleMatchModeChange('matchMode', event.target.value)}
-                >
-                    {conditionMatchModeOptions.map(option => (
-                        <option key={option} value={option}>{option}</option>
-                    ))}
-                </select>
-            )}
+        <>
+            <div className={cn(formStyles.eventParamsForm, className)}>
+                <ConditionSubjectField
+                    name="entries"
+                    value={subject.entries}
+                    onChange={handleEntriesChange}
+                    props={{
+                        className: formStyles.figureFilterArray,
+                        showNearbyToggle: true,
+                        nearbyEnabled: subject.nearby?.enabled === true,
+                        onNearbyToggle: handleNearbyToggle,
+                        matchMode: subject.matchMode ?? 'any',
+                        onMatchModeChange: handleMatchModeChange,
+                    }}
+                />
+            </div>
 
             {subject.nearby?.enabled === true && (
                 <div className={formStyles.figureAreaGridField}>
-                    <TeamOrientCheckbox
-                        name="nearbyOrient"
-                        value={subject.nearby.orientToTeamDirection}
-                        onChange={(_name, checked) => {
-                            handleSubjectPatch({
-                                nearby: {
-                                    ...subject.nearby,
-                                    enabled: true,
-                                    orientToTeamDirection: checked,
-                                },
-                            })
-                        }}
-                        props={{}}
-                    />
                     <FigureAreaGrid
                         cells={subject.nearby.cells ?? []}
                         previewFigureId={previewFigure?.figureId}
                         previewStateIndex={previewFigure?.stateIndex}
                         moveDirection={nearbyMoveDirection}
+                        orientToTeamDirection={subject.nearby?.orientToTeamDirection === true}
+                        onOrientToggle={handleNearbyOrientToggle}
                         onChange={handleNearbyCellsChange}
                     />
                 </div>
             )}
-        </div>
+        </>
     )
 }
 

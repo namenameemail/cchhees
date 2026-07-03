@@ -68,6 +68,11 @@ export function collectAssetIdsFromOps(ops: CollabOp[]): number[] {
                     }
                 }
                 break
+            case 'dice-model':
+                if (op.modelAssetId != null) {
+                    ids.add(op.modelAssetId)
+                }
+                break
             default:
                 break
         }

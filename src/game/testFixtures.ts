@@ -23,6 +23,6 @@ export const rookDefinition: FigureDefinition = {
     id: 'rook',
     states: [{
         viewParams: {},
-        moveRules: [{ x: 1, y: 0 }, { x: 0, y: 1 }],
+        moveRules: [{ x: 1, y: 0 }, { x: 0, y: 1 }] as never,
     }],
 }

@@ -11,6 +11,7 @@ export type ProfilerPanelChannel =
     | 'actions'
     | 'moveDebug'
     | 'gameplay'
+    | 'dice'
 
 const GAMEPLAY_PANEL_CHANNELS: ProfilerPanelChannel[] = ['moves', 'events', 'actions', 'moveDebug']
 

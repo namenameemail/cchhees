@@ -20,6 +20,7 @@ import {
     ASSET_UPLOAD_ACCEPT,
 } from '../assets/assetKinds'
 import { useFontAssetFamily } from '../assets/useFontAssetFamily'
+import { getModelThumbnail } from '../assets/renderModelThumbnail'
 import { ProjectAssetView } from '../assets/types'
 import styles from './AssetsPanel.module.css'
 
@@ -52,12 +53,21 @@ function FontAssetThumbnail({ asset }: { asset: ProjectAssetView }) {
     )
 }
 
-function ModelAssetThumbnail() {
-    return (
-        <div className={styles.modelThumbnail}>
-            3D
-        </div>
-    )
+function ModelAssetThumbnail({ asset }: { asset: ProjectAssetView }) {
+    const [src, setSrc] = useState<string | null>(null)
+
+    useEffect(() => {
+        let cancelled = false
+        getModelThumbnail(asset.objectUrl)
+            .then(dataUrl => { if (!cancelled) setSrc(dataUrl) })
+            .catch(() => {})
+        return () => { cancelled = true }
+    }, [asset.objectUrl])
+
+    if (src) {
+        return <img className={styles.thumbnail} src={src} alt="" />
+    }
+    return <div className={styles.modelThumbnail}>3D</div>
 }
 
 function AssetThumbnail({
@@ -74,7 +84,7 @@ function AssetThumbnail({
     }
 
     if (isModelAsset) {
-        return <ModelAssetThumbnail />
+        return <ModelAssetThumbnail asset={asset} />
     }
 
     return (

@@ -15,8 +15,8 @@ const profilerRoot = path.resolve(
 /** Source aliases: edits in linked vite-dev-profiler/src hot-reload without dist rebuild. */
 const profilerSourceMode = process.env.VDP_SOURCE !== '0'
 
-export default defineConfig(({ command }) => {
-    const dev = command === 'serve'
+export default defineConfig(({ command, mode }) => {
+    const dev = command === 'serve' && mode !== 'production'
 
     return {
         base: './',
@@ -42,5 +42,9 @@ export default defineConfig(({ command }) => {
         optimizeDeps: dev && profilerSourceMode
             ? { exclude: ['vite-dev-profiler'] }
             : undefined,
+        define: mode === 'production' ? {
+            'import.meta.env.DEV': JSON.stringify(false),
+            'import.meta.env.PROD': JSON.stringify(true),
+        } : undefined,
     }
 })

@@ -77,6 +77,10 @@ function appendLine(text: string, meta?: Record<string, unknown>): void {
     log.append(text, meta)
 }
 
+function appendConsole(text: string, meta?: Record<string, unknown>): void {
+    log.append(text, meta, { logToConsole: true })
+}
+
 export const collabXferLog = {
     reset(role?: string | null): void {
         if (!log.enabled()) {
@@ -207,5 +211,52 @@ export const collabXferLog = {
 
     error(text: string, meta?: Record<string, unknown>): void {
         appendLine(`ERR ${text}`, meta)
+    },
+
+    // -- join asset assembly (console-visible for debugging hangs) --
+
+    assetChunkProgress(
+        assetIndex: number,
+        assetTotal: number,
+        name: string,
+        gotChunks: number,
+        totalChunks: number,
+    ): void {
+        appendConsole(
+            `ASSET-CHUNK ${assetIndex + 1}/${assetTotal} «${name}» chunk ${gotChunks}/${totalChunks}`,
+            { kind: 'asset-chunk-progress', assetIndex, assetTotal, name, gotChunks, totalChunks },
+        )
+    },
+
+    assetAssembled(
+        assetIndex: number,
+        assetTotal: number,
+        name: string,
+        receivedAssets: number,
+        expectedAssets: number,
+    ): void {
+        appendConsole(
+            `ASSET-DONE ${assetIndex + 1}/${assetTotal} «${name}» (${receivedAssets}/${expectedAssets} assets done)`,
+            { kind: 'asset-assembled', assetIndex, assetTotal, name, receivedAssets, expectedAssets },
+        )
+    },
+
+    assemblyWaiting(
+        stateComplete: boolean,
+        receivedCount: number,
+        expectedCount: number,
+        missingIndices: number[],
+        pendingChunks: string[],
+    ): void {
+        const missing = missingIndices.length > 0
+            ? `missing slots [${missingIndices.join(',')}]`
+            : 'no missing slots'
+        const pending = pendingChunks.length > 0
+            ? `pending: ${pendingChunks.join('; ')}`
+            : 'no pending chunks'
+        appendConsole(
+            `ASSEMBLY-WAIT state=${stateComplete} assets=${receivedCount}/${expectedCount} · ${missing} · ${pending}`,
+            { kind: 'assembly-waiting', stateComplete, receivedCount, expectedCount, missingIndices, pendingChunks },
+        )
     },
 }

@@ -10,6 +10,8 @@ export interface DicePhysicsParams {
     spawnHeight: number
     spawnSpin: number
     glassBreak: boolean
+    glassCull: boolean
+    modelScale: number
 }
 
 export const DEFAULT_DICE_PHYSICS_PARAMS: DicePhysicsParams = {
@@ -22,7 +24,47 @@ export const DEFAULT_DICE_PHYSICS_PARAMS: DicePhysicsParams = {
     spawnHeight: 3,
     spawnSpin: 8,
     glassBreak: false,
+    glassCull: false,
+    modelScale: 1,
 }
 
-export const SETTLED_SPEED_THRESHOLD = 0.08
-export const SETTLED_FRAMES_REQUIRED = 20
+export type DiceLightPreset = 'corner' | 'top' | 'front' | 'side'
+
+export interface DiceLightParams {
+    ambientIntensity: number
+    directIntensity: number
+    lightPreset: DiceLightPreset
+    lightColor: string
+    sceneLightsEnabled: boolean
+    gltfLightsEnabled: boolean
+}
+
+export const DEFAULT_DICE_LIGHT_PARAMS: DiceLightParams = {
+    ambientIntensity: 0.3,
+    directIntensity: 3.5,
+    lightPreset: 'corner',
+    lightColor: '#fff5e0',
+    sceneLightsEnabled: true,
+    gltfLightsEnabled: true,
+}
+
+export const LIGHT_PRESET_POSITIONS: Record<DiceLightPreset, [number, number, number]> = {
+    corner: [5, 8, 4],
+    top: [0, 10, 0],
+    front: [0, 6, 10],
+    side: [10, 6, 0],
+}
+
+export const LIGHT_PRESET_LABELS: Record<DiceLightPreset, string> = {
+    corner: 'угол',
+    top: 'сверху',
+    front: 'спереди',
+    side: 'сбоку',
+}
+
+export const SETTLED_SPEED_THRESHOLD = 0.15
+export const SETTLED_FRAMES_REQUIRED = 15
+// Speed above which the counter fully resets (dice is truly in motion, not just jittering on surface)
+export const SETTLED_RESET_SPEED = 1.5
+// After this many seconds in 'running' state the dice is force-settled regardless of speed
+export const SETTLED_TIMEOUT_SECONDS = 8

@@ -1,6 +1,9 @@
-import React, { FC, useCallback, useEffect } from 'react'
+import React, { FC, Suspense, useCallback, useEffect, useMemo } from 'react'
 import cn from 'classnames'
-import { isFontAsset } from '../assets/assetKinds'
+import { Canvas } from '@react-three/fiber'
+import { OrbitControls, useGLTF } from '@react-three/drei'
+import { Box3, Vector3 } from 'three'
+import { isFontAsset, isModelAsset } from '../assets/assetKinds'
 import { useFontAssetFamily } from '../assets/useFontAssetFamily'
 import { ProjectAssetView } from '../assets/types'
 import styles from './AssetPreviewModal.module.css'
@@ -27,6 +30,39 @@ function FontPreview({ asset }: { asset: ProjectAssetView }) {
             defaultValue={FONT_PREVIEW_TEXT}
             style={fontFamily ? { fontFamily } : undefined}
         />
+    )
+}
+
+function GltfObject({ url }: { url: string }) {
+    const { scene } = useGLTF(url)
+
+    const object = useMemo(() => {
+        const clone = scene.clone(true)
+        const box = new Box3().setFromObject(clone)
+        const center = box.getCenter(new Vector3())
+        const size = box.getSize(new Vector3())
+        const maxDim = Math.max(size.x, size.y, size.z, 0.001)
+        clone.position.sub(center)
+        clone.scale.setScalar(1 / maxDim)
+        return clone
+    }, [scene])
+
+    return <primitive object={object} />
+}
+
+function ModelPreview({ asset }: { asset: ProjectAssetView }) {
+    return (
+        <div className={styles.modelPreview}>
+            <Canvas camera={{ position: [1.8, 0.9, 1.8], fov: 45 }}>
+                <color attach="background" args={[0x888888]} />
+                <ambientLight intensity={2.7} />
+                <directionalLight position={[5, 8, 4]} intensity={7.5} />
+                <Suspense fallback={null}>
+                    <GltfObject url={asset.objectUrl} />
+                </Suspense>
+                <OrbitControls />
+            </Canvas>
+        </div>
     )
 }
 
@@ -98,6 +134,7 @@ export const AssetPreviewModal: FC<AssetPreviewModalProps> = ({
     }
 
     const isFont = isFontAsset(asset)
+    const isModel = isModelAsset(asset)
 
     return (
         <div className={styles.overlay} onClick={handleOverlayClick}>
@@ -120,6 +157,8 @@ export const AssetPreviewModal: FC<AssetPreviewModalProps> = ({
                     </button>
                     {isFont ? (
                         <FontPreview asset={asset} />
+                    ) : isModel ? (
+                        <ModelPreview key={asset.id} asset={asset} />
                     ) : (
                         <img
                             key={asset.id}

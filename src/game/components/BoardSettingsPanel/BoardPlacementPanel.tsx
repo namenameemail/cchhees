@@ -4,7 +4,6 @@ import { cloneFiguresSlice } from '../../state/reconcile'
 import { useProjectContext } from '../../../projects/ProjectContext'
 import {
     compareFiguresSlices,
-    countFiguresOnBoard,
     getBoardDefaultFigures,
 } from '../../../projects/boardDefaultFigures'
 import { PlacementThumbnail } from '../PlacementThumbnail'
@@ -28,11 +27,6 @@ export const BoardPlacementPanel: FC = () => {
         [activeBoard],
     )
 
-    const defaultCounts = useMemo(
-        () => (defaultFigures ? countFiguresOnBoard(defaultFigures) : { onBoard: 0, inTray: 0 }),
-        [defaultFigures],
-    )
-
     const matchesDefault = useMemo(() => {
         if (!defaultFigures) {
             return false
@@ -40,20 +34,6 @@ export const BoardPlacementPanel: FC = () => {
 
         return compareFiguresSlices(figuresSlice, defaultFigures)
     }, [figuresSlice, defaultFigures])
-
-    const defaultStatusLabel = useMemo(() => {
-        if (!activeBoard?.defaultFigures) {
-            return 'Дефолт: пустая доска'
-        }
-
-        const { onBoard, inTray } = defaultCounts
-
-        if (inTray > 0) {
-            return `Дефолт: ${onBoard} на доске, ${inTray} в трее`
-        }
-
-        return `Дефолт: ${onBoard} на доске`
-    }, [activeBoard?.defaultFigures, defaultCounts])
 
     const handleSaveDefault = useCallback(() => {
         void setActiveBoardDefaultFigures(cloneFiguresSlice(figuresSlice))
@@ -69,7 +49,6 @@ export const BoardPlacementPanel: FC = () => {
 
     return (
         <div className={styles.placementPanel}>
-            <p className={styles.placementHint}>{defaultStatusLabel}</p>
             {defaultFigures && (
                 <div className={styles.thumbnailContainer}>
                     <PlacementThumbnail figuresSlice={defaultFigures} />
@@ -92,9 +71,6 @@ export const BoardPlacementPanel: FC = () => {
                     Сбросить к расстановке
                 </button>
             </div>
-            <p className={styles.placementHint}>
-                Сброс очищает undo фигур на этой доске.
-            </p>
         </div>
     )
 }

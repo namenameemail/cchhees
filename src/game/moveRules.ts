@@ -243,12 +243,13 @@ function isJumpableOccupant(
 function collectJumpedFigures(
     from: CellCoord,
     rule: { x: number; y: number },
+    runup: number,
     h: number,
     figuresByCoord: FiguresSlice['figuresByCoord'],
 ): FigurePlacement[] {
     const hopped: FigurePlacement[] = []
 
-    for (let step = 1; step <= h; step += 1) {
+    for (let step = runup + 1; step <= runup + h; step += 1) {
         const coord = getCoordAlongRule(from, rule, step)
         const occupant = getTopOfStack({ figuresByCoord, tray: [] }, coord)
 
@@ -270,27 +271,58 @@ function satisfiesJumpOverMove(
     actorPlacement: FigurePlacement | undefined,
     catalog: FigureCatalog | undefined,
 ): FigurePlacement[] | null {
-    const h = k - 1
-
-    if (h < 1 || !satisfiesVariantLength(h, variant.length)) {
-        return null
-    }
-
-    const allowOwnTeam = variant.allowOwnTeam === true
-
-    for (let step = 1; step <= h; step += 1) {
-        const coord = getCoordAlongRule(from, rule, step)
-
-        if (!isJumpableOccupant(coord, figuresByCoord, actorPlacement, allowOwnTeam, catalog)) {
-            return null
-        }
-    }
-
     if (!isLandingEmpty(to, figuresByCoord, actorPlacement)) {
         return null
     }
 
-    return collectJumpedFigures(from, rule, h, figuresByCoord)
+    const approach = variant.approach ?? 1
+    const landingDist = variant.landing ?? 1
+    const allowOwnTeam = variant.allowOwnTeam === true
+
+    // Phase 1: count leading empty cells (run-up, r)
+    let r = 0
+    for (let step = 1; step <= k - 2; step += 1) {
+        if (isLandingEmpty(getCoordAlongRule(from, rule, step), figuresByCoord, actorPlacement)) {
+            r += 1
+        } else {
+            break
+        }
+    }
+
+    // Phase 2: count consecutive jumpable pieces (h)
+    let h = 0
+    for (let step = r + 1; step <= k - 1; step += 1) {
+        if (isJumpableOccupant(getCoordAlongRule(from, rule, step), figuresByCoord, actorPlacement, allowOwnTeam, catalog)) {
+            h += 1
+        } else {
+            break
+        }
+    }
+
+    // Phase 3: verify tail cells (r+h+1 .. k-1) are all empty
+    for (let step = r + h + 1; step <= k - 1; step += 1) {
+        if (!isLandingEmpty(getCoordAlongRule(from, rule, step), figuresByCoord, actorPlacement)) {
+            return null
+        }
+    }
+
+    // l = steps from last jumped piece to landing (inclusive)
+    const l = k - r - h
+
+    if (h < 1 || !satisfiesVariantLength(h, variant.length)) {
+        return null
+    }
+    if (l < 1) {
+        return null
+    }
+    if (approach > 0 && r > approach - 1) {
+        return null
+    }
+    if (landingDist > 0 && l > landingDist) {
+        return null
+    }
+
+    return collectJumpedFigures(from, rule, r, h, figuresByCoord)
 }
 
 interface MoveCheckContext {
@@ -674,7 +706,8 @@ export function getLegalMoveDestinations(
                 addDestination(coord)
 
                 if (!isPathClear(from, orientedRule, k, figuresByCoord, actorPlacement)) {
-                    break
+                    // jumpOver can land past occupied cells — keep iterating to find those candidates
+                    if (!orientedRule.jumpOver.enabled) break
                 }
             }
 

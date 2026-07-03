@@ -18,6 +18,7 @@ import {
     FigureEventParamsOnMove,
     FigureEventParamsSteppedOnBy,
     SpawnFigureActionParams,
+    SpawnFigureNearbyActionParams,
     StepCause,
     StackPositionMode,
     StackTargetMode,
@@ -29,15 +30,12 @@ import {
 } from '../FigureStateSelect/FigureStateSelectField'
 import { ActionSubjectField } from '../FigureStateSelect/ActionSubjectField'
 import { createFigureAreaGridFieldConfig } from '../FigureAreaGrid/FigureAreaGridField'
-import { createTeamOrientFieldConfig } from '../TeamOrientCheckbox'
+import { createDxDyAreaGridFieldConfig } from '../FigureAreaGrid/DxDyAreaGridField'
 import { FIGURE_FILTER_ANY, FIGURE_SUBJECT_MOVED, FIGURE_SUBJECT_STEPPED_ON } from '../../figureFilter'
 import { FigureMoveRulesGrid } from '../FigureMoveRulesGrid/FigureMoveRulesGrid'
 import { removeRule, getRuleAt } from '../FigureMoveRulesGrid/moveRulesGrid'
 import { MoveRuleVariantsPanel, updateMoveRuleAt } from '../MoveRuleVariantsPanel/MoveRuleVariantsPanel'
-import {
-    coalesceConditionsOnTypeChange,
-    createEventConditionsArrayProps,
-} from '../eventConditionsForm'
+import { createEventConditionsArrayProps } from '../eventConditionsForm'
 import { resolveTeamSelectOptions } from '../../figureTeams'
 import { FormArray } from '../../../components/FormArray'
 import { ProjectImageSelect } from '../../../projects/components/ProjectImageSelect'
@@ -109,6 +107,48 @@ const SvgManualDimensionCheckbox: FC<ParameterInputComponentProps> = ({ name, va
             />
             <span>{props?.text || name}</span>
         </label>
+    )
+}
+
+const StepCauseToggle: FC<ParameterInputComponentProps> = ({ name, value, onChange }) => {
+    const cause = (value as StepCause) ?? 'any'
+    const manActive = cause === 'any' || cause === 'manual'
+    const dspActive = cause === 'any' || cause === 'displacement'
+
+    const handleMan = () => {
+        onChange(name, cause === 'any' ? 'displacement' : 'any')
+    }
+    const handleDsp = () => {
+        onChange(name, cause === 'any' ? 'manual' : 'any')
+    }
+
+    return (
+        <div className={styles.stepCausePill}>
+            <button
+                type="button"
+                className={cn(styles.stepCausePillBtn, manActive && styles.stepCausePillBtnActive)}
+                onClick={handleMan}
+                title="manual"
+            >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="4" y="1" width="1.5" height="6" rx="0.75" fill="currentColor"/>
+                    <rect x="6" y="2" width="1.5" height="5" rx="0.75" fill="currentColor"/>
+                    <rect x="8" y="3" width="1.5" height="4" rx="0.75" fill="currentColor"/>
+                    <rect x="2" y="4" width="1.5" height="3" rx="0.75" fill="currentColor"/>
+                    <path d="M2 7h8v1.5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7z" fill="currentColor"/>
+                </svg>
+            </button>
+            <button
+                type="button"
+                className={cn(styles.stepCausePillBtn, dspActive && styles.stepCausePillBtnActive)}
+                onClick={handleDsp}
+                title="displacement"
+            >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 6h7M7 3.5L9.5 6 7 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </button>
+        </div>
     )
 }
 
@@ -311,6 +351,7 @@ const gameActionTypeLabels: Record<GameActionType, string> = {
     [GameActionType.displaceFigure]: 'переместить на (dx,dy)',
     [GameActionType.moveToTray]: 'убрать в трей',
     [GameActionType.spawnFigure]: 'создать фигуру',
+    [GameActionType.spawnFigureNearby]: 'создать рядом',
 }
 
 function defaultActionSubject(eventType: FigureEventType): GameAction['subject'] {
@@ -320,7 +361,7 @@ function defaultActionSubject(eventType: FigureEventType): GameAction['subject']
 
     return { entries, matchMode: 'any' }
 }
-const stepCauseOptions: StepCause[] = ['any', 'manual', 'displacement']
+
 const stackPositionOptions: StackPositionMode[] = ['any', 'top', 'bottom', 'fromTop', 'fromBottom']
 const stackTargetOptions: StackTargetMode[] = ['all', 'top', 'bottom', 'fromTop', 'fromBottom']
 const boundaryActionTypeOptions = [
@@ -343,21 +384,13 @@ function getEventParamsConfig(type: FigureEventType) {
         case FigureEventType.onMove:
             return [{
                 name: 'cause',
-                type: ParameterTypes.SelectArray,
-                props: {
-                    className: styles.eventTypeSelect,
-                    options: stepCauseOptions,
-                },
+                Component: StepCauseToggle,
             }]
         case FigureEventType.steppedOnBy:
             return [
                 {
                     name: 'cause',
-                    type: ParameterTypes.SelectArray,
-                    props: {
-                        className: styles.eventTypeSelect,
-                        options: stepCauseOptions,
-                    },
+                    Component: StepCauseToggle,
                 },
                 {
                     name: 'stackPosition',
@@ -378,21 +411,21 @@ function getEventParamsConfig(type: FigureEventType) {
     }
 }
 
-function getActionParamsConfig(type: GameActionType) {
+function getActionParamsConfig(type: GameActionType, ownerFigureId?: FigureId) {
     switch (type) {
         case GameActionType.moveToTray:
             return []
         case GameActionType.moveToCell:
             return [
-                createTeamOrientFieldConfig(),
                 { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne, ...eventNumberInputProps } },
                 { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne, ...eventNumberInputProps } },
             ]
         case GameActionType.displaceFigure:
             return [
-                createTeamOrientFieldConfig(),
-                { name: 'dx', type: ParameterTypes.NumberInput, props: { placeholder: 'dx', ...integerStep, ...eventNumberInputProps } },
-                { name: 'dy', type: ParameterTypes.NumberInput, props: { placeholder: 'dy', ...integerStep, ...eventNumberInputProps } },
+                createDxDyAreaGridFieldConfig('dx', {
+                    className: styles.figureAreaGridField,
+                    previewFigureId: ownerFigureId,
+                }),
             ]
         case GameActionType.spawnFigure:
             return [
@@ -400,9 +433,19 @@ function getActionParamsConfig(type: GameActionType) {
                     stateField: 'stateIndex',
                     showStatePicker: true,
                 }),
-                createTeamOrientFieldConfig(),
                 { name: 'x', type: ParameterTypes.NumberInput, props: { placeholder: 'x', ...atLeastOne, ...eventNumberInputProps } },
                 { name: 'y', type: ParameterTypes.NumberInput, props: { placeholder: 'y', ...atLeastOne, ...eventNumberInputProps } },
+            ]
+        case GameActionType.spawnFigureNearby:
+            return [
+                createFigureStateFieldConfig('figureId', {
+                    stateField: 'stateIndex',
+                    showStatePicker: true,
+                }),
+                createDxDyAreaGridFieldConfig('dx', {
+                    className: styles.figureAreaGridField,
+                    previewFigureId: ownerFigureId,
+                }),
             ]
         case GameActionType.setSelfState:
             return [
@@ -452,6 +495,33 @@ function sanitizeEventActions(
             }
         }
 
+        if (action.type === GameActionType.spawnFigureNearby) {
+            const params = (action.params ?? {}) as Partial<SpawnFigureNearbyActionParams>
+            const figureId = typeof params.figureId === 'string' && params.figureId.trim()
+                ? params.figureId.trim()
+                : (fallbackFigureId ?? '')
+
+            let dx = params.dx !== undefined && Number.isFinite(params.dx) ? Math.trunc(params.dx) : 1
+            let dy = params.dy !== undefined && Number.isFinite(params.dy) ? Math.trunc(params.dy) : 0
+
+            if (dx === 0 && dy === 0) {
+                dx = 1
+            }
+
+            return {
+                type: action.type,
+                params: {
+                    figureId,
+                    dx,
+                    dy,
+                    stateIndex: params.stateIndex === undefined
+                        ? 0
+                        : Math.max(0, Math.trunc(params.stateIndex)),
+                    ...(params.orientToTeamDirection ? { orientToTeamDirection: true } : {}),
+                },
+            }
+        }
+
         return action
     })
 }
@@ -480,13 +550,20 @@ function createEventActionsArrayProps(
                     y: 1,
                     stateIndex: 0,
                 }
+            case GameActionType.spawnFigureNearby:
+                return {
+                    figureId: figureOptions[0] ?? '',
+                    dx: 1,
+                    dy: 0,
+                    stateIndex: 0,
+                }
             default:
                 return { stateIndex: 0 }
         }
     }
 
     const getDefaultSubject = (): GameAction['subject'] | undefined => (
-        defaultAction === GameActionType.spawnFigure
+        defaultAction === GameActionType.spawnFigure || defaultAction === GameActionType.spawnFigureNearby
             ? undefined
             : defaultActionSubject(eventType)
     )
@@ -496,8 +573,10 @@ function createEventActionsArrayProps(
         itemClassName: styles.eventActionItem,
         itemFormClassName: styles.eventActionItemForm,
         addButtonClassName: styles.eventActionsAddRow,
+        addText: '+',
+        addAtStart: true,
         itemConfig: (item: GameAction) => {
-            const paramsConfig = getActionParamsConfig(item.type)
+            const paramsConfig = getActionParamsConfig(item.type, ownerFigureId)
             const fields: Form1FieldConfig<GameAction>[] = [
                 {
                     name: 'type',
@@ -510,7 +589,7 @@ function createEventActionsArrayProps(
                 },
             ]
 
-            if (item.type !== GameActionType.spawnFigure) {
+            if (item.type !== GameActionType.spawnFigure && item.type !== GameActionType.spawnFigureNearby) {
                 fields.push({
                     name: 'subject',
                     Component: ActionSubjectField,
@@ -599,6 +678,8 @@ interface EventRuleRowProps {
     figureOptions: FigureId[]
     onChange: (rule: FigureEventRule, index: number) => void
     onRemove: (index: number) => void
+    onMoveUp: (index: number) => void
+    onMoveDown: (index: number) => void
 }
 
 const DELETE_HOLD_MS = 1000
@@ -610,6 +691,8 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
     figureOptions,
     onChange,
     onRemove,
+    onMoveUp,
+    onMoveDown,
 }) => {
     const [isHolding, setIsHolding] = useState(false)
     const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -658,17 +741,15 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
     }, [figureId, figureOptions, rule, index, onChange])
 
     const handleConditionsChange = useCallback((conditions: FigureEventCondition[]) => {
-        const coalesced = coalesceConditionsOnTypeChange(rule.conditions, conditions)
-
         logFigureEventRulesDebug('conditions-change', {
             figureId,
             ruleId: rule.id,
             ruleIndex: index,
             before: rule.conditions,
-            after: coalesced,
+            after: conditions,
         })
 
-        onChange({ ...rule, conditions: coalesced }, index)
+        onChange({ ...rule, conditions }, index)
     }, [figureId, index, onChange, rule])
 
     const clearHold = useCallback(() => {
@@ -701,6 +782,14 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
         onRemove(index)
     }, [index, onRemove])
 
+    const handleMoveUp = useCallback(() => {
+        onMoveUp(index)
+    }, [index, onMoveUp])
+
+    const handleMoveDown = useCallback(() => {
+        onMoveDown(index)
+    }, [index, onMoveDown])
+
     return (
         <div className={cn(styles.eventRuleCard, isHolding && styles.eventRuleCardHoldDeleting)}>
             <div className={styles.eventRuleCardHeader}>
@@ -710,6 +799,10 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
                     config={eventFields}
                     onChange={handleRuleChange}
                 />
+            </div>
+            <div className={styles.eventRuleCardActions}>
+                <button type="button" className={styles.eventRuleMoveBtn} onClick={handleMoveUp}>↑</button>
+                <button type="button" className={styles.eventRuleMoveBtn} onClick={handleMoveDown}>↓</button>
                 <button
                     type="button"
                     className={styles.eventRuleRemove}
@@ -724,7 +817,6 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
             </div>
             <div className={styles.eventRuleCardBody}>
                 <div className={styles.eventRuleConditionsCol}>
-                    <div className={styles.eventRuleColLabel}>Условия</div>
                     <FormArray<FigureEventCondition>
                         {...conditionsArrayProps}
                         value={rule.conditions ?? []}
@@ -732,7 +824,6 @@ const EventRuleRow: FC<EventRuleRowProps> = ({
                     />
                 </div>
                 <div className={styles.eventRuleActionsCol}>
-                    <div className={styles.eventRuleColLabel}>Действия</div>
                     <FormArray<GameAction>
                         {...actionsArrayProps}
                         value={rule.actions ?? []}
@@ -754,11 +845,12 @@ export function createDefaultEventRule(): FigureEventRule {
                 entries: [{ figureId: FIGURE_SUBJECT_MOVED }],
                 matchMode: 'any',
             },
-            type: FigureEventConditionType.landedOnFigure,
+            type: FigureEventConditionType.hasFigureInArea,
             params: {
                 figures: [{ figureId: FIGURE_FILTER_ANY }],
+                cells: [{ x: 0, y: 0 }],
                 matchMode: 'any',
-                stackTarget: 'all',
+                movePhase: 'after',
             },
         }],
         actions: [{
@@ -902,6 +994,20 @@ export const EventRulesTable: FC<EventRulesTableProps> = ({
         handleEventRulesChange(nextRules)
     }, [eventRules, handleEventRulesChange])
 
+    const handleMoveUp = useCallback((index: number) => {
+        if (index === 0) return
+        const nextRules = [...eventRules]
+            ;[nextRules[index - 1], nextRules[index]] = [nextRules[index], nextRules[index - 1]]
+        handleEventRulesChange(nextRules)
+    }, [eventRules, handleEventRulesChange])
+
+    const handleMoveDown = useCallback((index: number) => {
+        if (index >= eventRules.length - 1) return
+        const nextRules = [...eventRules]
+            ;[nextRules[index], nextRules[index + 1]] = [nextRules[index + 1], nextRules[index]]
+        handleEventRulesChange(nextRules)
+    }, [eventRules, handleEventRulesChange])
+
     const handleAddEventRule = useCallback(() => {
         const nextRule = createDefaultEventRule()
         logFigureEventRulesDebug('rule-add', {
@@ -922,6 +1028,8 @@ export const EventRulesTable: FC<EventRulesTableProps> = ({
                         figureOptions={figureOptions}
                         onChange={handleEventRuleChange}
                         onRemove={handleEventRuleRemove}
+                        onMoveUp={handleMoveUp}
+                        onMoveDown={handleMoveDown}
                     />
                 ))}
             </div>

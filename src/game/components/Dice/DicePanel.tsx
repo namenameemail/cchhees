@@ -5,19 +5,24 @@ import { ProjectModelSelect } from '../../../projects/components/ProjectModelSel
 import { useAssetsContext } from '../../../projects/assets/AssetsContext'
 import { DiceScene } from './DiceScene'
 import {
+    DEFAULT_DICE_LIGHT_PARAMS,
     DEFAULT_DICE_PHYSICS_PARAMS,
+    DiceLightParams,
+    DiceLightPreset,
     DicePhysicsParams,
     DiceSimState,
+    LIGHT_PRESET_LABELS,
 } from './dicePhysics'
 import { BreakSnapshot } from './glassFracture'
 import styles from './DicePanel.module.css'
 
-interface DicePanelState extends DicePhysicsParams {
+interface DicePanelState extends DicePhysicsParams, DiceLightParams {
     modelAssetId: number | null
 }
 
 const DEFAULT_STATE: DicePanelState = {
     ...DEFAULT_DICE_PHYSICS_PARAMS,
+    ...DEFAULT_DICE_LIGHT_PARAMS,
     modelAssetId: null,
 }
 
@@ -92,6 +97,45 @@ const dicePanelConfig: Form1FieldConfig<DicePanelState>[] = [
         type: ParameterTypes.Checkbox,
         props: { text: 'стеклянный' },
     },
+    {
+        name: 'sceneLightsEnabled',
+        label: 'sl',
+        type: ParameterTypes.Checkbox,
+        props: { text: 'свет сцены' },
+    },
+    {
+        name: 'gltfLightsEnabled',
+        label: 'gl2',
+        type: ParameterTypes.Checkbox,
+        props: { text: 'свет из файла' },
+        visibility: (state) => state.modelAssetId !== null,
+    },
+    {
+        name: 'ambientIntensity',
+        label: 'ai',
+        type: ParameterTypes.NumberInput,
+        props: { placeholder: 'ambient intensity', step: 0.1, min: 0 },
+    },
+    {
+        name: 'directIntensity',
+        label: 'di',
+        type: ParameterTypes.NumberInput,
+        props: { placeholder: 'direct intensity', step: 0.1, min: 0 },
+    },
+    {
+        name: 'lightPreset',
+        label: 'lp',
+        type: ParameterTypes.SelectArray,
+        props: {
+            options: ['corner', 'top', 'front', 'side'] as DiceLightPreset[],
+            optionLabels: LIGHT_PRESET_LABELS,
+        },
+    },
+    {
+        name: 'lightColor',
+        label: 'lc',
+        type: ParameterTypes.ColorInput,
+    },
 ]
 
 const STATUS_LABELS: Record<DiceSimState, string> = {
@@ -125,6 +169,17 @@ export const DicePanel: FC = () => {
         spawnHeight: state.spawnHeight,
         spawnSpin: state.spawnSpin,
         glassBreak: state.glassBreak,
+        glassCull: state.glassCull,
+        modelScale: state.modelScale,
+    }), [state])
+
+    const lightParams = useMemo<DiceLightParams>(() => ({
+        ambientIntensity: state.ambientIntensity,
+        directIntensity: state.directIntensity,
+        lightPreset: state.lightPreset,
+        lightColor: state.lightColor,
+        sceneLightsEnabled: state.sceneLightsEnabled,
+        gltfLightsEnabled: state.gltfLightsEnabled,
     }), [state])
 
     const handleDrop = useCallback(() => {
@@ -133,6 +188,12 @@ export const DicePanel: FC = () => {
         }
         setSimState('running')
     }, [simState])
+
+    const handleThrow = useCallback(() => {
+        setBreakSnapshot(null)
+        setBodyKey(key => key + 1)
+        setSimState('running')
+    }, [])
 
     const handleSettled = useCallback(() => {
         setSimState('settled')
@@ -161,10 +222,11 @@ export const DicePanel: FC = () => {
             <DiceScene
                 modelUrl={modelUrl}
                 params={physicsParams}
+                lightParams={lightParams}
                 simState={simState}
                 bodyKey={bodyKey}
                 breakSnapshot={breakSnapshot}
-                onDrop={handleDrop}
+                onDrop={handleThrow}
                 onSettled={handleSettled}
                 onBreak={handleBreak}
             />
